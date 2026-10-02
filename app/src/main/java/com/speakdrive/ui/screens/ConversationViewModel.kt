@@ -126,7 +126,7 @@ class ConversationViewModel @Inject constructor(
         ConversationState.IDLE -> "Sẵn sàng"
         ConversationState.CONNECTING -> "Đang kết nối với AI…"
         ConversationState.ACTIVE -> when (speaker) {
-            Speaker.AI -> "AI đang nói — bạn có thể ngắt lời bất cứ lúc nào"
+            Speaker.AI -> "AI đang nói…"
             Speaker.USER -> "Đang nghe bạn nói…"
             null -> "Đến lượt bạn — cứ nói tự nhiên bằng tiếng Anh"
         }

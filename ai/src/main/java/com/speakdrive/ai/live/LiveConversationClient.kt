@@ -27,7 +27,9 @@ interface LiveConversationClient {
 
 data class LiveSessionConfig(
     val systemInstruction: String,
-    val voiceId: String
+    val voiceId: String,
+    /** When false the microphone is muted while the AI speaks, so it cannot hear its own echo. */
+    val enableInterruptions: Boolean = false
 )
 
 sealed interface LiveEvent {

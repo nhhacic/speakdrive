@@ -107,6 +107,16 @@ fun SettingsScreen(
                 }
             )
 
+            ListItem(
+                headlineContent = { Text("Cho phép ngắt lời AI") },
+                supportingContent = {
+                    Text("Chỉ bật khi dùng tai nghe. Với loa ngoài hoặc loa xe, micro sẽ nghe thấy giọng AI và AI tự ngắt lời chính nó.")
+                },
+                trailingContent = {
+                    Switch(checked = prefs.learner.allowBargeIn, onCheckedChange = viewModel::setAllowBargeIn)
+                }
+            )
+
             HorizontalDivider()
 
             var goal by remember { mutableFloatStateOf(prefs.dailyGoalMinutes.toFloat()) }

@@ -136,6 +136,11 @@ data class LearnerSettings(
     val level: DifficultyLevel = DifficultyLevel.INTERMEDIATE,
     val voiceId: String = AiVoice.DEFAULT.id,
     val allowVietnameseHelp: Boolean = true,
+    /**
+     * Lets the learner talk over the AI. Off by default: through a phone or car speaker the
+     * microphone hears the AI and it keeps interrupting itself. Safe with headphones.
+     */
+    val allowBargeIn: Boolean = false,
     val lastTopicId: String? = null
 )
 

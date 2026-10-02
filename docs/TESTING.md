@@ -30,7 +30,7 @@ khử tiếng vọng trong xe. Những phần này kiểm tra theo kịch bản 
 | P1 | Mở app | Trang chủ hiện 8 chủ đề, streak bằng 0 |
 | P2 | Chọn "Du lịch" → "Trò chuyện tự do" | App xin quyền micro; sau khi cấp, AI chào bằng giọng nói trong vài giây |
 | P3 | Trả lời bằng tiếng Anh, cố ý nói sai ngữ pháp | AI sửa lỗi một cách tự nhiên, transcript hiện trên màn hình |
-| P4 | Nói chen khi AI đang nói | AI dừng lại để nghe (barge-in) |
+| P4 | Để AI nói hết câu bằng loa ngoài | AI **không** tự ngắt lời và không lặp lại câu chào: micro tạm tắt khi AI nói. Nếu đeo tai nghe, bật *Cài đặt → Cho phép ngắt lời AI* rồi thử nói chen ngang |
 | P5 | Khoá màn hình, tiếp tục nói chuyện 1 phút | Hội thoại vẫn chạy, có thông báo media trên màn hình khoá |
 | P6 | Gọi điện vào máy | Bài học tự tạm dừng, gác máy thì tự tiếp tục |
 | P7 | Bật chế độ máy bay 10 giây rồi tắt | Nghe thông báo "Connection lost…", sau đó bài học tự tiếp tục |

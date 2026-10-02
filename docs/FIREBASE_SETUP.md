@@ -34,18 +34,23 @@ Nếu model Live dạng preview bị thay hoặc ngừng hỗ trợ, đổi sang
 speakdrive.liveModel=gemini-2.5-flash-native-audio-preview-12-2025
 ```
 
-## 3. App Check: chống người khác lạm dụng quota của bạn
+## 3. App Check: bắt buộc trước lần chạy đầu tiên
+
+> ⚠️ Project Firebase mới **bật sẵn chế độ bắt buộc App Check cho AI Logic**. Bỏ qua bước này thì app báo
+> *"Không kết nối được với AI"*, và Logcat có dòng `403 App attestation failed`.
 
 App đã cài sẵn App Check: bản **debug** dùng *debug provider*, bản **release** dùng *Play Integrity*
 (xem `app/src/debug` và `app/src/release`).
 
-1. Console → **App Check** → **Apps** → chọn app Android → **Play Integrity** → **Save**.
-2. Chạy bản debug trên máy, mở Logcat và lọc theo `DebugAppCheckProvider`. Copy dòng
-   `Enter this debug secret into the allow list…`.
-3. App Check → app Android → menu ⋮ → **Manage debug tokens** → **Add debug token** → dán vào.
-4. Sau khi đã thử app chạy ổn: App Check → **APIs → Firebase AI Logic → Enforce**.
+1. **Project settings → General → app Android → Add fingerprint**: thêm SHA-1 và SHA-256 của khóa debug.
+   Lấy bằng lệnh `keytool -list -v -keystore ~/.android/debug.keystore -storepass android`.
+   Sau này thêm cả khóa release.
+2. **Security → App Check → Apps** → chọn app Android → **Play Integrity** → **Save**.
+3. Cài bản debug lên máy, mở app một lần, rồi tìm trong Logcat dòng `Firebase App Check debug token: …`.
+4. App Check → menu ⋮ của app → **Manage debug tokens** → **Add debug token** → dán token vừa copy.
 
-> Chưa bật Enforce thì App Check chỉ ghi nhận, không chặn gì, nên có thể bật sau.
+Mỗi lần **gỡ cài đặt** app hoặc xoá dữ liệu app, token debug sẽ đổi và phải thêm token mới.
+Cài đè bằng `./gradlew installDebug` thì token được giữ nguyên.
 
 ## 4. SHA-256 cho Play Integrity (khi phát hành)
 

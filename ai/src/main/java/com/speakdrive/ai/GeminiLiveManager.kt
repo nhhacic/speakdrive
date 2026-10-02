@@ -65,6 +65,7 @@ class GeminiLiveManager @Inject constructor(
 
     @Volatile
     private var session: LiveSession? = null
+    private var interruptionsEnabled = false
     private var watchdog: Job? = null
 
     override val isConnected: Boolean
@@ -87,6 +88,7 @@ class GeminiLiveManager @Inject constructor(
         )
         val newSession = model.connect()
         session = newSession
+        interruptionsEnabled = config.enableInterruptions
         startAudio(newSession)
         startWatchdog(newSession)
         Log.d(TAG, "Connected to ${BuildConfig.LIVE_MODEL}")
@@ -116,7 +118,8 @@ class GeminiLiveManager @Inject constructor(
         }
         target.startAudioConversation(
             liveAudioConversationConfig {
-                enableInterruptions = true
+                // Without interruptions the SDK pauses the microphone while the AI's audio plays.
+                enableInterruptions = interruptionsEnabled
                 transcriptHandler = { input, output ->
                     input?.text?.takeIf { it.isNotEmpty() }?.let { _events.tryEmit(LiveEvent.UserTranscript(it)) }
                     output?.text?.takeIf { it.isNotEmpty() }?.let { _events.tryEmit(LiveEvent.AiTranscript(it)) }

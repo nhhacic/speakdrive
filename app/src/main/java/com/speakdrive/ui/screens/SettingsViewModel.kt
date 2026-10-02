@@ -27,5 +27,7 @@ class SettingsViewModel @Inject constructor(
 
     fun setAllowVietnameseHelp(allowed: Boolean) = viewModelScope.launch { repository.setAllowVietnameseHelp(allowed) }
 
+    fun setAllowBargeIn(allowed: Boolean) = viewModelScope.launch { repository.setAllowBargeIn(allowed) }
+
     fun setDailyGoal(minutes: Int) = viewModelScope.launch { repository.setDailyGoalMinutes(minutes) }
 }

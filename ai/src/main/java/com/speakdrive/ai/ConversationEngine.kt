@@ -228,7 +228,13 @@ class ConversationEngine @Inject constructor(
             settings = learnerSettings,
             recap = if (recap) accumulator.snapshot() else emptyList()
         )
-        liveClient.connect(LiveSessionConfig(systemInstruction = instruction, voiceId = learnerSettings.voiceId))
+        liveClient.connect(
+            LiveSessionConfig(
+                systemInstruction = instruction,
+                voiceId = learnerSettings.voiceId,
+                enableInterruptions = learnerSettings.allowBargeIn
+            )
+        )
     }
 
     private fun markActive() {

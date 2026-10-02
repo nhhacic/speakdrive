@@ -44,6 +44,7 @@ class UserPreferencesRepository @Inject constructor(
                 level = DifficultyLevel.fromStored(prefs[DIFFICULTY_LEVEL]),
                 voiceId = AiVoice.fromId(prefs[VOICE_ID]).id,
                 allowVietnameseHelp = prefs[ALLOW_VIETNAMESE_HELP] ?: true,
+                allowBargeIn = prefs[ALLOW_BARGE_IN] ?: false,
                 lastTopicId = prefs[LAST_TOPIC_ID]
             ),
             dailyGoalMinutes = prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL,
@@ -69,6 +70,10 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[ALLOW_VIETNAMESE_HELP] = allowed }
     }
 
+    suspend fun setAllowBargeIn(allowed: Boolean) {
+        dataStore.edit { it[ALLOW_BARGE_IN] = allowed }
+    }
+
     suspend fun setDailyGoalMinutes(minutes: Int) {
         dataStore.edit { it[DAILY_GOAL_MINUTES] = minutes }
     }
@@ -81,6 +86,7 @@ class UserPreferencesRepository @Inject constructor(
         val DIFFICULTY_LEVEL = stringPreferencesKey("difficulty_level")
         val VOICE_ID = stringPreferencesKey("voice_id")
         val ALLOW_VIETNAMESE_HELP = booleanPreferencesKey("allow_vietnamese_help")
+        val ALLOW_BARGE_IN = booleanPreferencesKey("allow_barge_in")
         val LAST_TOPIC_ID = stringPreferencesKey("last_topic_id")
         val DAILY_GOAL_MINUTES = intPreferencesKey("daily_goal_minutes")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")

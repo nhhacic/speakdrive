@@ -85,6 +85,17 @@ class ConversationEngineTest {
     }
 
     @Test
+    fun `microphone is muted while the AI speaks unless barge-in is allowed`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        assertThat(live.connects.last().enableInterruptions).isFalse()
+
+        settings.settings = settings.settings.copy(allowBargeIn = true)
+        engine.start(LessonRequest())
+        assertThat(live.connects.last().enableInterruptions).isTrue()
+    }
+
+    @Test
     fun `start without microphone permission reports it`(): TestResult = engineTest {
         micGranted = false
         val engine = createEngine()
