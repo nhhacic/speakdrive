@@ -11,6 +11,8 @@ class MediaIdsTest {
         assertThat(MediaIds.parse(MediaIds.RESUME)).isEqualTo(MediaTarget.Resume)
         assertThat(MediaIds.parse(MediaIds.RANDOM)).isEqualTo(MediaTarget.Random)
         assertThat(MediaIds.parse(MediaIds.REVIEW)).isEqualTo(MediaTarget.Review)
+        assertThat(MediaIds.parse(MediaIds.PRONUNCIATION)).isEqualTo(MediaTarget.Pronunciation(null))
+        assertThat(MediaIds.parse(MediaIds.pronunciation("food"))).isEqualTo(MediaTarget.Pronunciation("food"))
         assertThat(MediaIds.parse(MediaIds.topic("food"))).isEqualTo(MediaTarget.Topic("food", null))
         assertThat(MediaIds.parse(MediaIds.topic("food", DifficultyLevel.ADVANCED)))
             .isEqualTo(MediaTarget.Topic("food", DifficultyLevel.ADVANCED))

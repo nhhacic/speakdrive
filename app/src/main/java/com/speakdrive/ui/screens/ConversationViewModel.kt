@@ -6,8 +6,11 @@ import com.speakdrive.ai.ConversationEngine
 import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.EngineError
+import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.model.TranscriptTurn
+import com.speakdrive.ai.pronunciation.PronunciationAttempt
+import com.speakdrive.ai.pronunciation.PronunciationDrill
 import com.speakdrive.playback.PlaybackConnection
 import com.speakdrive.ui.components.MicState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,7 +34,16 @@ data class ConversationUiState(
     val micState: MicState = MicState.BUSY,
     val statusText: String = "",
     val elapsed: String = "00:00",
-    val error: EngineError? = null
+    val error: EngineError? = null,
+    val drill: DrillUiState? = null
+)
+
+/** Repeat-after-me progress shown above the transcript. */
+data class DrillUiState(
+    val target: String?,
+    val lastAttempt: PronunciationAttempt?,
+    val passedSentences: Int,
+    val sentences: Int
 )
 
 sealed interface ConversationEvent {
@@ -64,9 +76,22 @@ class ConversationViewModel @Inject constructor(
     val uiState: StateFlow<ConversationUiState> = combine(
         combine(engine.lesson, engine.state, engine.transcript, ::Triple),
         combine(engine.activeSpeaker, engine.error, ::Pair),
+        combine(engine.drillTarget, engine.pronunciationAttempts, ::Pair),
         ticker
-    ) { (lesson, state, transcript), (speaker, error), _ ->
+    ) { (lesson, state, transcript), (speaker, error), (target, attempts), _ ->
+        val bySentence = attempts.groupBy { PronunciationDrill.key(it.target) }
         ConversationUiState(
+            drill = if (lesson?.mode == SessionMode.REPEAT_AFTER_ME) {
+                DrillUiState(
+                    target = target,
+                    // Only show the grade while it still refers to the sentence on screen.
+                    lastAttempt = attempts.lastOrNull()?.takeIf { target == null || PronunciationDrill.key(it.target) == PronunciationDrill.key(target) },
+                    passedSentences = bySentence.values.count { tries -> tries.any { it.passed } },
+                    sentences = bySentence.size
+                )
+            } else {
+                null
+            },
             lesson = lesson,
             state = state,
             transcript = transcript,

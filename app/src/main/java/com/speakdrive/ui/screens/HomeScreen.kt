@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -112,6 +113,19 @@ fun HomeContent(
                     onResume = { onStartLesson(MediaIds.RESUME) },
                     onRandom = { onStartLesson(MediaIds.RANDOM) }
                 )
+            }
+            fullWidth {
+                Card(
+                    onClick = { onStartLesson(MediaIds.pronunciation(state.lastTopic?.id)) },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                ) {
+                    ListItem(
+                        headlineContent = { Text("Luyện phát âm: nhắc lại theo AI") },
+                        supportingContent = { Text("AI đọc từng câu, bạn nói lại; app chấm từng từ, sai là phải nói lại") },
+                        trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) },
+                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                    )
+                }
             }
             if (state.stats.dueWordCount > 0) {
                 fullWidth {
@@ -227,6 +241,9 @@ private fun TopicSheet(topic: Topic, onPick: (mediaId: String) -> Unit) {
         Spacer(Modifier.height(16.dp))
         Button(onClick = { onPick(MediaIds.topic(topic.id)) }, modifier = Modifier.fillMaxWidth()) {
             Text("Trò chuyện tự do về chủ đề này")
+        }
+        OutlinedButton(onClick = { onPick(MediaIds.pronunciation(topic.id)) }, modifier = Modifier.fillMaxWidth()) {
+            Text("Luyện phát âm: nhắc lại câu theo AI")
         }
         Spacer(Modifier.height(16.dp))
         Text("Nhập vai tình huống", style = MaterialTheme.typography.titleMedium)

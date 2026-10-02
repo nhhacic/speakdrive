@@ -15,7 +15,11 @@ import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.SessionSummary
 import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.model.TranscriptTurn
+import com.speakdrive.ai.live.LiveToolCall
 import com.speakdrive.ai.network.ConnectivityObserver
+import com.speakdrive.ai.pronunciation.PronunciationAttempt
+import com.speakdrive.ai.pronunciation.PronunciationDrill
+import com.speakdrive.ai.pronunciation.PronunciationGrader
 import com.speakdrive.ai.session.LearningSettings
 import com.speakdrive.ai.session.MicPermissionChecker
 import com.speakdrive.ai.session.SessionStore
@@ -102,6 +106,15 @@ class ConversationEngine @Inject constructor(
     private val _summarizing = MutableStateFlow(emptySet<String>())
     val summarizingSessionIds: StateFlow<Set<String>> = _summarizing.asStateFlow()
 
+    /** Graded attempts of the current repeat-after-me lesson, oldest first. */
+    private val _pronunciationAttempts = MutableStateFlow(emptyList<PronunciationAttempt>())
+    val pronunciationAttempts: StateFlow<List<PronunciationAttempt>> = _pronunciationAttempts.asStateFlow()
+
+    /** The sentence the AI last asked the learner to repeat, for display on the phone. */
+    private val _drillTarget = MutableStateFlow<String?>(null)
+    val drillTarget: StateFlow<String?> = _drillTarget.asStateFlow()
+    private val attemptCounts = mutableMapOf<String, Int>()
+
     private var activeSince = 0L
     private var accumulatedActiveMs = 0L
     private var lastActivityAt = 0L
@@ -152,6 +165,9 @@ class ConversationEngine @Inject constructor(
         val lesson = resolveLesson(request, learnerSettings)
         accumulator.clear()
         _transcript.value = emptyList()
+        _pronunciationAttempts.value = emptyList()
+        _drillTarget.value = null
+        synchronized(attemptCounts) { attemptCounts.clear() }
         accumulatedActiveMs = 0L
         unansweredNudges = 0
         pausedByFocus = false
@@ -228,13 +244,46 @@ class ConversationEngine @Inject constructor(
             settings = learnerSettings,
             recap = if (recap) accumulator.snapshot() else emptyList()
         )
+        val drill = lesson.mode == SessionMode.REPEAT_AFTER_ME
         liveClient.connect(
             LiveSessionConfig(
                 systemInstruction = instruction,
                 voiceId = learnerSettings.voiceId,
-                enableInterruptions = learnerSettings.allowBargeIn
+                // The learner never needs to talk over the AI in a drill.
+                enableInterruptions = learnerSettings.allowBargeIn && !drill,
+                tools = if (drill) listOf(PronunciationDrill.checkAttemptTool) else emptyList(),
+                toolHandler = if (drill) ::gradeAttempt else null
             )
         )
+    }
+
+    /**
+     * Called by the model after each "repeat after me" attempt (on a background thread). The
+     * verdict combines the model's judgement with a word-by-word transcript check, and the model
+     * is told to follow it, so a wrong attempt is never praised.
+     */
+    private fun gradeAttempt(call: LiveToolCall): Map<String, Any> {
+        val target = (call.args["target_sentence"] as? String)?.takeIf { it.isNotBlank() } ?: _drillTarget.value.orEmpty()
+        val modelSaidCorrect = (call.args["verdict"] as? String)?.trim()?.equals("correct", ignoreCase = true) == true
+        val problemWords = (call.args["problem_words"] as? List<*>)?.mapNotNull { it?.toString() }.orEmpty()
+        val notes = call.args["problem_notes"] as? String ?: ""
+        val attemptNumber = synchronized(attemptCounts) {
+            val key = PronunciationDrill.key(target)
+            (attemptCounts.getOrElse(key) { 0 } + 1).also { attemptCounts[key] = it }
+        }
+        val attempt = PronunciationGrader.grade(
+            target = target,
+            heard = call.learnerUtterance,
+            modelSaidCorrect = modelSaidCorrect,
+            modelProblemWords = problemWords,
+            modelNotes = notes,
+            attemptNumber = attemptNumber,
+            timestamp = clock()
+        )
+        if (attempt.heard.isNotBlank()) _pronunciationAttempts.value = _pronunciationAttempts.value + attempt
+        _drillTarget.value = target
+        Log.d(TAG, "Attempt $attemptNumber at '$target': passed=${attempt.passed} accuracy=${attempt.accuracyPercent}%")
+        return PronunciationDrill.toolResponse(attempt)
     }
 
     private fun markActive() {
@@ -379,14 +428,19 @@ class ConversationEngine @Inject constructor(
     private suspend fun summarizeAndStore(lesson: ActiveLesson, draft: CompletedSession) {
         try {
             val summary: SessionSummary = try {
-                summaryGenerator.summarize(lesson, draft.transcript)
+                summaryGenerator.summarize(lesson, draft.transcript, draft.pronunciationAttempts)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Summary generation failed", e)
                 SummaryParser.fallback("Chưa tạo được nhận xét do lỗi kết nối. Nội dung buổi học vẫn được lưu lại.")
             }
-            sessionStore.saveSession(draft.copy(summary = summary, isCompleted = true))
+            val graded = if (lesson.mode == SessionMode.REPEAT_AFTER_ME) {
+                summary.copy(pronunciationScore = PronunciationDrill.score(draft.pronunciationAttempts))
+            } else {
+                summary
+            }
+            sessionStore.saveSession(draft.copy(summary = graded, isCompleted = true))
             if (lesson.mode == SessionMode.VOCAB_REVIEW) sessionStore.markWordsReviewed(draft.reviewedWords)
         } catch (e: CancellationException) {
             throw e
@@ -414,7 +468,8 @@ class ConversationEngine @Inject constructor(
         transcript = turns,
         summary = summary,
         reviewedWords = lesson.reviewWords.map { it.word },
-        isCompleted = completed
+        isCompleted = completed,
+        pronunciationAttempts = _pronunciationAttempts.value
     )
 
     /** Saves the transcript every so often so a killed app does not lose the lesson. */
@@ -462,6 +517,9 @@ class ConversationEngine @Inject constructor(
     private fun onTranscript(speaker: Speaker, text: String) {
         if (_lesson.value == null) return
         _transcript.value = accumulator.append(speaker, text)
+        if (speaker == Speaker.AI && _lesson.value?.mode == SessionMode.REPEAT_AFTER_ME) {
+            _transcript.value.lastOrNull()?.let { turn -> PronunciationDrill.extractTarget(turn.text)?.let { _drillTarget.value = it } }
+        }
         lastActivityAt = clock()
         if (speaker == Speaker.USER) unansweredNudges = 0
         _activeSpeaker.value = speaker

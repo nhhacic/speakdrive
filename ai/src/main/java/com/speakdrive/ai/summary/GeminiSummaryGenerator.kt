@@ -11,6 +11,7 @@ import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.SessionSummary
 import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.model.TranscriptTurn
+import com.speakdrive.ai.pronunciation.PronunciationAttempt
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,12 +29,16 @@ class GeminiSummaryGenerator @Inject constructor() : SummaryGenerator {
         )
     }
 
-    override suspend fun summarize(lesson: ActiveLesson, transcript: List<TranscriptTurn>): SessionSummary {
+    override suspend fun summarize(
+        lesson: ActiveLesson,
+        transcript: List<TranscriptTurn>,
+        attempts: List<PronunciationAttempt>
+    ): SessionSummary {
         val learnerTurns = transcript.count { it.speaker == Speaker.USER && it.text.split(' ').size >= 2 }
         if (learnerTurns < MIN_LEARNER_TURNS) {
             return SummaryParser.fallback("Buổi học hơi ngắn nên chưa đủ dữ liệu để chấm điểm. Bạn đã bắt đầu rất tốt!")
         }
-        val response = model.generateContent(PromptTemplates.summaryPrompt(lesson, transcript))
+        val response = model.generateContent(PromptTemplates.summaryPrompt(lesson, transcript, attempts))
         return SummaryParser.parse(response.text ?: error("Empty summary response"))
     }
 

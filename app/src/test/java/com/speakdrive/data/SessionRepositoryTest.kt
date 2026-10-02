@@ -12,6 +12,7 @@ import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.SessionSummary
 import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.model.TranscriptTurn
+import com.speakdrive.ai.pronunciation.PronunciationGrader
 import com.speakdrive.data.local.AppDatabase
 import com.speakdrive.data.repository.ProgressRepository
 import com.speakdrive.data.repository.SessionRepository
@@ -132,6 +133,27 @@ class SessionRepositoryTest {
         assertThat(stats.topicCounts).containsExactly("travel", 2, "food", 1)
         assertThat(stats.lastSevenDays).hasSize(7)
         assertThat(stats.lastSevenDays.last().minutes).isEqualTo(15)
+    }
+
+    @Test
+    fun `pronunciation attempts and score are stored with the lesson`() = runTest {
+        val attempts = listOf(
+            PronunciationGrader.grade("I need three tickets", "I need tree tickets", true, emptyList(), "th sound", 1, now),
+            PronunciationGrader.grade("I need three tickets", "I need three tickets", true, emptyList(), "", 2, now + 1)
+        )
+        val drill = session(id = "d").copy(
+            mode = SessionMode.REPEAT_AFTER_ME,
+            pronunciationAttempts = attempts,
+            summary = session().summary!!.copy(pronunciationScore = 100)
+        )
+
+        repository.saveSession(drill)
+
+        val detail = repository.observeSessionDetail("d").first()!!
+        assertThat(detail.session.pronunciationScore).isEqualTo(100)
+        assertThat(detail.attempts.map { it.attemptNumber to it.passed }).containsExactly(1 to false, 2 to true).inOrder()
+        assertThat(detail.attempts.first().problemWords).isEqualTo("three")
+        assertThat(detail.attempts.first().notes).isEqualTo("th sound")
     }
 
     @Test

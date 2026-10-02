@@ -46,13 +46,21 @@ class MediaContentProviderTest {
     }
 
     @Test
-    fun `home tab offers resume, random and review with live subtitles`() = runTest {
+    fun `home tab offers resume, random, pronunciation and review with live subtitles`() = runTest {
         val home = provider.children(MediaIds.HOME)
 
-        assertThat(home.map { it.mediaId }).containsExactly(MediaIds.RESUME, MediaIds.RANDOM, MediaIds.REVIEW).inOrder()
+        assertThat(home.map { it.mediaId })
+            .containsExactly(MediaIds.RESUME, MediaIds.RANDOM, MediaIds.PRONUNCIATION, MediaIds.REVIEW).inOrder()
         assertThat(home.all { it.mediaMetadata.isPlayable == true }).isTrue()
         assertThat(home[0].mediaMetadata.subtitle.toString()).contains("Ăn uống")
-        assertThat(home[2].mediaMetadata.subtitle.toString()).contains("2 từ")
+        assertThat(home[2].mediaMetadata.subtitle.toString()).contains("Ăn uống")
+        assertThat(home[3].mediaMetadata.subtitle.toString()).contains("2 từ")
+    }
+
+    @Test
+    fun `pronunciation items resolve with their topic`() = runTest {
+        assertThat(provider.item(MediaIds.pronunciation("interview"))?.mediaMetadata?.subtitle.toString()).contains("Phỏng vấn")
+        assertThat(provider.item(MediaIds.PRONUNCIATION)?.mediaMetadata?.subtitle.toString()).contains("Ăn uống")
     }
 
     @Test

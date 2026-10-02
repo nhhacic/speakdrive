@@ -9,6 +9,7 @@ import androidx.room.Upsert
 import com.speakdrive.data.local.entity.CorrectionEntity
 import com.speakdrive.data.local.entity.LearnedWordEntity
 import com.speakdrive.data.local.entity.MessageEntity
+import com.speakdrive.data.local.entity.PronunciationAttemptEntity
 import com.speakdrive.data.local.entity.SessionEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -22,6 +23,15 @@ interface SessionDao {
 
     @Insert
     suspend fun insertCorrections(corrections: List<CorrectionEntity>)
+
+    @Insert
+    suspend fun insertAttempts(attempts: List<PronunciationAttemptEntity>)
+
+    @Query("DELETE FROM pronunciation_attempts WHERE sessionId = :sessionId")
+    suspend fun deleteAttempts(sessionId: String)
+
+    @Query("SELECT * FROM pronunciation_attempts WHERE sessionId = :sessionId ORDER BY timestamp ASC, id ASC")
+    fun observeAttempts(sessionId: String): Flow<List<PronunciationAttemptEntity>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertWordsIgnoringExisting(words: List<LearnedWordEntity>)
@@ -38,13 +48,16 @@ interface SessionDao {
         session: SessionEntity,
         messages: List<MessageEntity>,
         corrections: List<CorrectionEntity>,
-        words: List<LearnedWordEntity>
+        words: List<LearnedWordEntity>,
+        attempts: List<PronunciationAttemptEntity> = emptyList()
     ) {
         upsertSession(session)
         deleteMessages(session.id)
         deleteCorrections(session.id)
+        deleteAttempts(session.id)
         if (messages.isNotEmpty()) insertMessages(messages)
         if (corrections.isNotEmpty()) insertCorrections(corrections)
+        if (attempts.isNotEmpty()) insertAttempts(attempts)
         if (words.isNotEmpty()) insertWordsIgnoringExisting(words)
     }
 

@@ -29,8 +29,42 @@ data class LiveSessionConfig(
     val systemInstruction: String,
     val voiceId: String,
     /** When false the microphone is muted while the AI speaks, so it cannot hear its own echo. */
-    val enableInterruptions: Boolean = false
+    val enableInterruptions: Boolean = false,
+    /** Tools the model may call besides ending the lesson. */
+    val tools: List<LiveTool> = emptyList(),
+    /** Answers calls to [tools]. Runs on a background thread and must return quickly. */
+    val toolHandler: LiveToolHandler? = null
 )
+
+data class LiveTool(
+    val name: String,
+    val description: String,
+    val parameters: List<LiveToolParam>
+)
+
+data class LiveToolParam(
+    val name: String,
+    val type: Type,
+    val description: String,
+    val optional: Boolean = false
+) {
+    enum class Type { STRING, BOOLEAN, STRING_LIST }
+}
+
+/**
+ * A tool call from the model. [learnerUtterance] is everything the learner said since the AI
+ * last spoke, so a tool can judge exactly the attempt the model is reacting to.
+ */
+data class LiveToolCall(
+    val name: String,
+    val args: Map<String, Any?>,
+    val learnerUtterance: String
+)
+
+fun interface LiveToolHandler {
+    /** Returns the tool's result (strings, numbers, booleans and lists of those). */
+    fun handle(call: LiveToolCall): Map<String, Any>
+}
 
 sealed interface LiveEvent {
     /** A piece of what the learner said. */

@@ -39,6 +39,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.speakdrive.ai.pronunciation.PronunciationDrill
+import com.speakdrive.data.local.entity.PronunciationAttemptEntity
 import com.speakdrive.ui.components.ChatBubble
 
 @Composable
@@ -107,6 +109,17 @@ fun SummaryContent(
                 }
             }
 
+            if (detail.attempts.isNotEmpty()) {
+                val sentences = detail.attempts.groupBy { PronunciationDrill.key(it.target) }.values.toList()
+                item {
+                    SectionTitle(
+                        "Phát âm: đạt ${sentences.count { tries -> tries.any { it.passed } }}/${sentences.size} câu" +
+                            (session.pronunciationScore?.let { " ($it%)" } ?: "")
+                    )
+                }
+                items(sentences, key = { "p${it.first().id}" }) { tries -> DrillSentenceCard(tries) }
+            }
+
             if (detail.words.isNotEmpty()) {
                 item { SectionTitle("Từ mới đã học (${detail.words.size})") }
                 items(detail.words, key = { "w${it.id}" }) { word ->
@@ -171,6 +184,35 @@ fun SummaryContent(
                 items(detail.messages, key = { "m${it.id}" }) { message ->
                     ChatBubble(text = message.text, isUser = message.speaker == "USER")
                 }
+            }
+        }
+    }
+}
+
+/** One drill sentence: final result, attempts used and the words that still need work. */
+@Composable
+private fun DrillSentenceCard(tries: List<PronunciationAttemptEntity>) {
+    val passed = tries.any { it.passed }
+    val last = tries.last()
+    val problems = tries.flatMap { it.problemWords.split("|") }.map { it.trim() }.filter { it.isNotEmpty() }
+        .distinctBy { it.lowercase() }
+    Card {
+        Column(Modifier.padding(12.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                (if (passed) "✓ " else "✗ ") + last.target,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (passed) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
+            )
+            Text(
+                (if (passed) "Đạt ở lần ${tries.first { it.passed }.attemptNumber}" else "Chưa đạt sau ${tries.size} lần") +
+                    " • lần cuối app nghe được: \"${last.heard}\"",
+                style = MaterialTheme.typography.bodySmall
+            )
+            if (problems.isNotEmpty()) {
+                Text("Cần luyện: ${problems.joinToString()}", style = MaterialTheme.typography.bodyMedium)
+            }
+            tries.mapNotNull { it.notes.takeIf { n -> n.isNotBlank() } }.lastOrNull()?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
             }
         }
     }

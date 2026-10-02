@@ -36,7 +36,7 @@ class MediaContentProvider @Inject constructor(
 
     private suspend fun browseChildren(parentId: String): List<MediaItem> = when {
         parentId == MediaIds.ROOT -> listOf(
-            browsable(MediaIds.HOME, "Bắt đầu", "Tiếp tục, ngẫu nhiên, ôn tập"),
+            browsable(MediaIds.HOME, "Bắt đầu", "Tiếp tục, ngẫu nhiên, phát âm, ôn tập"),
             browsable(MediaIds.TOPICS, "Chủ đề", "8 chủ đề hội thoại"),
             browsable(MediaIds.ROLEPLAY, "Nhập vai", "AI đóng vai trong tình huống thực tế"),
             browsable(MediaIds.LEVELS, "Độ khó", settings.snapshot().level.displayName)
@@ -73,6 +73,11 @@ class MediaContentProvider @Inject constructor(
             ),
             playable(MediaIds.RANDOM, "Chủ đề ngẫu nhiên", "Thử một chủ đề mới"),
             playable(
+                MediaIds.PRONUNCIATION,
+                "Luyện phát âm",
+                "Nhắc lại câu của AI, chấm từng từ" + (lastTopic?.let { " • ${it.titleVi}" } ?: "")
+            ),
+            playable(
                 MediaIds.REVIEW,
                 "Ôn tập từ vựng",
                 if (dueCount > 0) "$dueCount từ đến hạn ôn" else "Chưa có từ cần ôn — AI sẽ trò chuyện tự do"
@@ -83,6 +88,10 @@ class MediaContentProvider @Inject constructor(
     /** Resolves any media id Android Auto or the phone may send back to us. */
     suspend fun item(mediaId: String): MediaItem? = when (val target = MediaIds.parse(mediaId)) {
         MediaTarget.Resume, MediaTarget.Random, MediaTarget.Review -> homeItems().find { it.mediaId == mediaId }
+        is MediaTarget.Pronunciation -> {
+            val topic = topicManager.getTopicById(target.topicId) ?: topicManager.getTopicById(settings.snapshot().lastTopicId)
+            playable(mediaId, "Luyện phát âm", topic?.let { "${it.emoji} ${it.titleVi}" } ?: "Nhắc lại câu của AI")
+        }
         is MediaTarget.Topic -> topicManager.getTopicById(target.topicId)?.let { topic ->
             val levelNote = target.level?.let { " • ${it.displayName}" }.orEmpty()
             playable(mediaId, "${topic.emoji} ${topic.titleVi}", topic.titleEn + levelNote)

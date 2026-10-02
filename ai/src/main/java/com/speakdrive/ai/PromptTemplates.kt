@@ -6,6 +6,8 @@ import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.model.TranscriptTurn
+import com.speakdrive.ai.pronunciation.PronunciationAttempt
+import com.speakdrive.ai.pronunciation.PronunciationDrill
 
 /**
  * Builds the system instruction and control messages sent to Gemini.
@@ -95,6 +97,7 @@ object PromptTemplates {
                 If the learner gets stuck, briefly step out of character to help, then continue the scene.
             """.trimIndent()
         }
+        SessionMode.REPEAT_AFTER_ME -> repeatAfterMeRules(lesson)
         SessionMode.VOCAB_REVIEW -> {
             val words = lesson.reviewWords.joinToString("; ") { "${it.word} (${it.meaning})" }
             """
@@ -104,6 +107,32 @@ object PromptTemplates {
                 chat freely about ${lesson.topic.titleEn}.
             """.trimIndent()
         }
+    }
+
+    /** The pronunciation drill: strict, honest, one sentence at a time. */
+    fun repeatAfterMeRules(lesson: ActiveLesson): String {
+        val length = when (lesson.level) {
+            DifficultyLevel.BEGINNER -> "4 to 8 words, very common words"
+            DifficultyLevel.INTERMEDIATE -> "7 to 12 words"
+            DifficultyLevel.ADVANCED -> "10 to 18 words with natural linking and rhythm"
+        }
+        return """
+            PRONUNCIATION DRILL – "repeat after me" – topic: ${lesson.topic.titleEn}.
+            You are a strict but kind pronunciation examiner. This replaces free conversation.
+            - Give ONE sentence at a time: say "Repeat after me:" and then the sentence, clearly, at a natural pace. Nothing else.
+              Sentences are $length, useful in real life and related to the topic.
+            - After the learner's attempt you MUST call ${PronunciationDrill.CHECK_ATTEMPT_FUNCTION} BEFORE you say anything
+              about it, every single time. Give your own honest verdict from the AUDIO you heard.
+            - Judge strictly: wrong vowels or consonants (th, v/w, r/l, sh/s), dropped final sounds (-t, -d, -s, -ed — very
+              common for Vietnamese speakers), missing or extra syllables, wrong word stress, skipped, added or changed words
+              all mean "needs_work". If you are not sure it was right, it is "needs_work".
+            - NEVER say an attempt was correct, good, great, perfect or close unless the tool's final_verdict is "correct".
+              Do not flatter. Be honest and encouraging about effort, never about accuracy that was not there.
+            - Then do exactly what the tool's instruction says.
+            - If the learner says "skip" or "next", move to a new sentence. If they say "again" or "slower", say the sentence
+              again slowly, word by word, then at normal speed.
+            - Keep your own talking short so the learner speaks as much as possible.
+        """.trimIndent()
     }
 
     /**
@@ -141,6 +170,9 @@ object PromptTemplates {
             "Start the roleplay now. In one sentence say which scene we are playing, then speak your first line in character."
         SessionMode.VOCAB_REVIEW ->
             "Start the vocabulary review now. Greet the learner in one short sentence and begin with the first word."
+        SessionMode.REPEAT_AFTER_ME ->
+            "Start the pronunciation drill now. In one short sentence explain that you will say a sentence and they repeat it " +
+                "exactly, then give the first sentence."
     }
 
     const val RESUME_MESSAGE =
@@ -150,7 +182,11 @@ object PromptTemplates {
         "The learner has been quiet for a while (they may be concentrating on the road). Gently re-engage them with one short, easy question."
 
     /** Prompt for the post-lesson summary (F7), answered by a text model in JSON. */
-    fun summaryPrompt(lesson: ActiveLesson, transcript: List<TranscriptTurn>): String = """
+    fun summaryPrompt(
+        lesson: ActiveLesson,
+        transcript: List<TranscriptTurn>,
+        attempts: List<PronunciationAttempt> = emptyList()
+    ): String = """
         You are an English teacher reviewing a spoken lesson with a Vietnamese learner (level ${lesson.level.displayName}, topic ${lesson.topic.titleEn}).
         The transcript comes from speech recognition, so ignore small transcription glitches and judge the learner's speaking.
 
@@ -163,9 +199,21 @@ object PromptTemplates {
         - encouragement_vi: one or two warm sentences in Vietnamese.
         - next_suggestion_vi: one sentence in Vietnamese suggesting what to practise next time.
 
+        ${drillResults(attempts)}
         TRANSCRIPT:
         ${formatTranscript(transcript, maxChars = SUMMARY_MAX_CHARS)}
     """.trimIndent()
+
+    private fun drillResults(attempts: List<PronunciationAttempt>): String {
+        if (attempts.isEmpty()) return ""
+        val lines = attempts.joinToString("\n") { a ->
+            "- \"${a.target}\" attempt ${a.attemptNumber}: ${if (a.passed) "PASSED" else "FAILED"}" +
+                (if (a.problemWords.isNotEmpty()) ", problems: ${a.problemWords.joinToString()}" else "") +
+                (if (a.modelNotes.isNotBlank()) " (${a.modelNotes})" else "")
+        }
+        return "This was a repeat-after-me pronunciation drill. Graded attempts (ground truth, do not contradict them, " +
+            "do not inflate scores; corrections should be about these pronunciation problems):\n$lines\n"
+    }
 
     /** Keeps the most recent turns that fit in [maxChars]. */
     fun formatTranscript(turns: List<TranscriptTurn>, maxChars: Int): String {

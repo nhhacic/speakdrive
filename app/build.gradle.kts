@@ -59,6 +59,10 @@ android {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
     }
+    sourceSets {
+        // Room migration tests read the exported schemas as assets (debug builds only, never released).
+        getByName("debug").assets.directories.add("$projectDir/schemas")
+    }
 
     packaging {
         resources {
@@ -69,6 +73,11 @@ android {
 
 kotlin {
     jvmToolchain(17)
+}
+
+// Room schema history, used to write and test migrations. Commit the JSON files.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {

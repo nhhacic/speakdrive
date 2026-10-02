@@ -65,6 +65,7 @@ adb forward tcp:5277 tcp:5277
 | A7 | Nút micro trên DHU → "play easy job interview practice on SpeakDrive" | Bắt đầu chủ đề Phỏng vấn ở mức Beginner |
 | A8 | Khoá điện thoại trong khi đang học | **Micro vẫn nhận giọng nói** (xem phần rủi ro bên dưới) |
 | A9 | Bấm Stop | Bài học kết thúc; mở app trên điện thoại sẽ thấy kết quả trong Tiến trình |
+| A10 | Bật *Tự động tiếp tục phát nội dung đa phương tiện* trong cài đặt Android Auto, học một bài, ngắt kết nối rồi cắm lại | SpeakDrive tự mở và tiếp tục chủ đề gần nhất, không phải Spotify |
 
 ### ⚠️ Rủi ro cần kiểm tra kỹ: micro khi điện thoại bị khoá
 

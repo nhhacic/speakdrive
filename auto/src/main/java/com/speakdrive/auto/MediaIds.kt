@@ -7,7 +7,7 @@ import com.speakdrive.ai.model.DifficultyLevel
  *
  * ```
  * root
- * ├── home      Bắt đầu       → resume, random, review
+ * ├── home      Bắt đầu       → resume, random, pronunciation, review
  * ├── topics    Chủ đề         → topic:<id>
  * ├── roleplay  Nhập vai       → roleplay_topic:<id> → scenario:<id>
  * └── levels    Độ khó         → level:<LEVEL>
@@ -25,6 +25,9 @@ object MediaIds {
     const val RANDOM = "random"
     const val REVIEW = "review"
 
+    /** Repeat-after-me drill on the last topic; [pronunciation] targets a specific topic. */
+    const val PRONUNCIATION = "pronunciation"
+
     /** The item shown while a lesson is playing. */
     const val LESSON = "lesson"
 
@@ -32,12 +35,14 @@ object MediaIds {
     private const val ROLEPLAY_TOPIC_PREFIX = "roleplay_topic:"
     private const val SCENARIO_PREFIX = "scenario:"
     private const val LEVEL_PREFIX = "level:"
+    private const val PRONUNCIATION_PREFIX = "pronunciation:"
     private const val LEVEL_SEPARATOR = "@"
 
     fun topic(topicId: String, level: DifficultyLevel? = null) =
         TOPIC_PREFIX + topicId + (level?.let { LEVEL_SEPARATOR + it.name } ?: "")
 
     fun roleplayTopic(topicId: String) = ROLEPLAY_TOPIC_PREFIX + topicId
+    fun pronunciation(topicId: String? = null) = if (topicId == null) PRONUNCIATION else PRONUNCIATION_PREFIX + topicId
     fun scenario(scenarioId: String) = SCENARIO_PREFIX + scenarioId
     fun level(level: DifficultyLevel) = LEVEL_PREFIX + level.name
 
@@ -46,6 +51,8 @@ object MediaIds {
         mediaId == RESUME -> MediaTarget.Resume
         mediaId == RANDOM -> MediaTarget.Random
         mediaId == REVIEW -> MediaTarget.Review
+        mediaId == PRONUNCIATION -> MediaTarget.Pronunciation(null)
+        mediaId.startsWith(PRONUNCIATION_PREFIX) -> MediaTarget.Pronunciation(mediaId.removePrefix(PRONUNCIATION_PREFIX))
         mediaId in setOf(ROOT, HOME, TOPICS, ROLEPLAY, LEVELS) -> MediaTarget.Browse(mediaId)
         mediaId.startsWith(ROLEPLAY_TOPIC_PREFIX) -> MediaTarget.Browse(mediaId)
         mediaId.startsWith(TOPIC_PREFIX) -> {
@@ -64,6 +71,7 @@ sealed interface MediaTarget {
     data object Resume : MediaTarget
     data object Random : MediaTarget
     data object Review : MediaTarget
+    data class Pronunciation(val topicId: String?) : MediaTarget
     data class Topic(val topicId: String, val level: DifficultyLevel?) : MediaTarget
     data class Scenario(val scenarioId: String) : MediaTarget
     data class Level(val level: DifficultyLevel) : MediaTarget

@@ -10,6 +10,7 @@ import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.ReviewWord
 import com.speakdrive.ai.model.SessionSummary
 import com.speakdrive.ai.model.TranscriptTurn
+import com.speakdrive.ai.pronunciation.PronunciationAttempt
 import com.speakdrive.ai.network.ConnectivityObserver
 import com.speakdrive.ai.session.LearningSettings
 import com.speakdrive.ai.session.SessionStore
@@ -68,7 +69,11 @@ class FakeSummaryGenerator : SummaryGenerator {
     var calls = 0
     val summary = SessionSummary(7, 6, 8, emptyList(), emptyList(), "Tốt lắm", "Luyện thêm thì quá khứ")
 
-    override suspend fun summarize(lesson: ActiveLesson, transcript: List<TranscriptTurn>): SessionSummary {
+    override suspend fun summarize(
+        lesson: ActiveLesson,
+        transcript: List<TranscriptTurn>,
+        attempts: List<PronunciationAttempt>
+    ): SessionSummary {
         calls++
         if (fail) error("network down")
         return summary

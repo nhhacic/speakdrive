@@ -133,6 +133,8 @@ class SpeakDrivePlayer(
         MediaTarget.Resume, MediaTarget.Unknown -> LessonRequest(topicId = settings.snapshot().lastTopicId)
         MediaTarget.Random -> LessonRequest(topicId = null)
         MediaTarget.Review -> LessonRequest(mode = SessionMode.VOCAB_REVIEW, topicId = settings.snapshot().lastTopicId)
+        is MediaTarget.Pronunciation ->
+            LessonRequest(mode = SessionMode.REPEAT_AFTER_ME, topicId = target.topicId ?: settings.snapshot().lastTopicId)
         is MediaTarget.Topic -> {
             target.level?.let { settings.setLevel(it) }
             LessonRequest(topicId = target.topicId, level = target.level)

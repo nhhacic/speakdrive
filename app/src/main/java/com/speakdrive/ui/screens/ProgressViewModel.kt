@@ -53,10 +53,12 @@ class ProgressViewModel @Inject constructor(
                 val scenario = topicManager.getScenario(session.scenarioId)?.second
                 val title = when {
                     session.mode == SessionMode.VOCAB_REVIEW.name -> "📝 Ôn tập từ vựng"
+                    session.mode == SessionMode.REPEAT_AFTER_ME.name -> "🗣️ Phát âm: ${topic?.titleVi ?: session.topicId}"
                     scenario != null -> "🎭 ${scenario.titleVi}"
                     else -> "${topic?.emoji.orEmpty()} ${topic?.titleVi ?: session.topicId}"
                 }
-                val scores = listOfNotNull(session.fluencyScore, session.grammarScore, session.vocabularyScore)
+                val scores = session.pronunciationScore?.let { listOf((it + 5) / 10) }
+                    ?: listOfNotNull(session.fluencyScore, session.grammarScore, session.vocabularyScore)
                 val minutes = (session.activeDurationMs / 60_000).coerceAtLeast(if (session.activeDurationMs > 0) 1 else 0)
                 HistoryItem(
                     sessionId = session.id,

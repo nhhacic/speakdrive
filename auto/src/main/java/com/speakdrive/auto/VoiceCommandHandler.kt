@@ -23,6 +23,8 @@ class VoiceCommandHandler @Inject constructor(
         val level = levelIn(q)
         val topic = topicManager.findTopicByQuery(stripFillers(q))
 
+        if (q.hasAny(PRONUNCIATION_WORDS)) return MediaIds.pronunciation(topic?.id)
+
         if (q.hasAny(ROLEPLAY_WORDS)) {
             val scenarios = topic?.scenarios ?: topicManager.getAllTopics().flatMap { it.scenarios }
             return MediaIds.scenario(scenarios.random().id)
@@ -53,6 +55,9 @@ class VoiceCommandHandler @Inject constructor(
     private companion object {
         val REVIEW_WORDS = listOf("review", "vocabulary", "vocab", "words", "on tap", "tu vung")
         val RANDOM_WORDS = listOf("random", "anything", "surprise me", "ngau nhien", "bat ky")
+        val PRONUNCIATION_WORDS = listOf(
+            "pronunciation", "pronounce", "repeat after me", "shadowing", "phat am", "nhac lai", "doc theo", "noi theo"
+        )
         val ROLEPLAY_WORDS = listOf("roleplay", "role play", "role playing", "nhap vai", "dong vai")
         // "dễ" is left out: without diacritics it collides with the very common "để".
         val BEGINNER_WORDS = listOf("beginner", "easy", "simple", "basic", "co ban", "moi bat dau")
@@ -61,7 +66,7 @@ class VoiceCommandHandler @Inject constructor(
         val FILLER_WORDS = setOf(
             "play", "start", "practice", "practise", "lesson", "lessons", "english", "on", "in", "the", "a", "an",
             "my", "some", "speakdrive", "speak", "drive", "please", "conversation", "about", "bai", "hoc", "tieng", "anh",
-            "luyen", "noi", "mo", "phat", "easy", "hard", "beginner", "advanced", "intermediate"
+            "luyen", "noi", "mo", "phat", "am", "pronunciation", "repeat", "after", "me", "easy", "hard", "beginner", "advanced", "intermediate"
         )
     }
 }

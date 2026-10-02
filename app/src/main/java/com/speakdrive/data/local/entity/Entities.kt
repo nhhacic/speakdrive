@@ -20,7 +20,30 @@ data class SessionEntity(
     val vocabularyScore: Int?,
     val encouragement: String?,
     val nextSuggestion: String?,
-    val isCompleted: Boolean
+    val isCompleted: Boolean,
+    /** Share of drill sentences passed (repeat-after-me lessons only). Added in schema v3. */
+    val pronunciationScore: Int? = null
+)
+
+/** One graded "repeat after me" attempt. Added in schema v3. */
+@Entity(
+    tableName = "pronunciation_attempts",
+    foreignKeys = [ForeignKey(SessionEntity::class, ["id"], ["sessionId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sessionId")]
+)
+data class PronunciationAttemptEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: String,
+    val target: String,
+    val heard: String,
+    val accuracyPercent: Int,
+    val passed: Boolean,
+    val attemptNumber: Int,
+    val modelSaidCorrect: Boolean,
+    /** Words to work on, separated by "|". */
+    val problemWords: String,
+    val notes: String,
+    val timestamp: Long
 )
 
 @Entity(

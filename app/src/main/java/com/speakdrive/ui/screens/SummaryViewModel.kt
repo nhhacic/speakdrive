@@ -54,6 +54,7 @@ class SummaryViewModel @Inject constructor(
             detail = detail,
             title = when {
                 mode == SessionMode.VOCAB_REVIEW -> "Ôn tập từ vựng"
+                mode == SessionMode.REPEAT_AFTER_ME -> "Luyện phát âm: ${topic?.titleVi.orEmpty()}"
                 scenario != null -> "Nhập vai: ${scenario.titleVi}"
                 topic != null -> "${topic.emoji} ${topic.titleVi}"
                 else -> "Buổi học"
@@ -61,6 +62,7 @@ class SummaryViewModel @Inject constructor(
             levelLabel = session?.let { DifficultyLevel.fromStored(it.level).displayName }.orEmpty(),
             durationLabel = session?.let { formatDuration(it.activeDurationMs) }.orEmpty(),
             againMediaId = when {
+                mode == SessionMode.REPEAT_AFTER_ME -> MediaIds.pronunciation(topic?.id)
                 scenario != null -> MediaIds.scenario(scenario.id)
                 topic != null -> MediaIds.topic(topic.id)
                 else -> MediaIds.RESUME

@@ -1,5 +1,7 @@
 package com.speakdrive.ai.model
 
+import com.speakdrive.ai.pronunciation.PronunciationAttempt
+
 /** Learner level. [cefr] is fed to the model; [labelVi] is shown in the UI. */
 enum class DifficultyLevel(val displayName: String, val labelVi: String, val cefr: String) {
     BEGINNER("Beginner", "Người mới bắt đầu", "A1–A2"),
@@ -22,7 +24,10 @@ enum class SessionMode {
     ROLEPLAY,
 
     /** The AI quizzes the learner on words that are due for spaced-repetition review (F9). */
-    VOCAB_REVIEW
+    VOCAB_REVIEW,
+
+    /** The AI says a sentence, the learner repeats it, and every attempt is graded strictly. */
+    REPEAT_AFTER_ME
 }
 
 enum class ConversationState {
@@ -92,6 +97,7 @@ data class ActiveLesson(
     val titleVi: String
         get() = when (mode) {
             SessionMode.VOCAB_REVIEW -> "Ôn tập từ vựng"
+            SessionMode.REPEAT_AFTER_ME -> "Luyện phát âm: ${topic.titleVi}"
             SessionMode.ROLEPLAY -> "Nhập vai: ${scenario?.titleVi ?: topic.titleVi}"
             SessionMode.FREE_TALK -> topic.titleVi
         }
@@ -111,7 +117,9 @@ data class SessionSummary(
     val newWords: List<NewWord>,
     val corrections: List<Correction>,
     val encouragement: String,
-    val nextSuggestion: String
+    val nextSuggestion: String,
+    /** Share of drill sentences passed, 0–100. Only for repeat-after-me lessons. */
+    val pronunciationScore: Int? = null
 )
 
 data class CompletedSession(
@@ -128,7 +136,8 @@ data class CompletedSession(
     val summary: SessionSummary?,
     val reviewedWords: List<String>,
     /** False for drafts saved during the lesson, so a killed app does not lose the transcript. */
-    val isCompleted: Boolean = true
+    val isCompleted: Boolean = true,
+    val pronunciationAttempts: List<PronunciationAttempt> = emptyList()
 )
 
 /** What the learner chose in settings. */

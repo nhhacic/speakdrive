@@ -26,6 +26,8 @@ import com.speakdrive.data.repository.SessionDetail
 import com.speakdrive.ui.components.MicState
 import com.speakdrive.ui.screens.ConversationContent
 import com.speakdrive.ui.screens.ConversationUiState
+import com.speakdrive.ui.screens.DrillUiState
+import com.speakdrive.ai.pronunciation.PronunciationGrader
 import com.speakdrive.ui.screens.HomeContent
 import com.speakdrive.ui.screens.HomeUiState
 import com.speakdrive.ui.screens.SummaryContent
@@ -127,6 +129,35 @@ class ScreensTest {
         compose.onNodeWithText("I am a engineer").assertIsDisplayed()
         compose.onNodeWithText("Kết thúc").performClick()
         assertThat(ended).isTrue()
+    }
+
+    @Test
+    fun `drill card shows the sentence and an honest grade`() {
+        val attempt = PronunciationGrader.grade("I need three tickets", "I need tree tickets", true, emptyList(), "", 1, 0)
+        val lesson = ActiveLesson("s", topics.getTopicById("travel")!!, null, DifficultyLevel.BEGINNER, SessionMode.REPEAT_AFTER_ME, 0, emptyList())
+        compose.setContent {
+            SpeakDriveTheme {
+                ConversationContent(
+                    state = ConversationUiState(
+                        lesson = lesson,
+                        state = ConversationState.ACTIVE,
+                        micState = MicState.LISTENING,
+                        drill = DrillUiState(target = "I need three tickets", lastAttempt = attempt, passedSentences = 0, sentences = 1)
+                    ),
+                    permissionDenied = false,
+                    onBack = {},
+                    onEnd = {},
+                    onToggle = {},
+                    onRetry = {},
+                    onRequestPermission = {},
+                    onOpenAppSettings = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("I need three tickets").assertIsDisplayed()
+        compose.onNodeWithText("✗ Lần 1: CHƯA ĐẠT • app nghe đúng 75% số từ").assertIsDisplayed()
+        compose.onNodeWithText("Đạt 0/1 câu").assertIsDisplayed()
     }
 
     @Test

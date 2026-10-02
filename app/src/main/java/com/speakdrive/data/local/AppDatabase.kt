@@ -7,6 +7,7 @@ import com.speakdrive.data.local.dao.WordDao
 import com.speakdrive.data.local.entity.CorrectionEntity
 import com.speakdrive.data.local.entity.LearnedWordEntity
 import com.speakdrive.data.local.entity.MessageEntity
+import com.speakdrive.data.local.entity.PronunciationAttemptEntity
 import com.speakdrive.data.local.entity.SessionEntity
 
 @Database(
@@ -14,10 +15,11 @@ import com.speakdrive.data.local.entity.SessionEntity
         SessionEntity::class,
         MessageEntity::class,
         CorrectionEntity::class,
-        LearnedWordEntity::class
+        LearnedWordEntity::class,
+        PronunciationAttemptEntity::class
     ],
-    version = 2,
-    exportSchema = false
+    version = 3,
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao

@@ -43,6 +43,13 @@ class VoiceCommandHandlerTest {
     }
 
     @Test
+    fun `pronunciation practice, with or without a topic`() {
+        assertThat(handler.resolve("pronunciation practice")).isEqualTo(MediaIds.PRONUNCIATION)
+        assertThat(handler.resolve("repeat after me travel English")).isEqualTo(MediaIds.pronunciation("travel"))
+        assertThat(handler.resolve("luyện phát âm phỏng vấn")).isEqualTo(MediaIds.pronunciation("interview"))
+    }
+
+    @Test
     fun `roleplay picks a scenario of the topic`() {
         val target = MediaIds.parse(handler.resolve("restaurant role play"))
         assertThat(target).isInstanceOf(MediaTarget.Scenario::class.java)

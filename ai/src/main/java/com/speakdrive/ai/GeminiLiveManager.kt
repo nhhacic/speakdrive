@@ -23,9 +23,18 @@ import com.google.firebase.ai.type.Voice
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.liveAudioConversationConfig
 import com.google.firebase.ai.type.liveGenerationConfig
+import com.google.firebase.ai.type.Schema
 import com.speakdrive.ai.live.LiveConversationClient
 import com.speakdrive.ai.live.LiveEvent
 import com.speakdrive.ai.live.LiveSessionConfig
+import com.speakdrive.ai.live.LiveTool
+import com.speakdrive.ai.live.LiveToolCall
+import com.speakdrive.ai.live.LiveToolParam
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -65,8 +74,13 @@ class GeminiLiveManager @Inject constructor(
 
     @Volatile
     private var session: LiveSession? = null
-    private var interruptionsEnabled = false
+    @Volatile
+    private var config: LiveSessionConfig? = null
     private var watchdog: Job? = null
+
+    /** What the learner has said since the AI last spoke; handed to tools such as the pronunciation check. */
+    private val learnerUtterance = StringBuilder()
+    private var aiSpokeSinceLearner = false
 
     override val isConnected: Boolean
         get() = session?.isClosed() == false
@@ -83,12 +97,13 @@ class GeminiLiveManager @Inject constructor(
                 // Lets audio sessions run past the 15-minute context limit by sliding the window.
                 contextWindowCompression = ContextWindowCompressionConfig(slidingWindow = SlidingWindow())
             },
-            tools = listOf(Tool.functionDeclarations(listOf(endLessonDeclaration))),
+            tools = listOf(Tool.functionDeclarations(listOf(endLessonDeclaration) + config.tools.map(::toDeclaration))),
             systemInstruction = content { text(config.systemInstruction) }
         )
         val newSession = model.connect()
         session = newSession
-        interruptionsEnabled = config.enableInterruptions
+        this.config = config
+        resetUtterance()
         startAudio(newSession)
         startWatchdog(newSession)
         Log.d(TAG, "Connected to ${BuildConfig.LIVE_MODEL}")
@@ -119,10 +134,16 @@ class GeminiLiveManager @Inject constructor(
         target.startAudioConversation(
             liveAudioConversationConfig {
                 // Without interruptions the SDK pauses the microphone while the AI's audio plays.
-                enableInterruptions = interruptionsEnabled
+                enableInterruptions = config?.enableInterruptions ?: false
                 transcriptHandler = { input, output ->
-                    input?.text?.takeIf { it.isNotEmpty() }?.let { _events.tryEmit(LiveEvent.UserTranscript(it)) }
-                    output?.text?.takeIf { it.isNotEmpty() }?.let { _events.tryEmit(LiveEvent.AiTranscript(it)) }
+                    input?.text?.takeIf { it.isNotEmpty() }?.let {
+                        trackLearner(it)
+                        _events.tryEmit(LiveEvent.UserTranscript(it))
+                    }
+                    output?.text?.takeIf { it.isNotEmpty() }?.let {
+                        trackAi()
+                        _events.tryEmit(LiveEvent.AiTranscript(it))
+                    }
                 }
                 goAwayHandler = { _events.tryEmit(LiveEvent.GoAway) }
                 functionCallHandler = ::handleFunctionCall
@@ -131,17 +152,54 @@ class GeminiLiveManager @Inject constructor(
     }
 
     private fun handleFunctionCall(call: FunctionCallPart): FunctionResponsePart {
-        if (call.name == PromptTemplates.END_LESSON_FUNCTION) {
-            _events.tryEmit(LiveEvent.EndLessonRequested)
-        } else {
-            Log.w(TAG, "Unknown function call: ${call.name}")
+        val result: Map<String, Any> = when {
+            call.name == PromptTemplates.END_LESSON_FUNCTION -> {
+                _events.tryEmit(LiveEvent.EndLessonRequested)
+                mapOf("status" to "ok")
+            }
+            config?.tools?.any { it.name == call.name } == true -> {
+                val handler = config?.toolHandler
+                val utterance = synchronized(learnerUtterance) { learnerUtterance.toString().trim() }
+                runCatching {
+                    handler?.handle(LiveToolCall(call.name, call.args.mapValues { (_, v) -> v.toPlain() }, utterance))
+                }.onFailure { Log.e(TAG, "Tool ${call.name} failed", it) }.getOrNull()
+                    ?: mapOf("status" to "error")
+            }
+            else -> {
+                Log.w(TAG, "Unknown function call: ${call.name}")
+                mapOf("status" to "unknown function")
+            }
         }
-        return FunctionResponsePart(
-            name = call.name,
-            response = JsonObject(mapOf("status" to JsonPrimitive("ok"))),
-            id = call.id
-        )
+        return FunctionResponsePart(name = call.name, response = result.toJsonObject(), id = call.id)
     }
+
+    private fun trackLearner(text: String) = synchronized(learnerUtterance) {
+        if (aiSpokeSinceLearner) {
+            learnerUtterance.setLength(0)
+            aiSpokeSinceLearner = false
+        }
+        learnerUtterance.append(text)
+    }
+
+    private fun trackAi() = synchronized(learnerUtterance) { aiSpokeSinceLearner = true }
+
+    private fun resetUtterance() = synchronized(learnerUtterance) {
+        learnerUtterance.setLength(0)
+        aiSpokeSinceLearner = false
+    }
+
+    private fun toDeclaration(tool: LiveTool): FunctionDeclaration = FunctionDeclaration(
+        name = tool.name,
+        description = tool.description,
+        parameters = tool.parameters.associate { param ->
+            param.name to when (param.type) {
+                LiveToolParam.Type.STRING -> Schema.string(description = param.description)
+                LiveToolParam.Type.BOOLEAN -> Schema.boolean(description = param.description)
+                LiveToolParam.Type.STRING_LIST -> Schema.array(Schema.string(), description = param.description)
+            }
+        },
+        optionalParameters = tool.parameters.filter { it.optional }.map { it.name }
+    )
 
     /** The SDK has no "closed" callback, so poll for a connection that dropped on its own. */
     private fun startWatchdog(target: LiveSession) {
@@ -179,3 +237,23 @@ class GeminiLiveManager @Inject constructor(
         )
     }
 }
+
+/** Turns JSON tool arguments into plain Kotlin values (String, Boolean, Number, List). */
+private fun JsonElement.toPlain(): Any? = when (this) {
+    is JsonNull -> null
+    is JsonPrimitive -> if (isString) content else booleanOrNull ?: content.toLongOrNull() ?: content.toDoubleOrNull() ?: contentOrNull
+    is JsonArray -> map { it.toPlain() }
+    is JsonObject -> mapValues { (_, v) -> v.toPlain() }
+}
+
+private fun Any?.toJsonElement(): JsonElement = when (this) {
+    null -> JsonNull
+    is String -> JsonPrimitive(this)
+    is Number -> JsonPrimitive(this)
+    is Boolean -> JsonPrimitive(this)
+    is Map<*, *> -> JsonObject(entries.associate { (k, v) -> k.toString() to v.toJsonElement() })
+    is Iterable<*> -> JsonArray(map { it.toJsonElement() })
+    else -> JsonPrimitive(toString())
+}
+
+private fun Map<String, Any>.toJsonObject(): JsonObject = JsonObject(mapValues { (_, v) -> v.toJsonElement() })

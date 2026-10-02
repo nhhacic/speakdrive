@@ -8,6 +8,7 @@ import com.speakdrive.data.local.dao.WordDao
 import com.speakdrive.data.local.entity.CorrectionEntity
 import com.speakdrive.data.local.entity.LearnedWordEntity
 import com.speakdrive.data.local.entity.MessageEntity
+import com.speakdrive.data.local.entity.PronunciationAttemptEntity
 import com.speakdrive.data.local.entity.SessionEntity
 import com.speakdrive.domain.SpacedRepetition
 import kotlinx.coroutines.flow.Flow
@@ -19,7 +20,8 @@ data class SessionDetail(
     val session: SessionEntity,
     val messages: List<MessageEntity>,
     val corrections: List<CorrectionEntity>,
-    val words: List<LearnedWordEntity>
+    val words: List<LearnedWordEntity>,
+    val attempts: List<PronunciationAttemptEntity> = emptyList()
 )
 
 /** Stores lessons and the vocabulary learned in them. */
@@ -48,7 +50,8 @@ class SessionRepository @Inject constructor(
             vocabularyScore = summary?.vocabularyScore,
             encouragement = summary?.encouragement,
             nextSuggestion = summary?.nextSuggestion,
-            isCompleted = session.isCompleted
+            isCompleted = session.isCompleted,
+            pronunciationScore = summary?.pronunciationScore
         )
         val messages = session.transcript.mapIndexed { index, turn ->
             MessageEntity(sessionId = session.id, speaker = turn.speaker.name, text = turn.text, timestamp = turn.timestamp, position = index)
@@ -69,7 +72,21 @@ class SessionRepository @Inject constructor(
                 nextReviewAt = SpacedRepetition.nextReviewAt(reviewCount = 0, from = now)
             )
         }
-        sessionDao.saveFullSession(entity, messages, corrections, words)
+        val attempts = session.pronunciationAttempts.map {
+            PronunciationAttemptEntity(
+                sessionId = session.id,
+                target = it.target,
+                heard = it.heard,
+                accuracyPercent = it.accuracyPercent,
+                passed = it.passed,
+                attemptNumber = it.attemptNumber,
+                modelSaidCorrect = it.modelSaidCorrect,
+                problemWords = it.problemWords.joinToString("|"),
+                notes = it.modelNotes,
+                timestamp = it.timestamp
+            )
+        }
+        sessionDao.saveFullSession(entity, messages, corrections, words, attempts)
     }
 
     override suspend fun recentTopicIds(limit: Int): List<String> = sessionDao.recentTopicIds(limit)
@@ -90,9 +107,10 @@ class SessionRepository @Inject constructor(
         sessionDao.observeSession(sessionId),
         sessionDao.observeMessages(sessionId),
         sessionDao.observeCorrections(sessionId),
-        wordDao.observeWordsForSession(sessionId)
-    ) { session, messages, corrections, words ->
-        session?.let { SessionDetail(it, messages, corrections, words) }
+        wordDao.observeWordsForSession(sessionId),
+        sessionDao.observeAttempts(sessionId)
+    ) { session, messages, corrections, words, attempts ->
+        session?.let { SessionDetail(it, messages, corrections, words, attempts) }
     }
 
     fun observeHistory(): Flow<List<SessionEntity>> = sessionDao.observeAllSessions()

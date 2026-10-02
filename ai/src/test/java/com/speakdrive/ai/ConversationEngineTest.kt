@@ -2,12 +2,14 @@ package com.speakdrive.ai
 
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.live.LiveEvent
+import com.speakdrive.ai.live.LiveToolCall
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.EngineError
 import com.speakdrive.ai.model.LessonRequest
 import com.speakdrive.ai.model.ReviewWord
 import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.Speaker
+import com.speakdrive.ai.pronunciation.PronunciationDrill
 import com.speakdrive.ai.session.MicPermissionChecker
 import com.speakdrive.audio.AudioFocusState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -93,6 +95,49 @@ class ConversationEngineTest {
         settings.settings = settings.settings.copy(allowBargeIn = true)
         engine.start(LessonRequest())
         assertThat(live.connects.last().enableInterruptions).isTrue()
+    }
+
+    @Test
+    fun `pronunciation drill grades every attempt strictly and stores the results`(): TestResult = engineTest {
+        settings.settings = settings.settings.copy(allowBargeIn = true)
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+
+        val config = live.connects.single()
+        assertThat(config.tools.map { it.name }).containsExactly(PronunciationDrill.CHECK_ATTEMPT_FUNCTION)
+        assertThat(config.enableInterruptions).isFalse()
+        assertThat(config.systemInstruction).contains("NEVER say an attempt was correct")
+
+        say(Speaker.AI, "Repeat after me: I need three tickets.")
+        assertThat(engine.drillTarget.value).isEqualTo("I need three tickets.")
+
+        // The model says "correct", but the learner said "tree": the app's verdict wins.
+        say(Speaker.USER, "I need tree tickets")
+        val first = config.toolHandler!!.handle(
+            LiveToolCall(
+                PronunciationDrill.CHECK_ATTEMPT_FUNCTION,
+                mapOf("target_sentence" to "I need three tickets.", "verdict" to "correct"),
+                learnerUtterance = "I need tree tickets"
+            )
+        )
+        assertThat(first["final_verdict"]).isEqualTo("needs_work")
+
+        val second = config.toolHandler!!.handle(
+            LiveToolCall(
+                PronunciationDrill.CHECK_ATTEMPT_FUNCTION,
+                mapOf("target_sentence" to "I need three tickets.", "verdict" to "correct", "problem_words" to emptyList<String>()),
+                learnerUtterance = "I need three tickets"
+            )
+        )
+        assertThat(second["final_verdict"]).isEqualTo("correct")
+        assertThat(engine.pronunciationAttempts.value.map { it.attemptNumber to it.passed })
+            .containsExactly(1 to false, 2 to true).inOrder()
+
+        engine.end()
+        runCurrent()
+        val saved = store.saved.last()
+        assertThat(saved.pronunciationAttempts).hasSize(2)
+        assertThat(saved.summary?.pronunciationScore).isEqualTo(100)
     }
 
     @Test

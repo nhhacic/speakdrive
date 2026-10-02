@@ -54,6 +54,7 @@ import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.EngineError
 import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ui.components.ChatBubble
+import com.speakdrive.ui.components.DrillCard
 import com.speakdrive.ui.components.VoiceMicButton
 
 @Composable
@@ -171,6 +172,20 @@ fun ConversationContent(
                     message = "Hãy chọn một chủ đề ở trang chủ để bắt đầu.",
                     primaryLabel = "Về trang chủ",
                     onPrimary = onBack
+                )
+            }
+
+            state.drill?.let { drill ->
+                val attempt = drill.lastAttempt
+                DrillCard(
+                    target = drill.target,
+                    attemptWords = attempt?.words,
+                    attemptPassed = attempt?.passed,
+                    attemptNumber = attempt?.attemptNumber,
+                    accuracyPercent = attempt?.accuracyPercent,
+                    problemNote = attempt?.modelNotes,
+                    passedCount = drill.passedSentences,
+                    sentenceCount = drill.sentences
                 )
             }
 
