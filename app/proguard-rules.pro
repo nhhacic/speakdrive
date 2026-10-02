@@ -1,22 +1,10 @@
-# SpeakDrive ProGuard Rules
+# SpeakDrive R8 rules.
+# Hilt, Room, Media3, Firebase and kotlinx.serialization ship their own consumer rules,
+# so only app-specific needs are listed here.
 
-# Keep Hilt generated classes
--keepclasseswithmembers class * {
-    @dagger.hilt.android.lifecycle.HiltViewModel <init>(...);
-}
+# Keep line numbers so Play Console crash reports are readable.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Keep Room entities
--keep class com.speakdrive.data.local.entity.** { *; }
-
-# Keep Firebase AI classes
--keep class com.google.firebase.ai.** { *; }
-
-# Keep Kotlin serialization
--keepattributes *Annotation*, InnerClasses
--dontnote kotlinx.serialization.AnnotationsKt
-
-# Keep Media3 classes
--keep class androidx.media3.** { *; }
-
-# Keep Car App Library
--keep class androidx.car.app.** { *; }
+# Navigation routes are serialized by name.
+-keep class com.speakdrive.ui.navigation.** { *; }

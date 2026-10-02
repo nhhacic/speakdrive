@@ -1,6 +1,10 @@
 package com.speakdrive.ai
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.AudioTranscriptionConfig
@@ -22,6 +26,7 @@ import com.google.firebase.ai.type.liveGenerationConfig
 import com.speakdrive.ai.live.LiveConversationClient
 import com.speakdrive.ai.live.LiveEvent
 import com.speakdrive.ai.live.LiveSessionConfig
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -48,7 +53,9 @@ import javax.inject.Singleton
  */
 @OptIn(PublicPreviewAPI::class)
 @Singleton
-class GeminiLiveManager @Inject constructor() : LiveConversationClient {
+class GeminiLiveManager @Inject constructor(
+    @param:ApplicationContext private val context: Context
+) : LiveConversationClient {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
@@ -104,6 +111,9 @@ class GeminiLiveManager @Inject constructor() : LiveConversationClient {
     override suspend fun disconnect() = lock.withLock { closeLocked() }
 
     private suspend fun startAudio(target: LiveSession) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            throw SecurityException("RECORD_AUDIO permission is not granted")
+        }
         target.startAudioConversation(
             liveAudioConversationConfig {
                 enableInterruptions = true

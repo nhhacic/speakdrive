@@ -2,7 +2,9 @@ package com.speakdrive.playback
 
 import android.content.ComponentName
 import android.content.Context
+import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.speakdrive.auto.SpeakDriveMediaService
@@ -25,6 +27,7 @@ class PlaybackConnection @Inject constructor(
     private val mutex = Mutex()
     private var controller: MediaController? = null
 
+    @OptIn(UnstableApi::class)
     private suspend fun controller(): MediaController = mutex.withLock {
         controller?.takeIf { it.isConnected } ?: run {
             val token = SessionToken(context, ComponentName(context, SpeakDriveMediaService::class.java))

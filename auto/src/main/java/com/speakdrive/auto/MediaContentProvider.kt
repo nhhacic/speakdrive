@@ -2,7 +2,9 @@ package com.speakdrive.auto
 
 import android.os.Bundle
 import androidx.media3.common.MediaItem
+import androidx.annotation.OptIn
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaConstants
 import com.speakdrive.ai.TopicManager
 import com.speakdrive.ai.model.ActiveLesson
@@ -21,6 +23,7 @@ class MediaContentProvider @Inject constructor(
     fun rootItem(): MediaItem = browsable(MediaIds.ROOT, "SpeakDrive", "Luyện nói tiếng Anh khi lái xe")
 
     /** Hints for Android Auto: show every level as a plain list (large text, easy to tap while parked). */
+    @OptIn(UnstableApi::class)
     fun rootExtras(): Bundle = Bundle().apply {
         putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_BROWSABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)
         putInt(MediaConstants.EXTRAS_KEY_CONTENT_STYLE_PLAYABLE, MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_LIST_ITEM)

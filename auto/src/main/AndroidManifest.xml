@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -14,9 +15,12 @@
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
 
+        <!-- Must be exported without a permission so Android Auto and Assistant can bind to it;
+             Media3 checks every controller that connects. -->
         <service
             android:name=".SpeakDriveMediaService"
             android:exported="true"
+            tools:ignore="ExportedService"
             android:foregroundServiceType="mediaPlayback|microphone">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaLibraryService" />

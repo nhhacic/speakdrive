@@ -147,15 +147,24 @@ class TopicManager @Inject constructor() {
     fun findTopicByQuery(query: String): Topic? {
         val q = normalize(query)
         if (q.isBlank()) return null
-        return topics.firstOrNull { topic ->
-            val candidates = listOf(topic.id, topic.titleEn, topic.titleVi) + topic.keywords
-            candidates.any { candidate ->
-                val c = normalize(candidate)
-                // Whole-word match either way so "work" does not match "network".
-                containsWord(q, c) || containsWord(c, q)
+        // The longest matching phrase wins, so "job interview" beats the "job" keyword of Work.
+        return topics
+            .map { topic -> topic to matchLength(q, topic) }
+            .filter { (_, length) -> length > 0 }
+            .maxByOrNull { (_, length) -> length }
+            ?.first
+    }
+
+    private fun matchLength(q: String, topic: Topic): Int =
+        (listOf(topic.id, topic.titleEn, topic.titleVi) + topic.keywords).maxOf { candidate ->
+            val c = normalize(candidate)
+            // Whole-word match either way so "work" does not match "network".
+            when {
+                containsWord(q, c) -> c.length
+                containsWord(c, q) -> q.length
+                else -> 0
             }
         }
-    }
 
     /** Prefers topics the learner has not practised recently. */
     fun suggestTopic(recentTopicIds: List<String>): Topic {
