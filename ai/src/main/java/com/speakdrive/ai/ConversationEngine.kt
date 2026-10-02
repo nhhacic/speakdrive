@@ -54,27 +54,27 @@ class ConversationEngine @Inject constructor(
         val systemInstruction = PromptTemplates.buildSystemInstruction(level, topic)
 
         geminiLiveManager.updateSystemInstruction(systemInstruction)
-        geminiLiveManager.connect()
+        scope.launch { geminiLiveManager.connect() }
     }
 
     fun pauseSession() {
         if (_state.value == ConversationState.ACTIVE) {
             _state.value = ConversationState.PAUSED
-            geminiLiveManager.disconnect()
+            scope.launch { geminiLiveManager.disconnect() }
         }
     }
 
     fun resumeSession() {
         if (_state.value == ConversationState.PAUSED) {
             _state.value = ConversationState.CONNECTING
-            geminiLiveManager.connect()
+            scope.launch { geminiLiveManager.connect() }
         }
     }
 
     fun endSession(): SessionSummary? {
         if (_state.value == ConversationState.IDLE) return null
         
-        geminiLiveManager.disconnect()
+        scope.launch { geminiLiveManager.disconnect() }
         _state.value = ConversationState.ENDED
         
         val duration = System.currentTimeMillis() - startTime

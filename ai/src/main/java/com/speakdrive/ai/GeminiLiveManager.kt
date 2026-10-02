@@ -4,7 +4,7 @@ import android.util.Log
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.Content
-import com.google.firebase.ai.type.GenerativeModel
+import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.type.GenerationConfig
 import com.google.firebase.ai.type.ResponseModality
 import com.google.firebase.ai.type.content
@@ -55,7 +55,7 @@ class GeminiLiveManager @Inject constructor() {
     private val _textOutput = MutableSharedFlow<String>(extraBufferCapacity = 16)
     val textOutput: Flow<String> = _textOutput.asSharedFlow()
 
-    private var currentSystemInstruction: String = PromptTemplates.getSystemPrompt()
+    private var currentSystemInstruction: String = ""
 
     // Firebase AI generative model - sẽ được tạo lại mỗi khi system instruction thay đổi
     private var generativeModel: GenerativeModel? = null

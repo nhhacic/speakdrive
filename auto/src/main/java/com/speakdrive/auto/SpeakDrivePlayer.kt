@@ -41,9 +41,4 @@ class SpeakDrivePlayer : SimpleBasePlayer(android.os.Looper.getMainLooper()) {
         invalidateState()
         return Futures.immediateVoidFuture()
     }
-    
-    override fun handleSeekToNext(): ListenableFuture<*> {
-        // conversationEngine.nextTopic()
-        return Futures.immediateVoidFuture()
-    }
 }
