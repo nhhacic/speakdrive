@@ -29,6 +29,7 @@ class AppLaunchTest {
 
         compose.onNodeWithContentDescription("Cài đặt").performClick()
         compose.onNodeWithText("Giọng AI").assertExists()
+        compose.onNodeWithText("Chấm phát âm bằng Azure").assertExists()
         compose.onNodeWithContentDescription("Quay lại").performClick()
 
         compose.onNodeWithContentDescription("Tiến trình").performClick()

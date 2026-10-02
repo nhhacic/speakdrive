@@ -82,8 +82,13 @@ class SessionRepository @Inject constructor(
                 attemptNumber = it.attemptNumber,
                 modelSaidCorrect = it.modelSaidCorrect,
                 problemWords = it.problemWords.joinToString("|"),
-                notes = it.modelNotes,
-                timestamp = it.timestamp
+                notes = listOfNotNull(it.modelNotes.takeIf { n -> n.isNotBlank() }, it.azureError).joinToString(" • "),
+                timestamp = it.timestamp,
+                azurePronScore = it.azure?.pronunciationScore,
+                azureAccuracy = it.azure?.accuracyScore,
+                azureFluency = it.azure?.fluencyScore,
+                azureCompleteness = it.azure?.completenessScore,
+                azureWeakSounds = it.azure?.describeProblems()?.joinToString("|")
             )
         }
         sessionDao.saveFullSession(entity, messages, corrections, words, attempts)

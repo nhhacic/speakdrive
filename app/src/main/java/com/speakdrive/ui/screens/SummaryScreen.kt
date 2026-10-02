@@ -208,8 +208,14 @@ private fun DrillSentenceCard(tries: List<PronunciationAttemptEntity>) {
                     " • lần cuối app nghe được: \"${last.heard}\"",
                 style = MaterialTheme.typography.bodySmall
             )
+            tries.mapNotNull { it.azurePronScore }.maxOrNull()?.let { best ->
+                Text("Azure: tốt nhất $best/100", style = MaterialTheme.typography.bodySmall)
+            }
             if (problems.isNotEmpty()) {
                 Text("Cần luyện: ${problems.joinToString()}", style = MaterialTheme.typography.bodyMedium)
+            }
+            tries.lastOrNull { !it.azureWeakSounds.isNullOrBlank() }?.azureWeakSounds?.let { weak ->
+                Text("Âm yếu (Azure): ${weak.replace("|", ", ")}", style = MaterialTheme.typography.bodySmall)
             }
             tries.mapNotNull { it.notes.takeIf { n -> n.isNotBlank() } }.lastOrNull()?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)

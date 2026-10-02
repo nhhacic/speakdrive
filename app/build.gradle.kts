@@ -9,6 +9,13 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
+// Optional Azure Speech key/region for debug builds only (local.properties, git-ignored).
+// Release builds never contain a key: learners enter their own in Settings. See docs/AZURE_SETUP.md.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
 // Release signing is read from keystore.properties (git-ignored). See docs/RELEASE.md.
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("keystore.properties")
@@ -26,6 +33,8 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "AZURE_SPEECH_KEY", "\"\"")
+        buildConfigField("String", "AZURE_SPEECH_REGION", "\"\"")
     }
 
     signingConfigs {
@@ -40,6 +49,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "AZURE_SPEECH_KEY", "\"${localProperties.getProperty("azure.speechKey", "")}\"")
+            buildConfigField("String", "AZURE_SPEECH_REGION", "\"${localProperties.getProperty("azure.speechRegion", "")}\"")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

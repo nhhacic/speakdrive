@@ -43,7 +43,14 @@ data class PronunciationAttemptEntity(
     /** Words to work on, separated by "|". */
     val problemWords: String,
     val notes: String,
-    val timestamp: Long
+    val timestamp: Long,
+    /** Azure Pronunciation Assessment scores (0–100); null when Azure was off. Added in schema v4. */
+    val azurePronScore: Int? = null,
+    val azureAccuracy: Int? = null,
+    val azureFluency: Int? = null,
+    val azureCompleteness: Int? = null,
+    /** Weak words and sounds reported by Azure, e.g. "three (th 35)|want (t 40)". */
+    val azureWeakSounds: String? = null
 )
 
 @Entity(

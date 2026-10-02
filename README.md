@@ -13,6 +13,8 @@ Gia sư AI dùng **Gemini Live API** để hội thoại bằng giọng nói the
 - 📚 **8 chủ đề, 32 tình huống nhập vai**, 3 cấp độ (A1 đến C2), cho phép giải thích bằng tiếng Việt khi bí
 - 🛡️ **An toàn khi lái xe**: tự tạm dừng khi có cuộc gọi hoặc giọng chỉ đường, tự kết nối lại khi mất sóng
   hoặc khi kết nối Live hết hạn (~10 phút), nhắc nhẹ khi người học im lặng lâu
+- 🗣️ **Luyện phát âm "nhắc lại theo AI"**: chấm từng câu bằng AI + so từng từ, thêm **Azure** (tuỳ chọn) chấm
+  đến từng âm; sai thì phải nói lại, AI không được khen khi chưa đạt
 - 📝 **Tóm tắt sau buổi học**: điểm trôi chảy, ngữ pháp, từ vựng; danh sách lỗi sai; từ mới
 - 🔁 **Ôn từ vựng theo lặp lại ngắt quãng** (1, 3, 7, 14, 30, 60 ngày) bằng giọng nói
 - 📊 **Tiến trình**: streak, mục tiêu phút mỗi ngày, biểu đồ 7 ngày, lịch sử từng buổi
@@ -24,7 +26,7 @@ Gia sư AI dùng **Gemini Live API** để hội thoại bằng giọng nói the
 app/    Phone UI (Compose), Room + DataStore, Hilt, App Check, PlaybackConnection
 auto/   MediaLibraryService cho Android Auto, SpeakDrivePlayer, cây menu, lệnh giọng nói
 ai/     ConversationEngine, GeminiLiveManager (Live API), tóm tắt, prompts, TopicManager
-audio/  Audio focus (tạm dừng thay vì giảm âm lượng), thông báo bằng giọng nói khi offline
+audio/  Micro & loa (tắt micro khi AI nói để chống vọng), audio focus, thông báo bằng giọng nói khi offline
 ```
 
 ```mermaid
@@ -71,6 +73,7 @@ Có thể đổi model AI trong `gradle.properties` (`speakdrive.liveModel`, `sp
 |---|---|
 | [docs/PROGRESS.md](docs/PROGRESS.md) | Tiến độ so với kế hoạch, những việc còn lại |
 | [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md) | Firebase, Gemini, App Check |
+| [docs/AZURE_SETUP.md](docs/AZURE_SETUP.md) | Chấm phát âm bằng Azure (tuỳ chọn, miễn phí 5 giờ/tháng) |
 | [docs/TESTING.md](docs/TESTING.md) | Test tự động, kịch bản thử trên điện thoại và DHU |
 | [docs/RELEASE.md](docs/RELEASE.md) | Ký app, Play Console, Data safety, review Android Auto |
 | [docs/PRIVACY_POLICY.md](docs/PRIVACY_POLICY.md) | Chính sách bảo mật (VI/EN) |

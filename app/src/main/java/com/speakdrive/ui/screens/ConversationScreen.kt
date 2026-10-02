@@ -184,6 +184,11 @@ fun ConversationContent(
                     attemptNumber = attempt?.attemptNumber,
                     accuracyPercent = attempt?.accuracyPercent,
                     problemNote = attempt?.modelNotes,
+                    azureSummary = attempt?.azure?.let {
+                        "Azure: ${it.pronunciationScore}/100 • chính xác ${it.accuracyScore} • trôi chảy ${it.fluencyScore} • đầy đủ ${it.completenessScore}"
+                    },
+                    azureWeakSounds = attempt?.azure?.describeProblems()?.joinToString(),
+                    azureWarning = attempt?.azureError,
                     passedCount = drill.passedSentences,
                     sentenceCount = drill.sentences
                 )

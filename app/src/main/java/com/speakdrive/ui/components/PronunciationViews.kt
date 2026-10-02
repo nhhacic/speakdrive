@@ -34,7 +34,13 @@ fun markedSentence(words: List<WordResult>, missingColor: Color): AnnotatedStrin
     words.forEachIndexed { index, word ->
         if (index > 0) append(" ")
         when (word.status) {
-            WordStatus.OK -> withStyle(SpanStyle(color = CorrectColor)) { append(word.word) }
+            WordStatus.OK -> if (word.isProblem) {
+                // The transcript heard the word, but Azure says it was pronounced badly.
+                withStyle(SpanStyle(color = WrongColor, fontWeight = FontWeight.Bold)) { append(word.word) }
+                word.azureScore?.let { withStyle(SpanStyle(color = WrongColor)) { append(" ($it)") } }
+            } else {
+                withStyle(SpanStyle(color = CorrectColor)) { append(word.word) }
+            }
             WordStatus.WRONG -> {
                 withStyle(SpanStyle(color = WrongColor, fontWeight = FontWeight.Bold)) { append(word.word) }
                 withStyle(SpanStyle(color = WrongColor)) { append(" («${word.heardAs}»)") }
@@ -55,6 +61,9 @@ fun DrillCard(
     attemptNumber: Int?,
     accuracyPercent: Int?,
     problemNote: String?,
+    azureSummary: String?,
+    azureWeakSounds: String?,
+    azureWarning: String?,
     passedCount: Int,
     sentenceCount: Int,
     modifier: Modifier = Modifier
@@ -82,6 +91,15 @@ fun DrillCard(
                     color = if (attemptPassed) CorrectColor else WrongColor
                 )
                 Text(markedSentence(attemptWords, MaterialTheme.colorScheme.outline), style = MaterialTheme.typography.bodyLarge)
+                if (azureSummary != null) {
+                    Text(azureSummary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                if (!azureWeakSounds.isNullOrBlank()) {
+                    Text("Âm cần sửa: $azureWeakSounds", style = MaterialTheme.typography.bodyMedium, color = WrongColor)
+                }
+                if (!azureWarning.isNullOrBlank()) {
+                    Text("⚠ $azureWarning", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
                 if (!problemNote.isNullOrBlank()) {
                     Text(problemNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }

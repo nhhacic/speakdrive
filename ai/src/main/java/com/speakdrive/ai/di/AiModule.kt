@@ -4,6 +4,8 @@ import com.speakdrive.ai.GeminiLiveManager
 import com.speakdrive.ai.live.LiveConversationClient
 import com.speakdrive.ai.network.AndroidConnectivityObserver
 import com.speakdrive.ai.network.ConnectivityObserver
+import com.speakdrive.ai.pronunciation.AzurePronunciationAssessor
+import com.speakdrive.ai.pronunciation.PronunciationAssessor
 import com.speakdrive.ai.session.AndroidMicPermissionChecker
 import com.speakdrive.ai.session.MicPermissionChecker
 import com.speakdrive.ai.summary.GeminiSummaryGenerator
@@ -36,6 +38,9 @@ abstract class AiModule {
 
     @Binds
     abstract fun bindMicPermission(impl: AndroidMicPermissionChecker): MicPermissionChecker
+
+    @Binds
+    abstract fun bindPronunciationAssessor(impl: AzurePronunciationAssessor): PronunciationAssessor
 
     companion object {
         @Provides

@@ -13,7 +13,20 @@ enum class WordStatus {
     MISSING
 }
 
-data class WordResult(val word: String, val status: WordStatus, val heardAs: String? = null)
+data class WordResult(
+    val word: String,
+    val status: WordStatus,
+    val heardAs: String? = null,
+    /** Azure accuracy for this word (0–100) when Azure grading is on. */
+    val azureScore: Int? = null,
+    /** Azure error type (Mispronunciation, Omission…) when Azure flagged the word. */
+    val azureError: String? = null
+) {
+    /** True if any judge found a problem with this word. */
+    val isProblem: Boolean
+        get() = status != WordStatus.OK || (azureError != null && azureError != "None") ||
+            (azureScore != null && azureScore < AzureAssessment.WORD_PASS_SCORE)
+}
 
 /** One "repeat after me" attempt, judged by both the AI (from the audio) and the transcript. */
 data class PronunciationAttempt(
@@ -28,11 +41,15 @@ data class PronunciationAttempt(
     val modelNotes: String,
     val attemptNumber: Int,
     val passed: Boolean,
-    val timestamp: Long
+    val timestamp: Long,
+    /** Azure Pronunciation Assessment, when it was switched on and reachable. */
+    val azure: AzureAssessment? = null,
+    /** Why Azure grading was skipped although it is switched on, e.g. a network error. */
+    val azureError: String? = null
 ) {
-    /** Words the learner should work on, from either judge. */
+    /** Words the learner should work on, from any judge. */
     val problemWords: List<String>
-        get() = (modelProblemWords + words.filter { it.status != WordStatus.OK }.map { it.word })
+        get() = (modelProblemWords + words.filter { it.isProblem }.map { it.word } + azure?.problemWords.orEmpty().map { it.word })
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .distinctBy { it.lowercase(Locale.US) }
@@ -58,9 +75,11 @@ object PronunciationGrader {
         modelProblemWords: List<String>,
         modelNotes: String,
         attemptNumber: Int,
-        timestamp: Long
+        timestamp: Long,
+        azure: AzureAssessment? = null,
+        azureError: String? = null
     ): PronunciationAttempt {
-        val words = compare(target, heard)
+        val words = attachAzureScores(compare(target, heard), azure)
         val mismatches = words.count { it.status != WordStatus.OK }
         val accuracy = if (words.isEmpty()) 0 else (100 * words.count { it.status == WordStatus.OK } / words.size)
         val allowedMismatches = if (words.size >= LONG_SENTENCE_WORDS) 1 else 0
@@ -68,7 +87,8 @@ object PronunciationGrader {
             modelProblemWords.none { it.isNotBlank() } &&
             heard.isNotBlank() &&
             words.none { it.status == WordStatus.MISSING } &&
-            mismatches <= allowedMismatches
+            mismatches <= allowedMismatches &&
+            (azure == null || azure.passed)
         return PronunciationAttempt(
             target = target.trim(),
             heard = heard.trim(),
@@ -79,9 +99,38 @@ object PronunciationGrader {
             modelNotes = modelNotes.trim(),
             attemptNumber = attemptNumber,
             passed = passed,
-            timestamp = timestamp
+            timestamp = timestamp,
+            azure = azure,
+            azureError = azureError
         )
     }
+
+    /**
+     * Puts Azure's per-word scores next to the target words. Azure reports the reference words in
+     * order (plus inserted extras), so they are matched in sequence by spelling.
+     */
+    private fun attachAzureScores(words: List<WordResult>, azure: AzureAssessment?): List<WordResult> {
+        if (azure == null) return words
+        val reference = azure.words.filter { it.errorType != AzureWord.ERROR_INSERTION }
+        var index = 0
+        var lastDisplay: String? = null
+        var lastMatch: AzureWord? = null
+        return words.map { word ->
+            // Expanded contractions ("I'd" -> i, would) share one Azure word.
+            val match = if (word.word == lastDisplay) {
+                lastMatch
+            } else {
+                val key = simplify(word.word)
+                val found = (index until reference.size).firstOrNull { simplify(reference[it].word) == key }
+                found?.let { index = it + 1; reference[it] }
+            }
+            lastDisplay = word.word
+            lastMatch = match
+            if (match == null) word else word.copy(azureScore = match.accuracy, azureError = match.errorType.takeIf { it != "None" })
+        }
+    }
+
+    private fun simplify(word: String) = word.lowercase(Locale.US).filter { it.isLetterOrDigit() || it == '\'' }
 
     /** Aligns the heard words to the target words (edit distance); extra heard words are ignored. */
     fun compare(target: String, heard: String): List<WordResult> {

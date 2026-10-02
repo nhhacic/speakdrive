@@ -35,6 +35,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -54,6 +61,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val prefs by viewModel.preferences.collectAsStateWithLifecycle()
+    val azureTest by viewModel.azureTest.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -119,6 +127,17 @@ fun SettingsScreen(
 
             HorizontalDivider()
 
+            AzureSection(
+                enabled = prefs.learner.azureEnabled,
+                savedRegion = prefs.learner.azureRegion,
+                savedKey = prefs.learner.azureKey,
+                testState = azureTest,
+                onEnabledChange = viewModel::setAzureEnabled,
+                onSaveAndTest = viewModel::saveAndTestAzure
+            )
+
+            HorizontalDivider()
+
             var goal by remember { mutableFloatStateOf(prefs.dailyGoalMinutes.toFloat()) }
             LaunchedEffect(prefs.dailyGoalMinutes) { goal = prefs.dailyGoalMinutes.toFloat() }
             Text("Mục tiêu mỗi ngày: ${goal.roundToInt()} phút", style = MaterialTheme.typography.titleMedium)
@@ -143,6 +162,70 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+/** Optional third judge for pronunciation drills: Azure Pronunciation Assessment. */
+@Composable
+private fun AzureSection(
+    enabled: Boolean,
+    savedRegion: String,
+    savedKey: String,
+    testState: AzureTestState,
+    onEnabledChange: (Boolean) -> Unit,
+    onSaveAndTest: (region: String, key: String) -> Unit
+) {
+    var region by rememberSaveable(savedRegion) { mutableStateOf(savedRegion) }
+    var key by rememberSaveable(savedKey) { mutableStateOf(savedKey) }
+    val missingCredentials = savedRegion.isBlank() || savedKey.isBlank()
+
+    ListItem(
+        headlineContent = { Text("Chấm phát âm bằng Azure") },
+        supportingContent = {
+            Text(
+                "Khi luyện phát âm, Microsoft Azure chấm thêm từng từ và từng âm (0–100). Câu chỉ đạt khi cả AI, " +
+                    "bản ghi chữ và Azure cùng đồng ý. Miễn phí 5 giờ âm thanh/tháng."
+            )
+        },
+        trailingContent = { Switch(checked = enabled, onCheckedChange = onEnabledChange) }
+    )
+    if (!enabled) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
+        OutlinedTextField(
+            value = region,
+            onValueChange = { region = it },
+            label = { Text("Region (vd: southeastasia)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = key,
+            onValueChange = { key = it },
+            label = { Text("Key (KEY 1 trong Azure portal)") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(
+            onClick = { onSaveAndTest(region, key) },
+            enabled = region.isNotBlank() && key.isNotBlank() && testState != AzureTestState.Testing,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Lưu & kiểm tra kết nối") }
+        val (message, color) = when (testState) {
+            AzureTestState.Idle -> (if (missingCredentials) "Chưa có Region/Key: Azure sẽ được bỏ qua khi chấm." else "") to
+                MaterialTheme.colorScheme.error
+            AzureTestState.Testing -> "Đang kiểm tra…" to MaterialTheme.colorScheme.onSurfaceVariant
+            AzureTestState.Ok -> "✓ Kết nối Azure thành công" to MaterialTheme.colorScheme.tertiary
+            is AzureTestState.Failed -> "✗ ${testState.message}" to MaterialTheme.colorScheme.error
+        }
+        if (message.isNotEmpty()) Text(message, style = MaterialTheme.typography.bodySmall, color = color)
+        Text(
+            "Key chỉ lưu trên điện thoại này và chỉ được gửi tới Azure. Hướng dẫn lấy key: docs/AZURE_SETUP.md.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

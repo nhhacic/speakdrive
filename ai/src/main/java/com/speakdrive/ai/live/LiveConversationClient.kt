@@ -52,13 +52,15 @@ data class LiveToolParam(
 }
 
 /**
- * A tool call from the model. [learnerUtterance] is everything the learner said since the AI
- * last spoke, so a tool can judge exactly the attempt the model is reacting to.
+ * A tool call from the model. [learnerUtterance] (transcript) and [learnerAudio] (16 kHz mono
+ * PCM16) are what the learner said since the AI last spoke, so a tool can judge exactly the
+ * attempt the model is reacting to.
  */
-data class LiveToolCall(
+class LiveToolCall(
     val name: String,
     val args: Map<String, Any?>,
-    val learnerUtterance: String
+    val learnerUtterance: String,
+    val learnerAudio: ByteArray = ByteArray(0)
 )
 
 fun interface LiveToolHandler {

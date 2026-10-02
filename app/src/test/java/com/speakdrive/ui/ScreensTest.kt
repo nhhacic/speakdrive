@@ -27,6 +27,9 @@ import com.speakdrive.ui.components.MicState
 import com.speakdrive.ui.screens.ConversationContent
 import com.speakdrive.ui.screens.ConversationUiState
 import com.speakdrive.ui.screens.DrillUiState
+import com.speakdrive.ai.pronunciation.AzureAssessment
+import com.speakdrive.ai.pronunciation.AzurePhoneme
+import com.speakdrive.ai.pronunciation.AzureWord
 import com.speakdrive.ai.pronunciation.PronunciationGrader
 import com.speakdrive.ui.screens.HomeContent
 import com.speakdrive.ui.screens.HomeUiState
@@ -158,6 +161,44 @@ class ScreensTest {
         compose.onNodeWithText("I need three tickets").assertIsDisplayed()
         compose.onNodeWithText("✗ Lần 1: CHƯA ĐẠT • app nghe đúng 75% số từ").assertIsDisplayed()
         compose.onNodeWithText("Đạt 0/1 câu").assertIsDisplayed()
+    }
+
+    @Test
+    fun `drill card shows azure scores and weak sounds`() {
+        val azure = AzureAssessment(
+            pronunciationScore = 62, accuracyScore = 58, fluencyScore = 90, completenessScore = 100, recognizedText = "",
+            words = listOf(
+                AzureWord("I", 100, "None", emptyList()),
+                AzureWord("need", 100, "None", emptyList()),
+                AzureWord("three", 20, "Mispronunciation", listOf(AzurePhoneme("th", 15))),
+                AzureWord("tickets", 95, "None", emptyList())
+            )
+        )
+        val attempt = PronunciationGrader.grade("I need three tickets", "I need three tickets", true, emptyList(), "", 1, 0, azure)
+        val lesson = ActiveLesson("s", topics.getTopicById("travel")!!, null, DifficultyLevel.BEGINNER, SessionMode.REPEAT_AFTER_ME, 0, emptyList())
+        compose.setContent {
+            SpeakDriveTheme {
+                ConversationContent(
+                    state = ConversationUiState(
+                        lesson = lesson,
+                        state = ConversationState.ACTIVE,
+                        micState = MicState.LISTENING,
+                        drill = DrillUiState(target = "I need three tickets", lastAttempt = attempt, passedSentences = 0, sentences = 1)
+                    ),
+                    permissionDenied = false,
+                    onBack = {},
+                    onEnd = {},
+                    onToggle = {},
+                    onRetry = {},
+                    onRequestPermission = {},
+                    onOpenAppSettings = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("✗ Lần 1: CHƯA ĐẠT • app nghe đúng 100% số từ").assertIsDisplayed()
+        compose.onNodeWithText("Azure: 62/100 • chính xác 58 • trôi chảy 90 • đầy đủ 100").assertIsDisplayed()
+        compose.onNodeWithText("Âm cần sửa: three (th 15)").assertIsDisplayed()
     }
 
     @Test

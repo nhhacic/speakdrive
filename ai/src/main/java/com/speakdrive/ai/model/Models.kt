@@ -150,7 +150,11 @@ data class LearnerSettings(
      * microphone hears the AI and it keeps interrupting itself. Safe with headphones.
      */
     val allowBargeIn: Boolean = false,
-    val lastTopicId: String? = null
+    val lastTopicId: String? = null,
+    /** Grade "repeat after me" attempts with Azure Pronunciation Assessment as well. */
+    val azureEnabled: Boolean = false,
+    val azureRegion: String = "",
+    val azureKey: String = ""
 )
 
 /** Prebuilt Gemini voices offered in settings. */

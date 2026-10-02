@@ -41,6 +41,7 @@ object PronunciationDrill {
     /** The result sent back to the model, including what it must say next. */
     fun toolResponse(attempt: PronunciationAttempt): Map<String, Any> {
         val wordsToFix = attempt.problemWords
+        val azureProblems = attempt.azure?.describeProblems().orEmpty()
         val misheard = attempt.words.filter { it.status != WordStatus.OK }
             .joinToString("; ") { if (it.status == WordStatus.MISSING) "'${it.word}' was not heard" else "'${it.word}' sounded like '${it.heardAs}'" }
         val lastAttempt = attempt.attemptNumber >= PronunciationGrader.MAX_ATTEMPTS_PER_SENTENCE
@@ -57,7 +58,8 @@ object PronunciationDrill {
             else ->
                 "The attempt is NOT correct. Do not call it correct, good, great or close. Name the exact words to fix " +
                     "(${wordsToFix.joinToString()}). For each, say the word slowly and clearly twice and describe the sound in " +
-                    "one short phrase. Then ask the learner to repeat the whole sentence again."
+                    "one short phrase" + (if (azureProblems.isNotEmpty()) ", focusing on the weak sounds listed in azure_weak_sounds" else "") +
+                    ". Then ask the learner to repeat the whole sentence again."
         }
         return buildMap {
             put("final_verdict", if (attempt.passed) "correct" else "needs_work")
@@ -65,6 +67,18 @@ object PronunciationDrill {
             put("word_accuracy_percent", attempt.accuracyPercent)
             put("words_to_fix", wordsToFix)
             if (misheard.isNotEmpty()) put("speech_recognition_differences", misheard)
+            attempt.azure?.let { azure ->
+                put(
+                    "azure_scores",
+                    mapOf(
+                        "pronunciation" to azure.pronunciationScore,
+                        "accuracy" to azure.accuracyScore,
+                        "fluency" to azure.fluencyScore,
+                        "completeness" to azure.completenessScore
+                    )
+                )
+                if (azureProblems.isNotEmpty()) put("azure_weak_sounds", azureProblems)
+            }
             put("attempt_number", attempt.attemptNumber)
             put("max_attempts", PronunciationGrader.MAX_ATTEMPTS_PER_SENTENCE)
             put("instruction", instruction)

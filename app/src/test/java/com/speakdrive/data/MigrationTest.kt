@@ -6,6 +6,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.data.local.AppDatabase
 import com.speakdrive.data.local.MIGRATION_2_3
+import com.speakdrive.data.local.MIGRATION_3_4
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -50,6 +51,31 @@ class MigrationTest {
             "INSERT INTO pronunciation_attempts (sessionId, target, heard, accuracyPercent, passed, attemptNumber, " +
                 "modelSaidCorrect, problemWords, notes, timestamp) VALUES ('s1', 'Hi there', 'hi there', 100, 1, 1, 1, '', '', 3)"
         )
+    }
+
+    @Test
+    fun `3 to 4 adds azure scores to existing attempts`() {
+        helper.createDatabase(dbPath, 3).apply {
+            execSQL(
+                "INSERT INTO sessions (id, topicId, scenarioId, level, mode, startedAt, endedAt, activeDurationMs, " +
+                    "fluencyScore, grammarScore, vocabularyScore, encouragement, nextSuggestion, isCompleted, pronunciationScore) " +
+                    "VALUES ('s1', 'travel', NULL, 'BEGINNER', 'REPEAT_AFTER_ME', 1, 2, 60000, NULL, NULL, NULL, NULL, NULL, 1, 50)"
+            )
+            execSQL(
+                "INSERT INTO pronunciation_attempts (sessionId, target, heard, accuracyPercent, passed, attemptNumber, " +
+                    "modelSaidCorrect, problemWords, notes, timestamp) VALUES ('s1', 'Hi there', 'hi there', 100, 1, 1, 1, '', '', 3)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(dbPath, 4, true, MIGRATION_3_4)
+
+        db.query("SELECT target, azurePronScore, azureWeakSounds FROM pronunciation_attempts").use { cursor ->
+            assertThat(cursor.moveToFirst()).isTrue()
+            assertThat(cursor.getString(0)).isEqualTo("Hi there")
+            assertThat(cursor.isNull(1)).isTrue()
+            assertThat(cursor.isNull(2)).isTrue()
+        }
     }
 
     /** Room's driver compares full paths, which differ from the bare name under Robolectric. */

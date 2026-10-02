@@ -21,4 +21,14 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_2_3)
+/** v4: Azure Pronunciation Assessment scores per attempt. */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        listOf("azurePronScore", "azureAccuracy", "azureFluency", "azureCompleteness").forEach { column ->
+            db.execSQL("ALTER TABLE `pronunciation_attempts` ADD COLUMN `$column` INTEGER")
+        }
+        db.execSQL("ALTER TABLE `pronunciation_attempts` ADD COLUMN `azureWeakSounds` TEXT")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_2_3, MIGRATION_3_4)

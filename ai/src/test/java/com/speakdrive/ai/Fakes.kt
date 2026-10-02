@@ -10,6 +10,9 @@ import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.ReviewWord
 import com.speakdrive.ai.model.SessionSummary
 import com.speakdrive.ai.model.TranscriptTurn
+import com.speakdrive.ai.pronunciation.AzureAssessment
+import com.speakdrive.ai.pronunciation.AzureSpeechConfig
+import com.speakdrive.ai.pronunciation.PronunciationAssessor
 import com.speakdrive.ai.pronunciation.PronunciationAttempt
 import com.speakdrive.ai.network.ConnectivityObserver
 import com.speakdrive.ai.session.LearningSettings
@@ -128,6 +131,20 @@ class FakeConnectivity(online: Boolean = true) : ConnectivityObserver {
     val online = MutableStateFlow(online)
     override val isOnline: StateFlow<Boolean> = this.online
     override fun isOnlineNow() = online.value
+}
+
+class FakeAssessor : PronunciationAssessor {
+    var result: AzureAssessment? = null
+    var failure: Exception? = null
+    val calls = mutableListOf<Pair<String, Int>>()
+
+    override fun assess(referenceText: String, pcm16kMono: ByteArray, config: AzureSpeechConfig): AzureAssessment {
+        calls += referenceText to pcm16kMono.size
+        failure?.let { throw it }
+        return result ?: error("no fake result")
+    }
+
+    override fun testConnection(config: AzureSpeechConfig): Result<Unit> = Result.success(Unit)
 }
 
 class FakeAnnouncer : VoiceAnnouncer {

@@ -9,6 +9,9 @@ import com.speakdrive.ai.model.LessonRequest
 import com.speakdrive.ai.model.ReviewWord
 import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.Speaker
+import com.speakdrive.ai.pronunciation.AzureAssessment
+import com.speakdrive.ai.pronunciation.AzurePhoneme
+import com.speakdrive.ai.pronunciation.AzureWord
 import com.speakdrive.ai.pronunciation.PronunciationDrill
 import com.speakdrive.ai.session.MicPermissionChecker
 import com.speakdrive.audio.AudioFocusState
@@ -31,6 +34,7 @@ class ConversationEngineTest {
     private val focus = FakeAudioFocus()
     private val connectivity = FakeConnectivity()
     private val announcer = FakeAnnouncer()
+    private val assessor = FakeAssessor()
     private var micGranted = true
     private var engine: ConversationEngine? = null
 
@@ -45,6 +49,7 @@ class ConversationEngineTest {
             connectivity = connectivity,
             announcer = announcer,
             micPermission = MicPermissionChecker { micGranted },
+            pronunciationAssessor = assessor,
             dispatcher = StandardTestDispatcher(testScheduler)
         )
         created.clock = { testScheduler.currentTime }
@@ -138,6 +143,76 @@ class ConversationEngineTest {
         val saved = store.saved.last()
         assertThat(saved.pronunciationAttempts).hasSize(2)
         assertThat(saved.summary?.pronunciationScore).isEqualTo(100)
+    }
+
+    private fun drillCall(heard: String, verdict: String = "correct") = LiveToolCall(
+        PronunciationDrill.CHECK_ATTEMPT_FUNCTION,
+        mapOf("target_sentence" to "I need three tickets", "verdict" to verdict),
+        learnerUtterance = heard,
+        learnerAudio = ByteArray(32_000)
+    )
+
+    private fun azureResult(score: Int, threeAccuracy: Int, error: String = "None") = AzureAssessment(
+        pronunciationScore = score, accuracyScore = score, fluencyScore = 95, completenessScore = 100,
+        recognizedText = "I need three tickets",
+        words = listOf(
+            AzureWord("i", 100, "None", emptyList()),
+            AzureWord("need", 100, "None", emptyList()),
+            AzureWord("three", threeAccuracy, error, listOf(AzurePhoneme("th", threeAccuracy))),
+            AzureWord("tickets", 100, "None", emptyList())
+        )
+    )
+
+    @Test
+    fun `azure grades drill attempts when switched on`(): TestResult = engineTest {
+        settings.settings = settings.settings.copy(azureEnabled = true, azureRegion = "southeastasia", azureKey = "k")
+        assessor.result = azureResult(score = 62, threeAccuracy = 20, error = "Mispronunciation")
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+        val handler = live.connects.single().toolHandler!!
+
+        // AI and transcript are both satisfied; Azure hears a bad "th".
+        val response = handler.handle(drillCall("I need three tickets"))
+
+        assertThat(assessor.calls).containsExactly("I need three tickets" to 32_000)
+        assertThat(response["final_verdict"]).isEqualTo("needs_work")
+        assertThat(response["azure_weak_sounds"] as List<*>).containsExactly("three (th 20)")
+        val attempt = engine.pronunciationAttempts.value.single()
+        assertThat(attempt.azure?.pronunciationScore).isEqualTo(62)
+        assertThat(attempt.passed).isFalse()
+
+        assessor.result = azureResult(score = 92, threeAccuracy = 90)
+        assertThat(handler.handle(drillCall("I need three tickets"))["final_verdict"]).isEqualTo("correct")
+    }
+
+    @Test
+    fun `azure failure falls back to the other judges and says why`(): TestResult = engineTest {
+        settings.settings = settings.settings.copy(azureEnabled = true, azureRegion = "southeastasia", azureKey = "k")
+        assessor.failure = java.io.IOException("timeout")
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+
+        val response = live.connects.single().toolHandler!!.handle(drillCall("I need three tickets"))
+
+        assertThat(response["final_verdict"]).isEqualTo("correct")
+        val attempt = engine.pronunciationAttempts.value.single()
+        assertThat(attempt.azure).isNull()
+        assertThat(attempt.azureError).contains("timeout")
+    }
+
+    @Test
+    fun `azure is not called when switched off or not configured`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+        live.connects.single().toolHandler!!.handle(drillCall("I need three tickets"))
+        assertThat(assessor.calls).isEmpty()
+        assertThat(engine.pronunciationAttempts.value.single().azureError).isNull()
+
+        settings.settings = settings.settings.copy(azureEnabled = true)
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+        live.connects.last().toolHandler!!.handle(drillCall("I need three tickets"))
+        assertThat(assessor.calls).isEmpty()
+        assertThat(engine.pronunciationAttempts.value.single().azureError).contains("Region/Key")
     }
 
     @Test

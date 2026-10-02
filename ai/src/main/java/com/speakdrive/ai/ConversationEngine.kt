@@ -17,6 +17,9 @@ import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.model.TranscriptTurn
 import com.speakdrive.ai.live.LiveToolCall
 import com.speakdrive.ai.network.ConnectivityObserver
+import com.speakdrive.ai.pronunciation.AzureAssessment
+import com.speakdrive.ai.pronunciation.AzureSpeechConfig
+import com.speakdrive.ai.pronunciation.PronunciationAssessor
 import com.speakdrive.ai.pronunciation.PronunciationAttempt
 import com.speakdrive.ai.pronunciation.PronunciationDrill
 import com.speakdrive.ai.pronunciation.PronunciationGrader
@@ -73,6 +76,7 @@ class ConversationEngine @Inject constructor(
     private val connectivity: ConnectivityObserver,
     private val announcer: VoiceAnnouncer,
     private val micPermission: MicPermissionChecker,
+    private val pronunciationAssessor: PronunciationAssessor,
     @EngineDispatcher dispatcher: CoroutineDispatcher
 ) {
     /** Replaceable in tests. */
@@ -271,6 +275,7 @@ class ConversationEngine @Inject constructor(
             val key = PronunciationDrill.key(target)
             (attemptCounts.getOrElse(key) { 0 } + 1).also { attemptCounts[key] = it }
         }
+        val (azure, azureError) = assessWithAzure(target, call.learnerAudio)
         val attempt = PronunciationGrader.grade(
             target = target,
             heard = call.learnerUtterance,
@@ -278,12 +283,37 @@ class ConversationEngine @Inject constructor(
             modelProblemWords = problemWords,
             modelNotes = notes,
             attemptNumber = attemptNumber,
-            timestamp = clock()
+            timestamp = clock(),
+            azure = azure,
+            azureError = azureError
         )
         if (attempt.heard.isNotBlank()) _pronunciationAttempts.value = _pronunciationAttempts.value + attempt
         _drillTarget.value = target
-        Log.d(TAG, "Attempt $attemptNumber at '$target': passed=${attempt.passed} accuracy=${attempt.accuracyPercent}%")
+        Log.d(
+            TAG,
+            "Attempt $attemptNumber at '$target': passed=${attempt.passed} accuracy=${attempt.accuracyPercent}% " +
+                "azure=${azure?.pronunciationScore ?: azureError ?: "off"}"
+        )
         return PronunciationDrill.toolResponse(attempt)
+    }
+
+    /**
+     * Third, independent judge when switched on in settings. Failures never block the drill:
+     * the attempt is then graded by the other two judges and the reason is shown to the learner.
+     */
+    private fun assessWithAzure(target: String, audio: ByteArray): Pair<AzureAssessment?, String?> {
+        if (!learnerSettings.azureEnabled) return null to null
+        val config = AzureSpeechConfig(learnerSettings.azureRegion, learnerSettings.azureKey)
+        if (!config.isComplete) return null to "Chưa nhập Region/Key Azure trong Cài đặt"
+        if (audio.size < MIN_AZURE_AUDIO_BYTES) return null to null
+        return runCatching { pronunciationAssessor.assess(target, audio, config) }
+            .fold(
+                onSuccess = { it to null },
+                onFailure = {
+                    Log.w(TAG, "Azure assessment failed", it)
+                    null to "Azure không phản hồi: ${it.message ?: it::class.simpleName}"
+                }
+            )
     }
 
     private fun markActive() {
@@ -600,6 +630,9 @@ class ConversationEngine @Inject constructor(
         const val CLOSE_AFTER_PAUSE_MS = 2 * 60_000L
         const val SAY_WELCOME_BACK_AFTER_MS = 5_000L
         const val DRAFT_INTERVAL_MS = 30_000L
+
+        /** Less than ~0.3 s of audio cannot contain a sentence. */
+        const val MIN_AZURE_AUDIO_BYTES = 16_000 * 2 * 3 / 10
 
         const val ANNOUNCE_OFFLINE = "Connection lost. Your lesson will continue when you are back online."
         const val ANNOUNCE_OFFLINE_AT_START = "There is no internet connection right now. Please try again later."

@@ -1,10 +1,6 @@
 package com.speakdrive.ai
 
-import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
 import android.util.Log
-import androidx.core.content.ContextCompat
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.AudioTranscriptionConfig
@@ -13,33 +9,37 @@ import com.google.firebase.ai.type.FunctionCallPart
 import com.google.firebase.ai.type.FunctionDeclaration
 import com.google.firebase.ai.type.FunctionResponsePart
 import com.google.firebase.ai.type.GenerativeBackend
+import com.google.firebase.ai.type.InlineData
+import com.google.firebase.ai.type.InlineDataPart
+import com.google.firebase.ai.type.LiveServerContent
+import com.google.firebase.ai.type.LiveServerGoAway
+import com.google.firebase.ai.type.LiveServerToolCall
 import com.google.firebase.ai.type.LiveSession
 import com.google.firebase.ai.type.PublicPreviewAPI
 import com.google.firebase.ai.type.ResponseModality
+import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.SlidingWindow
 import com.google.firebase.ai.type.SpeechConfig
 import com.google.firebase.ai.type.Tool
 import com.google.firebase.ai.type.Voice
 import com.google.firebase.ai.type.content
-import com.google.firebase.ai.type.liveAudioConversationConfig
 import com.google.firebase.ai.type.liveGenerationConfig
-import com.google.firebase.ai.type.Schema
 import com.speakdrive.ai.live.LiveConversationClient
 import com.speakdrive.ai.live.LiveEvent
 import com.speakdrive.ai.live.LiveSessionConfig
 import com.speakdrive.ai.live.LiveTool
 import com.speakdrive.ai.live.LiveToolCall
 import com.speakdrive.ai.live.LiveToolParam
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
-import dagger.hilt.android.qualifiers.ApplicationContext
+import com.speakdrive.ai.live.MicGate
+import com.speakdrive.ai.live.UtteranceBuffer
+import com.speakdrive.audio.LiveAudio
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -48,22 +48,29 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Speech-to-speech conversation over the Gemini Live API (Firebase AI Logic).
  *
- * The SDK's audio conversation records the microphone (VOICE_COMMUNICATION source with
- * acoustic echo cancellation, so the AI does not hear itself through the car speakers),
- * streams it to Gemini, plays the 24 kHz reply on the media stream and supports barge-in.
+ * The app drives the audio itself ([LiveAudio]) instead of the SDK's built-in audio conversation:
+ * - the microphone is muted exactly while the AI's voice is audible (plus a short tail), so the
+ *   AI never hears its own echo through a phone or car speaker ([MicGate]);
+ * - the learner's raw audio is kept per utterance ([UtteranceBuffer]) so tools such as the
+ *   pronunciation check can send it to Azure.
  */
 @OptIn(PublicPreviewAPI::class)
 @Singleton
 class GeminiLiveManager @Inject constructor(
-    @param:ApplicationContext private val context: Context
+    private val audio: LiveAudio
 ) : LiveConversationClient {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -72,15 +79,16 @@ class GeminiLiveManager @Inject constructor(
     private val _events = MutableSharedFlow<LiveEvent>(extraBufferCapacity = 256)
     override val events: Flow<LiveEvent> = _events.asSharedFlow()
 
-    @Volatile
-    private var session: LiveSession? = null
-    @Volatile
-    private var config: LiveSessionConfig? = null
+    @Volatile private var session: LiveSession? = null
+    @Volatile private var config: LiveSessionConfig? = null
+    @Volatile private var audioPaused = false
+    private var receiveJob: Job? = null
+    private var sendJob: Job? = null
     private var watchdog: Job? = null
 
-    /** What the learner has said since the AI last spoke; handed to tools such as the pronunciation check. */
-    private val learnerUtterance = StringBuilder()
-    private var aiSpokeSinceLearner = false
+    private val gate = MicGate()
+    private val utterance = UtteranceBuffer()
+    private var outgoing = newOutgoingChannel()
 
     override val isConnected: Boolean
         get() = session?.isClosed() == false
@@ -103,8 +111,9 @@ class GeminiLiveManager @Inject constructor(
         val newSession = model.connect()
         session = newSession
         this.config = config
-        resetUtterance()
-        startAudio(newSession)
+        gate.reset()
+        utterance.reset()
+        startPipeline(newSession)
         startWatchdog(newSession)
         Log.d(TAG, "Connected to ${BuildConfig.LIVE_MODEL}")
         Unit
@@ -116,39 +125,86 @@ class GeminiLiveManager @Inject constructor(
     }
 
     override suspend fun pauseAudio() = lock.withLock {
-        session?.takeIf { it.isAudioConversationActive() }?.stopAudioConversation()
-        Unit
+        audioPaused = true
+        audio.stopCapture()
+        audio.flushPlayback()
     }
 
     override suspend fun resumeAudio() = lock.withLock {
-        val current = session ?: return@withLock
-        if (!current.isAudioConversationActive()) startAudio(current)
+        if (session == null) return@withLock
+        audioPaused = false
+        gate.reset()
+        audio.startCapture(::onMicChunk)
     }
 
     override suspend fun disconnect() = lock.withLock { closeLocked() }
 
-    private suspend fun startAudio(target: LiveSession) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            throw SecurityException("RECORD_AUDIO permission is not granted")
+    private fun startPipeline(target: LiveSession) {
+        audioPaused = false
+        outgoing = newOutgoingChannel()
+        val channel = outgoing
+        sendJob = scope.launch {
+            for (chunk in channel) {
+                runCatching { target.sendAudioRealtime(InlineData(chunk, "audio/pcm;rate=16000")) }
+                    .onFailure { if (it is CancellationException) throw it }
+            }
         }
-        target.startAudioConversation(
-            liveAudioConversationConfig {
-                // Without interruptions the SDK pauses the microphone while the AI's audio plays.
-                enableInterruptions = config?.enableInterruptions ?: false
-                transcriptHandler = { input, output ->
-                    input?.text?.takeIf { it.isNotEmpty() }?.let {
-                        trackLearner(it)
-                        _events.tryEmit(LiveEvent.UserTranscript(it))
-                    }
-                    output?.text?.takeIf { it.isNotEmpty() }?.let {
-                        trackAi()
-                        _events.tryEmit(LiveEvent.AiTranscript(it))
+        receiveJob = scope.launch {
+            try {
+                target.receive().collect { message ->
+                    when (message) {
+                        is LiveServerContent -> onContent(message)
+                        is LiveServerToolCall -> message.functionCalls.forEach { call -> answerToolCall(target, call) }
+                        is LiveServerGoAway -> _events.tryEmit(LiveEvent.GoAway)
+                        else -> Unit
                     }
                 }
-                goAwayHandler = { _events.tryEmit(LiveEvent.GoAway) }
-                functionCallHandler = ::handleFunctionCall
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Receive loop ended", e)
+                if (session === target) _events.tryEmit(LiveEvent.Disconnected(e))
             }
-        )
+        }
+        audio.startCapture(::onMicChunk)
+    }
+
+    private fun onContent(message: LiveServerContent) {
+        if (message.interrupted) audio.flushPlayback()
+        if (!audioPaused) {
+            message.content?.parts?.filterIsInstance<InlineDataPart>()?.forEach { part ->
+                if (part.mimeType.startsWith("audio")) audio.play(part.inlineData)
+            }
+        }
+        message.inputTranscription?.text?.takeIf { it.isNotEmpty() }?.let {
+            utterance.appendText(it)
+            _events.tryEmit(LiveEvent.UserTranscript(it))
+        }
+        message.outputTranscription?.text?.takeIf { it.isNotEmpty() }?.let {
+            _events.tryEmit(LiveEvent.AiTranscript(it))
+        }
+    }
+
+    /** Runs on the microphone thread for every ~100 ms of audio. */
+    private fun onMicChunk(chunk: ByteArray) {
+        if (audioPaused) return
+        val allowBargeIn = config?.enableInterruptions ?: false
+        when (gate.decide(aiAudible = audio.isPlaying(), allowBargeIn = allowBargeIn)) {
+            MicGate.Decision.MUTE -> return
+            MicGate.Decision.SEND_NEW_UTTERANCE -> utterance.reset()
+            MicGate.Decision.SEND -> Unit
+        }
+        utterance.appendAudio(chunk)
+        outgoing.trySend(chunk)
+    }
+
+    private fun answerToolCall(target: LiveSession, call: FunctionCallPart) {
+        // Tools may do network work (Azure); answer off the receive loop so it keeps reading.
+        scope.launch {
+            val response = handleFunctionCall(call)
+            runCatching { target.sendFunctionResponse(listOf(response)) }
+                .onFailure { Log.w(TAG, "Could not send tool response", it) }
+        }
     }
 
     private fun handleFunctionCall(call: FunctionCallPart): FunctionResponsePart {
@@ -159,9 +215,15 @@ class GeminiLiveManager @Inject constructor(
             }
             config?.tools?.any { it.name == call.name } == true -> {
                 val handler = config?.toolHandler
-                val utterance = synchronized(learnerUtterance) { learnerUtterance.toString().trim() }
                 runCatching {
-                    handler?.handle(LiveToolCall(call.name, call.args.mapValues { (_, v) -> v.toPlain() }, utterance))
+                    handler?.handle(
+                        LiveToolCall(
+                            name = call.name,
+                            args = call.args.mapValues { (_, v) -> v.toPlain() },
+                            learnerUtterance = utterance.text(),
+                            learnerAudio = utterance.audio()
+                        )
+                    )
                 }.onFailure { Log.e(TAG, "Tool ${call.name} failed", it) }.getOrNull()
                     ?: mapOf("status" to "error")
             }
@@ -171,21 +233,6 @@ class GeminiLiveManager @Inject constructor(
             }
         }
         return FunctionResponsePart(name = call.name, response = result.toJsonObject(), id = call.id)
-    }
-
-    private fun trackLearner(text: String) = synchronized(learnerUtterance) {
-        if (aiSpokeSinceLearner) {
-            learnerUtterance.setLength(0)
-            aiSpokeSinceLearner = false
-        }
-        learnerUtterance.append(text)
-    }
-
-    private fun trackAi() = synchronized(learnerUtterance) { aiSpokeSinceLearner = true }
-
-    private fun resetUtterance() = synchronized(learnerUtterance) {
-        learnerUtterance.setLength(0)
-        aiSpokeSinceLearner = false
     }
 
     private fun toDeclaration(tool: LiveTool): FunctionDeclaration = FunctionDeclaration(
@@ -201,7 +248,7 @@ class GeminiLiveManager @Inject constructor(
         optionalParameters = tool.parameters.filter { it.optional }.map { it.name }
     )
 
-    /** The SDK has no "closed" callback, so poll for a connection that dropped on its own. */
+    /** Catches connections that close without the receive loop noticing. */
     private fun startWatchdog(target: LiveSession) {
         watchdog?.cancel()
         watchdog = scope.launch {
@@ -218,17 +265,32 @@ class GeminiLiveManager @Inject constructor(
     }
 
     private suspend fun closeLocked() {
+        val current = session
+        session = null
         watchdog?.cancel()
         watchdog = null
-        val current = session ?: return
-        session = null
-        runCatching { if (current.isAudioConversationActive()) current.stopAudioConversation() }
-        runCatching { current.close() }.onFailure { Log.w(TAG, "Error while closing session", it) }
+        audio.stopCapture()
+        audio.flushPlayback()
+        outgoing.close()
+        receiveJob?.cancel()
+        sendJob?.cancel()
+        receiveJob = null
+        sendJob = null
+        if (current != null) {
+            runCatching { current.stopReceiving() }
+            runCatching { current.close() }.onFailure { Log.w(TAG, "Error while closing session", it) }
+        }
     }
+
+    private fun newOutgoingChannel() =
+        Channel<ByteArray>(capacity = OUTGOING_CHUNKS, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     private companion object {
         const val TAG = "GeminiLiveManager"
         const val WATCHDOG_INTERVAL_MS = 1_500L
+
+        /** About 5 s of microphone audio waiting for a slow network. */
+        const val OUTGOING_CHUNKS = 50
 
         val endLessonDeclaration = FunctionDeclaration(
             name = PromptTemplates.END_LESSON_FUNCTION,

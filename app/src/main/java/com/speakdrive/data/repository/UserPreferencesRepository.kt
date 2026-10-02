@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.speakdrive.BuildConfig
 import com.speakdrive.ai.model.AiVoice
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.LearnerSettings
@@ -45,6 +46,10 @@ class UserPreferencesRepository @Inject constructor(
                 voiceId = AiVoice.fromId(prefs[VOICE_ID]).id,
                 allowVietnameseHelp = prefs[ALLOW_VIETNAMESE_HELP] ?: true,
                 allowBargeIn = prefs[ALLOW_BARGE_IN] ?: false,
+                azureEnabled = prefs[AZURE_ENABLED] ?: false,
+                // Debug builds can be preconfigured from local.properties.
+                azureRegion = prefs[AZURE_REGION] ?: BuildConfig.AZURE_SPEECH_REGION,
+                azureKey = prefs[AZURE_KEY] ?: BuildConfig.AZURE_SPEECH_KEY,
                 lastTopicId = prefs[LAST_TOPIC_ID]
             ),
             dailyGoalMinutes = prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL,
@@ -74,6 +79,17 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[ALLOW_BARGE_IN] = allowed }
     }
 
+    suspend fun setAzureEnabled(enabled: Boolean) {
+        dataStore.edit { it[AZURE_ENABLED] = enabled }
+    }
+
+    suspend fun setAzureCredentials(region: String, key: String) {
+        dataStore.edit {
+            it[AZURE_REGION] = region.trim()
+            it[AZURE_KEY] = key.trim()
+        }
+    }
+
     suspend fun setDailyGoalMinutes(minutes: Int) {
         dataStore.edit { it[DAILY_GOAL_MINUTES] = minutes }
     }
@@ -87,6 +103,9 @@ class UserPreferencesRepository @Inject constructor(
         val VOICE_ID = stringPreferencesKey("voice_id")
         val ALLOW_VIETNAMESE_HELP = booleanPreferencesKey("allow_vietnamese_help")
         val ALLOW_BARGE_IN = booleanPreferencesKey("allow_barge_in")
+        val AZURE_ENABLED = booleanPreferencesKey("azure_enabled")
+        val AZURE_REGION = stringPreferencesKey("azure_region")
+        val AZURE_KEY = stringPreferencesKey("azure_key")
         val LAST_TOPIC_ID = stringPreferencesKey("last_topic_id")
         val DAILY_GOAL_MINUTES = intPreferencesKey("daily_goal_minutes")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
