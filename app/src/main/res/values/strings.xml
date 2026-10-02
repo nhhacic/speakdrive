@@ -1,0 +1,46 @@
+<resources>
+    <string name="app_name">SpeakDrive</string>
+    <string name="app_description">Luyện giao tiếp tiếng Anh khi lái xe</string>
+    
+    <!-- Topics -->
+    <string name="topic_travel">Du lịch \u0026 Đi lại</string>
+    <string name="topic_work">Công việc \u0026 Kinh doanh</string>
+    <string name="topic_food">Ăn uống \u0026 Nhà hàng</string>
+    <string name="topic_shopping">Mua sắm</string>
+    <string name="topic_health">Y tế \u0026 Sức khỏe</string>
+    <string name="topic_entertainment">Giải trí \u0026 Phim ảnh</string>
+    <string name="topic_daily">Giao tiếp hàng ngày</string>
+    <string name="topic_interview">Phỏng vấn xin việc</string>
+    
+    <!-- Difficulty Levels -->
+    <string name="level_beginner">Người mới bắt đầu</string>
+    <string name="level_intermediate">Trung cấp</string>
+    <string name="level_advanced">Nâng cao</string>
+    
+    <!-- UI Labels -->
+    <string name="quick_start">Bắt đầu nhanh</string>
+    <string name="resume_lesson">Tiếp tục bài học</string>
+    <string name="random_topic">Chủ đề ngẫu nhiên</string>
+    <string name="settings">Cài đặt</string>
+    <string name="streak_days">ngày liên tục</string>
+    <string name="minutes_today">phút hôm nay</string>
+    <string name="words_learned">từ mới</string>
+    <string name="start_conversation">Bắt đầu hội thoại</string>
+    <string name="stop_conversation">Kết thúc</string>
+    <string name="listening">Đang lắng nghe…</string>
+    <string name="ai_speaking">AI đang nói…</string>
+    <string name="connecting">Đang kết nối…</string>
+    <string name="session_summary">Tóm tắt phiên học</string>
+    <string name="fluency_score">Điểm lưu loát</string>
+    <string name="grammar_score">Điểm ngữ pháp</string>
+    <string name="vocabulary_score">Điểm từ vựng</string>
+    <string name="new_words">Từ mới đã học</string>
+    <string name="corrections">Cần cải thiện</string>
+    <string name="android_auto_connected">Đã kết nối Android Auto</string>
+    <string name="android_auto_not_connected">Kết nối Android Auto để luyện khi lái xe</string>
+    
+    <!-- Notifications -->
+    <string name="notification_channel_name">SpeakDrive Lesson</string>
+    <string name="notification_title">Đang luyện tiếng Anh</string>
+    <string name="notification_text">Nhấn để quay lại bài học</string>
+</resources>

@@ -1,0 +1,15 @@
+*.iml
+.gradle/
+.kotlin/
+.idea/
+build/
+/captures
+.externalNativeBuild
+.cxx
+.DS_Store
+local.properties
+
+# Release signing — never commit keystores or their passwords
+*.jks
+*.keystore
+keystore.properties
