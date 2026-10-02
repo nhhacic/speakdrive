@@ -1,44 +1,187 @@
 package com.speakdrive.auto
 
+import android.os.Looper
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.SimpleBasePlayer
+import androidx.media3.common.util.UnstableApi
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.speakdrive.ai.ConversationEngine
+import com.speakdrive.ai.model.ConversationState
+import com.speakdrive.ai.model.LessonRequest
+import com.speakdrive.ai.model.SessionMode
+import com.speakdrive.ai.session.LearningSettings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.guava.future
+import kotlinx.coroutines.launch
 
+/**
+ * A [Player] whose "playback" is a live conversation. Android Auto, the steering-wheel buttons,
+ * the notification and the phone UI all control lessons through this player:
+ *
+ * - play / pause → start or resume / pause the lesson
+ * - stop → end the lesson (it is summarised and saved)
+ * - next → switch to another topic
+ * - choosing an item in the browse tree → start that lesson
+ */
 @UnstableApi
-class SpeakDrivePlayer : SimpleBasePlayer(android.os.Looper.getMainLooper()) {
-    
-    private var isPlayingState = false
-    
-    override fun getState(): State {
-        return State.Builder()
-            .setAvailableCommands(
-                Player.Commands.Builder()
-                    .addAll(
-                        Player.COMMAND_PLAY_PAUSE,
-                        Player.COMMAND_STOP,
-                        Player.COMMAND_SEEK_TO_NEXT,
-                        Player.COMMAND_SEEK_TO_PREVIOUS
-                    )
-                    .build()
-            )
-            .setPlayWhenReady(isPlayingState, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
-            .setPlaybackState(if (isPlayingState) Player.STATE_READY else Player.STATE_IDLE)
-            .build()
+class SpeakDrivePlayer(
+    looper: Looper,
+    private val engine: ConversationEngine,
+    private val settings: LearningSettings,
+    private val contentProvider: MediaContentProvider,
+    private val scope: CoroutineScope
+) : SimpleBasePlayer(looper) {
+
+    /** What the learner picked last, shown before the lesson connects and after it ends. */
+    private var selectedItem: MediaItem? = null
+
+    init {
+        scope.launch {
+            combine(engine.state, engine.lesson, engine.error) { _, _, _ -> Unit }.collect { invalidateState() }
+        }
     }
 
-    override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
-        isPlayingState = playWhenReady
-        // Here we would call: if (playWhenReady) conversationEngine.start() else conversationEngine.pause()
-        invalidateState()
-        return Futures.immediateVoidFuture()
+    override fun getState(): State {
+        val engineState = engine.state.value
+        val lesson = engine.lesson.value
+        val item = lesson?.let { contentProvider.lessonItem(it, engineState) } ?: selectedItem
+        val error = engine.error.value
+
+        val builder = State.Builder()
+            .setAvailableCommands(AVAILABLE_COMMANDS)
+            .setPlayWhenReady(engineState.wantsToPlay(), Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+
+        if (item != null) {
+            builder.setPlaylist(
+                listOf(
+                    MediaItemData.Builder(item.mediaId)
+                        .setMediaItem(item)
+                        .setMediaMetadata(item.mediaMetadata)
+                        .setIsSeekable(false)
+                        .setDurationUs(C.TIME_UNSET)
+                        // A conversation has no timeline; marking it live hides the seek bar.
+                        .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().build())
+                        .build()
+                )
+            )
+            builder.setCurrentMediaItemIndex(0)
+        }
+
+        if (engineState == ConversationState.ERROR && error != null) {
+            builder.setPlaybackState(Player.STATE_IDLE)
+            builder.setPlayerError(PlaybackException(error.messageVi, null, PlaybackException.ERROR_CODE_UNSPECIFIED))
+        } else {
+            builder.setPlaybackState(if (item == null) Player.STATE_IDLE else engineState.toPlaybackState())
+        }
+        return builder.build()
     }
-    
-    override fun handleStop(): ListenableFuture<*> {
-        isPlayingState = false
-        // conversationEngine.stop()
-        invalidateState()
-        return Futures.immediateVoidFuture()
+
+    override fun handleSetMediaItems(mediaItems: List<MediaItem>, startIndex: Int, startPositionMs: Long): ListenableFuture<*> {
+        val item = mediaItems.getOrNull(startIndex.coerceAtLeast(0)) ?: mediaItems.firstOrNull()
+            ?: return Futures.immediateVoidFuture()
+        selectedItem = item
+        // While a lesson is running, Android Auto does not send "play" again after a new pick, so switch now.
+        if (!engine.state.value.isInLesson) return Futures.immediateVoidFuture()
+        return scope.future { startFromItem(item) }
+    }
+
+    override fun handlePrepare(): ListenableFuture<*> = Futures.immediateVoidFuture()
+
+    override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> = scope.future {
+        engine.clearError()
+        val state = engine.state.value
+        when {
+            !playWhenReady -> engine.pause()
+            state == ConversationState.PAUSED -> engine.resume()
+            state.isInLesson -> Unit
+            else -> startFromItem(selectedItem)
+        }
+    }
+
+    override fun handleStop(): ListenableFuture<*> = scope.future {
+        engine.end()
+        Unit
+    }
+
+    override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
+        if (seekCommand != Player.COMMAND_SEEK_TO_NEXT && seekCommand != Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM) {
+            return Futures.immediateVoidFuture()
+        }
+        // "Next" on the steering wheel: move on to a different topic.
+        val currentTopic = engine.lesson.value?.topic?.id
+        return scope.future {
+            selectedItem = null
+            engine.start(LessonRequest(topicId = null, mode = SessionMode.FREE_TALK).avoiding(currentTopic))
+            Unit
+        }
+    }
+
+    override fun handleRelease(): ListenableFuture<*> = Futures.immediateVoidFuture()
+
+    private suspend fun startFromItem(item: MediaItem?) {
+        val request = requestFor(item?.mediaId ?: MediaIds.RESUME) ?: return
+        engine.start(request)
+    }
+
+    /** Turns a media id from the browse tree or voice search into a lesson request. */
+    private suspend fun requestFor(mediaId: String): LessonRequest? = when (val target = MediaIds.parse(mediaId)) {
+        MediaTarget.Resume, MediaTarget.Unknown -> LessonRequest(topicId = settings.snapshot().lastTopicId)
+        MediaTarget.Random -> LessonRequest(topicId = null)
+        MediaTarget.Review -> LessonRequest(mode = SessionMode.VOCAB_REVIEW, topicId = settings.snapshot().lastTopicId)
+        is MediaTarget.Topic -> {
+            target.level?.let { settings.setLevel(it) }
+            LessonRequest(topicId = target.topicId, level = target.level)
+        }
+        is MediaTarget.Scenario -> LessonRequest(mode = SessionMode.ROLEPLAY, scenarioId = target.scenarioId)
+        is MediaTarget.Level -> {
+            settings.setLevel(target.level)
+            LessonRequest(topicId = settings.snapshot().lastTopicId, level = target.level)
+        }
+        is MediaTarget.Browse -> null
+    }
+
+    /** The engine picks a random topic when [LessonRequest.topicId] is null; this keeps it from repeating. */
+    private fun LessonRequest.avoiding(topicId: String?): LessonRequest =
+        if (topicId == null) this else copy(topicId = contentProvider.randomTopicIdExcept(topicId))
+
+    private fun ConversationState.wantsToPlay(): Boolean = when (this) {
+        ConversationState.CONNECTING,
+        ConversationState.ACTIVE,
+        ConversationState.RECONNECTING,
+        ConversationState.WAITING_FOR_NETWORK -> true
+        else -> false
+    }
+
+    private fun ConversationState.toPlaybackState(): Int = when (this) {
+        ConversationState.ACTIVE, ConversationState.PAUSED -> Player.STATE_READY
+        ConversationState.CONNECTING,
+        ConversationState.RECONNECTING,
+        ConversationState.WAITING_FOR_NETWORK,
+        ConversationState.ENDING -> Player.STATE_BUFFERING
+        ConversationState.ENDED -> Player.STATE_ENDED
+        ConversationState.IDLE, ConversationState.ERROR -> Player.STATE_IDLE
+    }
+
+    private companion object {
+        val AVAILABLE_COMMANDS: Player.Commands = Player.Commands.Builder()
+            .addAll(
+                Player.COMMAND_PLAY_PAUSE,
+                Player.COMMAND_PREPARE,
+                Player.COMMAND_STOP,
+                Player.COMMAND_SEEK_TO_NEXT,
+                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                Player.COMMAND_SET_MEDIA_ITEM,
+                Player.COMMAND_CHANGE_MEDIA_ITEMS,
+                Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
+                Player.COMMAND_GET_TIMELINE,
+                Player.COMMAND_GET_METADATA,
+                Player.COMMAND_RELEASE
+            )
+            .build()
     }
 }

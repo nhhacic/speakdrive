@@ -1,26 +1,33 @@
 package com.speakdrive.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.speakdrive.data.local.entity.LearnedWordEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WordDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertWord(word: LearnedWordEntity)
+    @Query("SELECT * FROM learned_words WHERE nextReviewAt <= :now ORDER BY nextReviewAt ASC LIMIT :limit")
+    suspend fun dueWords(now: Long, limit: Int): List<LearnedWordEntity>
 
-    @Query("SELECT * FROM learned_words WHERE sessionId = :sessionId")
-    fun getWordsBySession(sessionId: String): Flow<List<LearnedWordEntity>>
+    @Query("SELECT COUNT(*) FROM learned_words WHERE nextReviewAt <= :now")
+    fun observeDueCount(now: Long): Flow<Int>
 
-    @Query("SELECT * FROM learned_words WHERE nextReviewAt <= :currentTime ORDER BY nextReviewAt ASC")
-    fun getWordsForReview(currentTime: Long): Flow<List<LearnedWordEntity>>
+    @Query("SELECT * FROM learned_words WHERE normalizedWord IN (:normalizedWords)")
+    suspend fun findByNormalized(normalizedWords: List<String>): List<LearnedWordEntity>
 
-    @Query("SELECT COUNT(*) FROM learned_words WHERE learnedAt >= :startOfDay")
-    fun getTotalWordsLearnedToday(startOfDay: Long): Flow<Int>
+    @Query("UPDATE learned_words SET reviewCount = :reviewCount, nextReviewAt = :nextReviewAt WHERE id = :id")
+    suspend fun updateSchedule(id: Long, reviewCount: Int, nextReviewAt: Long)
 
-    @Query("UPDATE learned_words SET reviewCount = reviewCount + 1, nextReviewAt = :nextReviewAt WHERE id = :wordId")
-    suspend fun updateReviewCount(wordId: Long, nextReviewAt: Long)
+    @Query("SELECT * FROM learned_words WHERE sessionId = :sessionId ORDER BY id ASC")
+    fun observeWordsForSession(sessionId: String): Flow<List<LearnedWordEntity>>
+
+    @Query("SELECT * FROM learned_words ORDER BY learnedAt DESC")
+    fun observeAllWords(): Flow<List<LearnedWordEntity>>
+
+    @Query("SELECT COUNT(*) FROM learned_words WHERE learnedAt >= :since")
+    fun observeCountLearnedSince(since: Long): Flow<Int>
+
+    @Query("DELETE FROM learned_words")
+    suspend fun deleteAll()
 }

@@ -3,7 +3,6 @@ package com.speakdrive.di
 import android.content.Context
 import androidx.room.Room
 import com.speakdrive.data.local.AppDatabase
-import com.speakdrive.data.local.dao.MessageDao
 import com.speakdrive.data.local.dao.SessionDao
 import com.speakdrive.data.local.dao.WordDao
 import dagger.Module
@@ -19,28 +18,16 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
-        return Room.databaseBuilder(
-            context,
-            AppDatabase::class.java,
-            "speakdrive_db"
-        )
-        .fallbackToDestructiveMigration()
-        .build()
-    }
+    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase =
+        Room.databaseBuilder(context, AppDatabase::class.java, "speakdrive_db")
+            // Version 1 was never released, so dropping old development data is fine.
+            // Add real migrations once the app is on the Play Store.
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
 
     @Provides
-    fun provideSessionDao(database: AppDatabase): SessionDao {
-        return database.sessionDao()
-    }
+    fun provideSessionDao(database: AppDatabase): SessionDao = database.sessionDao()
 
     @Provides
-    fun provideMessageDao(database: AppDatabase): MessageDao {
-        return database.messageDao()
-    }
-
-    @Provides
-    fun provideWordDao(database: AppDatabase): WordDao {
-        return database.wordDao()
-    }
+    fun provideWordDao(database: AppDatabase): WordDao = database.wordDao()
 }
