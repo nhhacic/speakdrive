@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chính sách bảo mật – SpeakDrive</title>
+    <title>Privacy Policy – SpeakDrive</title>
     <style>
         :root {
             --bg-color: #0b0f14;
@@ -27,7 +27,7 @@
             padding: 24px 16px;
         }
         .container {
-            max-width: 800px;
+            max-width: 820px;
             margin: 0 auto;
             background: var(--card-bg);
             border: 1px solid var(--border-color);
@@ -37,7 +37,7 @@
         }
         header {
             text-align: center;
-            margin-bottom: 32px;
+            margin-bottom: 24px;
             padding-bottom: 20px;
             border-bottom: 1px solid var(--border-color);
         }
@@ -61,6 +61,33 @@
             color: var(--text-muted);
             font-size: 13px;
             margin-top: 6px;
+        }
+        .lang-switch {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin: 20px 0 10px;
+        }
+        .lang-btn {
+            background: #1e293b;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: 8px 18px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        .lang-btn:hover {
+            color: #fff;
+            border-color: var(--cyan-accent);
+        }
+        .lang-btn.active {
+            background: var(--cyan-accent);
+            color: #0b0f14;
+            border-color: var(--cyan-accent);
+            box-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
         }
         h2 {
             color: var(--cyan-accent);
@@ -106,27 +133,6 @@
             margin: 20px 0;
             font-size: 14px;
         }
-        .lang-switch {
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 24px;
-        }
-        .lang-btn {
-            background: #1e293b;
-            color: var(--text-muted);
-            border: none;
-            padding: 6px 14px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 13px;
-            text-decoration: none;
-        }
-        .lang-btn.active {
-            background: var(--cyan-accent);
-            color: #0b0f14;
-        }
         a {
             color: var(--cyan-accent);
             text-decoration: none;
@@ -146,82 +152,200 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <div class="logo-title">
-                <h1>SpeakDrive</h1>
-            </div>
-            <p class="tagline">Luyện nói tiếng Anh rảnh tay khi lái xe với gia sư AI</p>
-            <p class="last-updated">Cập nhật lần cuối: 03/10/2026</p>
-        </header>
-
-        <div class="alert-box">
-            SpeakDrive được thiết kế ưu tiên quyền riêng tư tuyệt đối: <strong>Không tạo tài khoản</strong>, <strong>Không có quảng cáo</strong>, <strong>Không theo dõi vị trí</strong>. Mọi dữ liệu học tập chỉ lưu trên thiết bị của bạn.
+        <!-- Language Switcher -->
+        <div class="lang-switch">
+            <button class="lang-btn active" id="btn-en" onclick="setLanguage('en')">English (Default)</button>
+            <button class="lang-btn" id="btn-vi" onclick="setLanguage('vi')">Tiếng Việt</button>
         </div>
 
-        <h2>1. Dữ liệu ứng dụng xử lý</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Loại dữ liệu</th>
-                    <th>Khi nào sử dụng</th>
-                    <th>Nơi xử lý</th>
-                    <th>Thời gian lưu trữ</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>Âm thanh giọng nói</strong></td>
-                    <td>Chỉ khi bài học đang diễn ra</td>
-                    <td>Truyền luồng trực tiếp đến Google Gemini (qua Firebase AI Logic) để AI nghe và đối đáp</td>
-                    <td>Xử lý tạm thời (ephemeral), ứng dụng <strong>không lưu trữ</strong> file âm thanh</td>
-                </tr>
-                <tr>
-                    <td><strong>Bản ghi lời nói (Transcript)</strong></td>
-                    <td>Trong và sau bài học</td>
-                    <td>Lưu trên bộ nhớ máy; gửi một lần đến Gemini khi kết thúc bài để chấm điểm & nhận xét</td>
-                    <td>Chỉ lưu trên thiết bị đến khi bạn chủ động xóa</td>
-                </tr>
-                <tr>
-                    <td><strong>Tiến độ, điểm số, từ vựng</strong></td>
-                    <td>Sau mỗi buổi luyện tập</td>
-                    <td>Lưu cục bộ trong cơ sở dữ liệu trên máy (Room Database)</td>
-                    <td>Chỉ lưu trên thiết bị đến khi bạn chủ động xóa</td>
-                </tr>
-            </tbody>
-        </table>
+        <!-- ENGLISH CONTENT -->
+        <div id="content-en">
+            <header>
+                <div class="logo-title">
+                    <h1>SpeakDrive</h1>
+                </div>
+                <p class="tagline">Practise Spoken English Hands-Free While Driving with AI Tutor</p>
+                <p class="last-updated">Last updated: October 5, 2026</p>
+            </header>
 
-        <h2>2. Dịch vụ bên thứ ba</h2>
-        <ul>
-            <li><strong>Google Firebase & Gemini AI:</strong> Cung cấp trí tuệ nhân tạo đàm thoại và phân tích hội thoại theo chính sách bảo mật của Google (<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>).</li>
-            <li><strong>Play Integrity & Firebase App Check:</strong> Xác minh tính toàn vẹn của ứng dụng nhằm bảo vệ hệ thống khỏi gian lận và tấn công lạm dụng.</li>
-        </ul>
+            <div class="alert-box">
+                SpeakDrive is built with privacy by design: <strong>No account registration</strong>, <strong>No advertisements</strong>, and <strong>No location or personal tracking</strong>. Your learning progress stays locally on your device.
+            </div>
 
-        <h2>3. Quyền truy cập trên thiết bị</h2>
-        <ul>
-            <li><strong>Microphone (Ghi âm):</strong> Cho phép bạn trò chuyện với gia sư AI. Quyền này chỉ kích hoạt khi bạn chủ động mở phiên học.</li>
-            <li><strong>Internet & Trạng thái mạng:</strong> Để kết nối với mô hình AI Gemini và tự động kết nối lại khi đi qua khu vực sóng yếu hoặc hầm đường bộ.</li>
-            <li><strong>Dịch vụ chạy nền (Foreground Service):</strong> Giúp duy trì hội thoại liên tục khi bạn tắt màn hình điện thoại hoặc sử dụng ứng dụng qua Android Auto trên xe hơi.</li>
-        </ul>
+            <h2>1. Information We Process</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data Type</th>
+                        <th>When Collected</th>
+                        <th>Where Processed</th>
+                        <th>Retention Period</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Voice Audio</strong></td>
+                        <td>Only while a lesson session is actively running</td>
+                        <td>Streamed directly to Google Gemini (via Firebase AI Logic) so the AI tutor can listen and respond in real-time</td>
+                        <td>Processed ephemerally. The app <strong>does not record or store audio files</strong></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Conversation Transcript</strong></td>
+                        <td>During and immediately after a lesson</td>
+                        <td>Stored locally on your device; sent once to Gemini upon session completion to generate feedback</td>
+                        <td>Stored locally until you choose to delete it</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Scores, Mistakes & Vocabulary</strong></td>
+                        <td>After each speaking session</td>
+                        <td>Stored strictly on your local device (Room SQLite Database)</td>
+                        <td>Retained on device until you choose to clear learning data</td>
+                    </tr>
+                </tbody>
+            </table>
 
-        <h2>4. Quyền kiểm soát của bạn</h2>
-        <ul>
-            <li>Bạn có thể xóa toàn bộ lịch sử học, điểm số và từ vựng bất kỳ lúc nào tại: <strong>Cài đặt &rarr; Chính sách bảo mật &rarr; Xoá toàn bộ dữ liệu học tập</strong>.</li>
-            <li>Bạn có thể tắt quyền Micro trong phần Cài đặt ứng dụng của Android hoặc gỡ cài đặt app bất cứ khi nào bạn muốn.</li>
-        </ul>
+            <h2>2. Third-Party Services</h2>
+            <ul>
+                <li><strong>Google Firebase & Gemini AI:</strong> Powers the interactive voice dialogue and speech analysis under <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a> and <a href="https://firebase.google.com/terms/data-processing-terms" target="_blank" rel="noopener">Firebase Data Processing Terms</a>.</li>
+                <li><strong>Play Integrity & Firebase App Check:</strong> Validates app authenticity to protect service quotas against abuse.</li>
+            </ul>
 
-        <h2>5. Độ tuổi & An toàn khi tham gia giao thông</h2>
-        <ul>
-            <li><strong>Độ tuổi:</strong> Ứng dụng hướng đến người học từ 18 tuổi trở lên (độ tuổi lái xe).</li>
-            <li><strong>An toàn:</strong> Luôn đặt sự tập trung lái xe và an toàn giao thông lên hàng đầu. Chỉ sử dụng tính năng giọng nói rảnh tay khi đang điều khiển phương tiện.</li>
-        </ul>
+            <h2>3. Device Permissions</h2>
+            <ul>
+                <li><strong>Microphone (RECORD_AUDIO):</strong> Enables speaking with the AI tutor. Activated only when a lesson session is started by the user.</li>
+                <li><strong>Internet & Network State:</strong> Connects to Gemini Live API and handles automatic reconnection during tunnels or weak signal areas.</li>
+                <li><strong>Foreground Service:</strong> Ensures the speaking session continues uninterrupted when the screen is locked or while running inside Android Auto.</li>
+            </ul>
 
-        <h2>6. Thông tin liên hệ</h2>
-        <p>Nếu bạn có bất kỳ câu hỏi hoặc yêu cầu hỗ trợ nào liên quan đến quyền riêng tư, vui lòng liên hệ nhà phát triển tại:</p>
-        <p><strong>Email:</strong> <a href="mailto:support@speakdrive.app">support@speakdrive.app</a></p>
+            <h2>4. Your Rights & Data Deletion</h2>
+            <ul>
+                <li>You can delete all learning history, scores, and saved vocabulary anytime within the app: <strong>Settings &rarr; Privacy Policy &rarr; Delete All Learning Data</strong>.</li>
+                <li>You can revoke microphone permission at any time in Android System Settings, or uninstall the application to remove all stored local data.</li>
+            </ul>
 
-        <footer>
-            &copy; 2026 SpeakDrive. All rights reserved.
-        </footer>
+            <h2>5. Target Audience & Road Safety</h2>
+            <ul>
+                <li><strong>Target Audience:</strong> Designed for adult learners aged 18 and older (legal driving age). We do not knowingly collect personal data from children.</li>
+                <li><strong>Driving Safety:</strong> Always prioritize safe driving and obey traffic laws. Only interact hands-free using voice commands while operating a vehicle.</li>
+            </ul>
+
+            <h2>6. Contact Us</h2>
+            <p>If you have any questions or requests regarding your privacy and data, please contact the developer at:</p>
+            <p><strong>Email:</strong> <a href="mailto:support@speakdrive.app">support@speakdrive.app</a> (or <a href="mailto:hoanghamail@gmail.com">hoanghamail@gmail.com</a>)</p>
+
+            <footer>
+                &copy; 2026 SpeakDrive. All rights reserved.
+            </footer>
+        </div>
+
+        <!-- VIETNAMESE CONTENT -->
+        <div id="content-vi" style="display: none;">
+            <header>
+                <div class="logo-title">
+                    <h1>SpeakDrive</h1>
+                </div>
+                <p class="tagline">Luyện nói tiếng Anh rảnh tay khi lái xe với gia sư AI</p>
+                <p class="last-updated">Cập nhật lần cuối: 05/10/2026</p>
+            </header>
+
+            <div class="alert-box">
+                SpeakDrive được thiết kế ưu tiên quyền riêng tư tuyệt đối: <strong>Không tạo tài khoản</strong>, <strong>Không có quảng cáo</strong>, <strong>Không theo dõi vị trí</strong>. Mọi dữ liệu học tập chỉ lưu trên thiết bị của bạn.
+            </div>
+
+            <h2>1. Dữ liệu ứng dụng xử lý</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Loại dữ liệu</th>
+                        <th>Khi nào sử dụng</th>
+                        <th>Nơi xử lý</th>
+                        <th>Thời gian lưu trữ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Âm thanh giọng nói</strong></td>
+                        <td>Chỉ khi bài học đang diễn ra</td>
+                        <td>Truyền luồng trực tiếp đến Google Gemini (qua Firebase AI Logic) để AI nghe và đối đáp</td>
+                        <td>Xử lý tạm thời (ephemeral), ứng dụng <strong>không lưu trữ</strong> file âm thanh</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Bản ghi lời nói (Transcript)</strong></td>
+                        <td>Trong và sau bài học</td>
+                        <td>Lưu trên bộ nhớ máy; gửi một lần đến Gemini khi kết thúc bài để chấm điểm & nhận xét</td>
+                        <td>Chỉ lưu trên thiết bị đến khi bạn chủ động xóa</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tiến độ, điểm số, từ vựng</strong></td>
+                        <td>Sau mỗi buổi luyện tập</td>
+                        <td>Lưu cục bộ trong cơ sở dữ liệu trên máy (Room Database)</td>
+                        <td>Chỉ lưu trên thiết bị đến khi bạn chủ động xóa</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>2. Dịch vụ bên thứ ba</h2>
+            <ul>
+                <li><strong>Google Firebase & Gemini AI:</strong> Cung cấp trí tuệ nhân tạo đàm thoại và phân tích hội thoại theo chính sách bảo mật của Google (<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>).</li>
+                <li><strong>Play Integrity & Firebase App Check:</strong> Xác minh tính toàn vẹn của ứng dụng nhằm bảo vệ hệ thống khỏi gian lận và tấn công lạm dụng.</li>
+            </ul>
+
+            <h2>3. Quyền truy cập trên thiết bị</h2>
+            <ul>
+                <li><strong>Microphone (Ghi âm):</strong> Cho phép bạn trò chuyện với gia sư AI. Quyền này chỉ kích hoạt khi bạn chủ động mở phiên học.</li>
+                <li><strong>Internet & Trạng thái mạng:</strong> Để kết nối với mô hình AI Gemini và tự động kết nối lại khi đi qua khu vực sóng yếu hoặc hầm đường bộ.</li>
+                <li><strong>Dịch vụ chạy nền (Foreground Service):</strong> Giúp duy trì hội thoại liên tục khi bạn tắt màn hình điện thoại hoặc sử dụng ứng dụng qua Android Auto trên xe hơi.</li>
+            </ul>
+
+            <h2>4. Quyền kiểm soát của bạn</h2>
+            <ul>
+                <li>Bạn có thể xóa toàn bộ lịch sử học, điểm số và từ vựng bất kỳ lúc nào tại: <strong>Cài đặt &rarr; Chính sách bảo mật &rarr; Xoá toàn bộ dữ liệu học tập</strong>.</li>
+                <li>Bạn có thể tắt quyền Micro trong phần Cài đặt ứng dụng của Android hoặc gỡ cài đặt app bất cứ khi nào bạn muốn.</li>
+            </ul>
+
+            <h2>5. Độ tuổi & An toàn khi tham gia giao thông</h2>
+            <ul>
+                <li><strong>Độ tuổi:</strong> Ứng dụng hướng đến người học từ 18 tuổi trở lên (độ tuổi lái xe).</li>
+                <li><strong>An toàn:</strong> Luôn đặt sự tập trung lái xe và an toàn giao thông lên hàng đầu. Chỉ sử dụng tính năng giọng nói rảnh tay khi đang điều khiển phương tiện.</li>
+            </ul>
+
+            <h2>6. Thông tin liên hệ</h2>
+            <p>Nếu bạn có bất kỳ câu hỏi hoặc yêu cầu hỗ trợ nào liên quan đến quyền riêng tư, vui lòng liên hệ nhà phát triển tại:</p>
+            <p><strong>Email:</strong> <a href="mailto:support@speakdrive.app">support@speakdrive.app</a> (hoặc <a href="mailto:hoanghamail@gmail.com">hoanghamail@gmail.com</a>)</p>
+
+            <footer>
+                &copy; 2026 SpeakDrive. All rights reserved.
+            </footer>
+        </div>
     </div>
+
+    <script>
+        function setLanguage(lang) {
+            const enContent = document.getElementById('content-en');
+            const viContent = document.getElementById('content-vi');
+            const btnEn = document.getElementById('btn-en');
+            const btnVi = document.getElementById('btn-vi');
+
+            if (lang === 'vi') {
+                enContent.style.display = 'none';
+                viContent.style.display = 'block';
+                btnVi.classList.add('active');
+                btnEn.classList.remove('active');
+                document.documentElement.lang = 'vi';
+            } else {
+                viContent.style.display = 'none';
+                enContent.style.display = 'block';
+                btnEn.classList.add('active');
+                btnVi.classList.remove('active');
+                document.documentElement.lang = 'en';
+            }
+        }
+
+        // Auto detect URL hash or query param (e.g. ?lang=vi or #vi)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('lang') === 'vi' || window.location.hash === '#vi') {
+            setLanguage('vi');
+        }
+    </script>
 </body>
 </html>
