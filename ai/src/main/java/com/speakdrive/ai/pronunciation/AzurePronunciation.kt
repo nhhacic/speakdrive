@@ -1,5 +1,7 @@
 package com.speakdrive.ai.pronunciation
 
+import com.speakdrive.ai.model.DifficultyLevel
+import com.speakdrive.ai.model.PronunciationStrictness
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -34,14 +36,51 @@ data class AzureWord(
     val errorType: String,
     val phonemes: List<AzurePhoneme>
 ) {
-    /** Strict: a flagged word, or one pronounced noticeably off, needs work. */
+    /**
+     * Checks if this word needs practice based on the chosen strictness level.
+     */
+    fun needsWork(strictness: PronunciationStrictness = PronunciationStrictness.AUTO): Boolean {
+        if (errorType == ERROR_MISPRONUNCIATION || errorType == ERROR_OMISSION) return true
+        if (errorType == ERROR_INSERTION) return false
+        val resolved = strictness.resolveForLevel(DifficultyLevel.INTERMEDIATE)
+        val (wordThreshold, phonemeThreshold) = when (resolved) {
+            PronunciationStrictness.BEGINNER -> 35 to 0
+            PronunciationStrictness.ELEMENTARY -> 40 to 0
+            PronunciationStrictness.PRE_INTERMEDIATE -> 45 to 35
+            PronunciationStrictness.INTERMEDIATE -> 50 to 45
+            PronunciationStrictness.UPPER_INTERMEDIATE -> 55 to 50
+            PronunciationStrictness.ADVANCED -> AzureAssessment.WORD_PASS_SCORE to AzureAssessment.PHONEME_PASS_SCORE
+            else -> 50 to 45
+        }
+        if (accuracy < wordThreshold) return true
+        return phonemeThreshold > 0 && phonemes.any { it.accuracy < phonemeThreshold }
+    }
+
+    /**
+     * Strict: a flagged word, a low word score, or any badly pronounced sound needs work.
+     * The sound check matters: saying "tree" for "three" scored the WORD 91/100 with no error
+     * type, while its sounds scored th 18 and r 42 (real Azure response, see test resources).
+     */
     val needsWork: Boolean
-        get() = errorType == ERROR_MISPRONUNCIATION || errorType == ERROR_OMISSION ||
-            (errorType != ERROR_INSERTION && accuracy < AzureAssessment.WORD_PASS_SCORE)
+        get() = needsWork(PronunciationStrictness.AUTO)
 
     /** The weakest sounds of this word, e.g. "th 35". */
-    fun weakestPhonemes(limit: Int = 2): List<AzurePhoneme> =
-        phonemes.filter { it.accuracy < AzureAssessment.WORD_PASS_SCORE }.sortedBy { it.accuracy }.take(limit)
+    fun weakestPhonemes(
+        limit: Int = 2,
+        strictness: PronunciationStrictness = PronunciationStrictness.AUTO
+    ): List<AzurePhoneme> {
+        val resolved = strictness.resolveForLevel(DifficultyLevel.INTERMEDIATE)
+        val threshold = when (resolved) {
+            PronunciationStrictness.BEGINNER -> 35
+            PronunciationStrictness.ELEMENTARY -> 40
+            PronunciationStrictness.PRE_INTERMEDIATE -> 45
+            PronunciationStrictness.INTERMEDIATE -> 50
+            PronunciationStrictness.UPPER_INTERMEDIATE -> 55
+            PronunciationStrictness.ADVANCED -> AzureAssessment.PHONEME_PASS_SCORE
+            else -> 50
+        }
+        return phonemes.filter { it.accuracy < threshold }.sortedBy { it.accuracy }.take(limit)
+    }
 
     companion object {
         const val ERROR_MISPRONUNCIATION = "Mispronunciation"
@@ -59,20 +98,37 @@ data class AzureAssessment(
     val recognizedText: String,
     val words: List<AzureWord>
 ) {
-    val problemWords: List<AzureWord> get() = words.filter { it.needsWork }
+    fun problemWords(strictness: PronunciationStrictness = PronunciationStrictness.AUTO): List<AzureWord> =
+        words.filter { it.needsWork(strictness) }
 
-    val passed: Boolean
-        get() = pronunciationScore >= PASS_SCORE && completenessScore >= PASS_SCORE && problemWords.isEmpty()
+    val problemWords: List<AzureWord> get() = problemWords(PronunciationStrictness.AUTO)
+
+    fun isPassed(strictness: PronunciationStrictness = PronunciationStrictness.AUTO): Boolean {
+        val resolved = strictness.resolveForLevel(DifficultyLevel.INTERMEDIATE)
+        val passThreshold = when (resolved) {
+            PronunciationStrictness.BEGINNER -> 50
+            PronunciationStrictness.ELEMENTARY -> 60
+            PronunciationStrictness.PRE_INTERMEDIATE -> 65
+            PronunciationStrictness.INTERMEDIATE -> 70
+            PronunciationStrictness.UPPER_INTERMEDIATE -> 75
+            PronunciationStrictness.ADVANCED -> PASS_SCORE
+            else -> 70
+        }
+        return pronunciationScore >= passThreshold && completenessScore >= passThreshold && problemWords(strictness).isEmpty()
+    }
+
+    val passed: Boolean get() = isPassed(PronunciationStrictness.AUTO)
 
     /** "three (th 35, r 60)" — the form the AI and the summary use. */
-    fun describeProblems(): List<String> = problemWords.map { word ->
-        val sounds = word.weakestPhonemes().joinToString { "${it.phoneme} ${it.accuracy}" }
-        when {
-            word.errorType == AzureWord.ERROR_OMISSION -> "${word.word} (missing)"
-            sounds.isNotEmpty() -> "${word.word} ($sounds)"
-            else -> "${word.word} (${word.accuracy}/100)"
+    fun describeProblems(strictness: PronunciationStrictness = PronunciationStrictness.AUTO): List<String> =
+        problemWords(strictness).map { word ->
+            val sounds = word.weakestPhonemes(strictness = strictness).joinToString { "${it.phoneme} ${it.accuracy}" }
+            when {
+                word.errorType == AzureWord.ERROR_OMISSION -> "${word.word} (missing)"
+                sounds.isNotEmpty() -> "${word.word} ($sounds)"
+                else -> "${word.word} (${word.accuracy}/100)"
+            }
         }
-    }
 
     companion object {
         /** Overall and completeness score needed to pass. Strict on purpose. */
@@ -80,6 +136,9 @@ data class AzureAssessment(
 
         /** Every word must reach this accuracy. */
         const val WORD_PASS_SCORE = 60
+
+        /** Every sound in every word must reach this accuracy. */
+        const val PHONEME_PASS_SCORE = 60
     }
 }
 

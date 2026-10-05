@@ -18,7 +18,7 @@ import com.speakdrive.data.local.entity.SessionEntity
         LearnedWordEntity::class,
         PronunciationAttemptEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

@@ -1,6 +1,13 @@
 package com.speakdrive.ai
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.os.Build
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.AudioTranscriptionConfig
@@ -21,6 +28,7 @@ import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.SlidingWindow
 import com.google.firebase.ai.type.SpeechConfig
 import com.google.firebase.ai.type.Tool
+import com.speakdrive.ai.pronunciation.PronunciationDrill
 import com.google.firebase.ai.type.Voice
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.liveGenerationConfig
@@ -32,7 +40,9 @@ import com.speakdrive.ai.live.LiveToolCall
 import com.speakdrive.ai.live.LiveToolParam
 import com.speakdrive.ai.live.MicGate
 import com.speakdrive.ai.live.UtteranceBuffer
+import com.speakdrive.audio.AudioDiagnostics
 import com.speakdrive.audio.LiveAudio
+import com.speakdrive.audio.PcmLevel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -61,11 +71,9 @@ import javax.inject.Singleton
 /**
  * Speech-to-speech conversation over the Gemini Live API (Firebase AI Logic).
  *
- * The app drives the audio itself ([LiveAudio]) instead of the SDK's built-in audio conversation:
- * - the microphone is muted exactly while the AI's voice is audible (plus a short tail), so the
- *   AI never hears its own echo through a phone or car speaker ([MicGate]);
- * - the learner's raw audio is kept per utterance ([UtteranceBuffer]) so tools such as the
- *   pronunciation check can send it to Azure.
+ * Captures microphone with [LiveAudio] and gates audio with [MicGate] during AI speech playback
+ * to completely eliminate speaker-to-mic acoustic feedback loops (AI hearing itself), while
+ * seamlessly streaming learner speech to Gemini over realtime WebSockets.
  */
 @OptIn(PublicPreviewAPI::class)
 @Singleton
@@ -75,69 +83,155 @@ class GeminiLiveManager @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
+    private val gate = MicGate(
+        tailMs = TAIL_PHONE_SPEAKER_MS,
+        bargeInRms = BARGE_IN_RMS,
+        bargeInChunks = BARGE_IN_CHUNKS
+    )
+    private val utterance = UtteranceBuffer()
 
     private val _events = MutableSharedFlow<LiveEvent>(extraBufferCapacity = 256)
     override val events: Flow<LiveEvent> = _events.asSharedFlow()
 
-    @Volatile private var session: LiveSession? = null
-    @Volatile private var config: LiveSessionConfig? = null
-    @Volatile private var audioPaused = false
+    @Volatile
+    private var session: LiveSession? = null
+    @Volatile
+    private var config: LiveSessionConfig? = null
+    private var watchdog: Job? = null
     private var receiveJob: Job? = null
     private var sendJob: Job? = null
-    private var watchdog: Job? = null
-
-    private val gate = MicGate()
-    private val utterance = UtteranceBuffer()
     private var outgoing = newOutgoingChannel()
+    @Volatile
+    private var audioPaused = false
+
+    /**
+     * The AI's turn is "live" from the moment we ask it to speak (greeting, nudge, tool result)
+     * until the server says the turn is complete. Gemini streams audio faster than real time and
+     * the speaker output can stall on a slow network, so the speaker alone cannot tell us the AI
+     * is done: without this the mic opens in a gap mid-sentence and the AI hears itself.
+     */
+    @Volatile
+    private var aiTurnActive = false
+    @Volatile
+    private var lastAiAudioAt = 0L
+    @Volatile
+    private var awaitingAiSince = 0L
+    @Volatile
+    private var lastTailRefreshAt = 0L
+
+    /** Mic chunks held back while barge-in is deciding if they are speech or echo. */
+    private val preRoll = ArrayDeque<ByteArray>()
 
     override val isConnected: Boolean
         get() = session?.isClosed() == false
 
     override suspend fun connect(config: LiveSessionConfig) = lock.withLock {
         closeLocked()
-        val model = Firebase.ai(backend = GenerativeBackend.googleAI()).liveModel(
-            modelName = BuildConfig.LIVE_MODEL,
-            generationConfig = liveGenerationConfig {
-                responseModality = ResponseModality.AUDIO
-                speechConfig = SpeechConfig(voice = Voice(config.voiceId))
-                inputAudioTranscription = AudioTranscriptionConfig()
-                outputAudioTranscription = AudioTranscriptionConfig()
-                // Lets audio sessions run past the 15-minute context limit by sliding the window.
-                contextWindowCompression = ContextWindowCompressionConfig(slidingWindow = SlidingWindow())
-            },
-            tools = listOf(Tool.functionDeclarations(listOf(endLessonDeclaration) + config.tools.map(::toDeclaration))),
-            systemInstruction = content { text(config.systemInstruction) }
-        )
-        val newSession = model.connect()
-        session = newSession
         this.config = config
         gate.reset()
         utterance.reset()
+
+        val allDeclarations = listOf(endLessonDeclaration) + config.tools.map(::toDeclaration)
+        var usedDeclarations = allDeclarations
+        val newSession = try {
+            createLiveModel(config, allDeclarations).connect()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // When connecting with many function declarations fails (Gemini Live preview limits),
+            // gracefully fallback to core tools so the lesson still connects seamlessly.
+            if (config.tools.isNotEmpty()) {
+                Log.w(TAG, "Live connection with ${allDeclarations.size} tools failed, retrying with core tools...", e)
+                try {
+                    val coreTools = listOf(endLessonDeclaration) +
+                        config.tools.filter { it.name == PronunciationDrill.CHECK_ATTEMPT_FUNCTION }.map(::toDeclaration)
+                    usedDeclarations = coreTools
+                    createLiveModel(config, coreTools).connect().also {
+                        Log.i(TAG, "Fallback connection succeeded with core tools (${coreTools.size})")
+                    }
+                } catch (fallbackEx: CancellationException) {
+                    throw fallbackEx
+                } catch (fallbackEx: Exception) {
+                    Log.e(TAG, "Fallback live connection also failed", fallbackEx)
+                    throw fallbackEx
+                }
+            } else {
+                Log.e(TAG, "Live connection failed", e)
+                throw e
+            }
+        }
+        session = newSession
+        resetAiTurn()
         startPipeline(newSession)
         startWatchdog(newSession)
-        Log.d(TAG, "Connected to ${BuildConfig.LIVE_MODEL}")
+        // The caller sends a kick-off / resume message next and the AI answers out loud.
+        expectAiResponse()
+        Log.i(TAG, "Connected to ${BuildConfig.LIVE_MODEL} with ${usedDeclarations.size} tools (half-duplex MicGate active)")
         Unit
     }
 
+    private fun createLiveModel(
+        config: LiveSessionConfig,
+        declarations: List<FunctionDeclaration>
+    ) = Firebase.ai(backend = GenerativeBackend.googleAI()).liveModel(
+        modelName = BuildConfig.LIVE_MODEL,
+        generationConfig = liveGenerationConfig {
+            responseModality = ResponseModality.AUDIO
+            speechConfig = SpeechConfig(voice = Voice(config.voiceId))
+            inputAudioTranscription = AudioTranscriptionConfig()
+            outputAudioTranscription = AudioTranscriptionConfig()
+            // Lets audio sessions run past the 15-minute context limit by sliding the window.
+            contextWindowCompression = ContextWindowCompressionConfig(slidingWindow = SlidingWindow())
+        },
+        tools = listOf(Tool.functionDeclarations(declarations)),
+        systemInstruction = content { text(config.systemInstruction) }
+    )
+
     override suspend fun sendText(text: String) {
         val current = session ?: return
-        current.send(content(role = "user") { text(text) }, turnComplete = true)
+        // Keep the mic shut until the AI has answered, so noise or the learner's chatter cannot
+        // start a second, competing turn (the "greets twice" problem).
+        expectAiResponse()
+        try {
+            current.send(content(role = "user") { text(text) }, turnComplete = true)
+        } catch (e: Exception) {
+            awaitingAiSince = 0L
+            throw e
+        }
     }
 
     override suspend fun pauseAudio() = lock.withLock {
         audioPaused = true
         audio.stopCapture()
         audio.flushPlayback()
+        resetAiTurn()
     }
 
     override suspend fun resumeAudio() = lock.withLock {
         if (session == null) return@withLock
         audioPaused = false
         gate.reset()
+        resetAiTurn()
         audio.startCapture(::onMicChunk)
     }
 
     override suspend fun disconnect() = lock.withLock { closeLocked() }
+
+    override fun updateInterruptions(enabled: Boolean) {
+        val current = config ?: return
+        // DataStore re-emits on every unrelated preference change; only react to a real toggle,
+        // otherwise the echo tail would be forgotten and the AI could hear the end of its sentence.
+        if (current.enableInterruptions == enabled) return
+        config = current.copy(enableInterruptions = enabled)
+        // Takes effect on the very next mic chunk; drop anything held back for the old mode.
+        gate.reset()
+        clearPreRoll()
+        Log.i(TAG, "Interruptions (barge-in) ${if (enabled) "enabled" else "disabled"}")
+    }
+
+    override fun setVolume(volumeFraction: Float) {
+        audio.setVolume(volumeFraction)
+    }
 
     private fun startPipeline(target: LiveSession) {
         audioPaused = false
@@ -145,8 +239,14 @@ class GeminiLiveManager @Inject constructor(
         val channel = outgoing
         sendJob = scope.launch {
             for (chunk in channel) {
-                runCatching { target.sendAudioRealtime(InlineData(chunk, "audio/pcm;rate=16000")) }
-                    .onFailure { if (it is CancellationException) throw it }
+                runCatching {
+                    // The Live API needs the sample rate in the MIME type; without it the server may
+                    // guess a different rate and transcribe the learner's speech as garbage or nothing.
+                    target.sendAudioRealtime(InlineData(chunk, INPUT_AUDIO_MIME))
+                }.onFailure {
+                    if (it is CancellationException) throw it
+                    Log.w(TAG, "sendAudioRealtime failed", it)
+                }
             }
         }
         receiveJob = scope.launch {
@@ -170,39 +270,170 @@ class GeminiLiveManager @Inject constructor(
     }
 
     private fun onContent(message: LiveServerContent) {
-        if (message.interrupted) audio.flushPlayback()
-        if (!audioPaused) {
-            message.content?.parts?.filterIsInstance<InlineDataPart>()?.forEach { part ->
-                if (part.mimeType.startsWith("audio")) audio.play(part.inlineData)
+        AudioDiagnostics.onServerMessage()
+        if (message.interrupted) {
+            // The AI's turn ended early either way. Only cut the speaker when the learner allowed
+            // interruptions; otherwise this is the server reacting to leaked echo/noise and the
+            // learner never asked to be talked over.
+            endAiTurn()
+            if (config?.enableInterruptions == true) {
+                audio.flushPlayback()
+                _events.tryEmit(LiveEvent.Interrupted)
+            } else {
+                Log.d(TAG, "Ignoring server interruption: barge-in is off")
             }
         }
+        if (!audioPaused) {
+            message.content?.parts?.filterIsInstance<InlineDataPart>()?.forEach { part ->
+                if (part.mimeType.startsWith("audio")) {
+                    audio.play(part.inlineData)
+                    lastAiAudioAt = System.currentTimeMillis()
+                    aiTurnActive = true
+                    awaitingAiSince = 0L
+                }
+            }
+        }
+        if (message.turnComplete) endAiTurn()
         message.inputTranscription?.text?.takeIf { it.isNotEmpty() }?.let {
             utterance.appendText(it)
+            AudioDiagnostics.onUserTranscript()
+            Log.d(TAG, "User speech recognized: $it")
             _events.tryEmit(LiveEvent.UserTranscript(it))
         }
         message.outputTranscription?.text?.takeIf { it.isNotEmpty() }?.let {
+            Log.d(TAG, "AI speech: $it")
             _events.tryEmit(LiveEvent.AiTranscript(it))
         }
     }
 
-    /** Runs on the microphone thread for every ~100 ms of audio. */
+    /** Runs on the microphone thread for every ~100 ms chunk of audio. */
     private fun onMicChunk(chunk: ByteArray) {
         if (audioPaused) return
+        val now = System.currentTimeMillis()
+        refreshTail(now)
         val allowBargeIn = config?.enableInterruptions ?: false
-        when (gate.decide(aiAudible = audio.isPlaying(), allowBargeIn = allowBargeIn)) {
-            MicGate.Decision.MUTE -> return
-            MicGate.Decision.SEND_NEW_UTTERANCE -> utterance.reset()
-            MicGate.Decision.SEND -> Unit
+        val speakerPlaying = audio.isPlaying()
+        val turnLive = aiTurnLive(now)
+        val aiAudible = speakerPlaying || turnLive
+        // Loudness only matters for telling the learner apart from speaker echo during barge-in.
+        val level = if (allowBargeIn && aiAudible) PcmLevel.rms(chunk) else Int.MAX_VALUE
+        when (gate.decide(aiAudible = aiAudible, allowBargeIn = allowBargeIn, micRms = level)) {
+            MicGate.Decision.MUTE -> {
+                val reason = when {
+                    speakerPlaying -> "speaker"
+                    awaitingAiSince != 0L -> "waitAI"
+                    turnLive -> "aiTurn"
+                    else -> "tail"
+                }
+                AudioDiagnostics.onMuted(reason, speakerPlaying)
+                if (mutedSince == 0L) mutedSince = now
+                if (unstickIfNeeded(now, speakerPlaying)) return
+                // Drop microphone audio while the AI talks so it cannot hear itself.
+                if (allowBargeIn) holdPreRoll(chunk) else clearPreRoll()
+                return
+            }
+            MicGate.Decision.SEND_NEW_UTTERANCE -> {
+                utterance.reset()
+                clearPreRoll()
+            }
+            MicGate.Decision.SEND -> if (aiAudible) sendPreRoll() else clearPreRoll()
         }
+        mutedSince = 0L
+        AudioDiagnostics.onSent()
         utterance.appendAudio(chunk)
         outgoing.trySend(chunk)
     }
 
+    @Volatile
+    private var mutedSince = 0L
+
+    /**
+     * Last line of defence: whatever goes wrong with turn tracking or the speaker, the learner must
+     * never be left talking to a deaf AI. Turn state is cleared after a long mute with no new AI
+     * audio; a speaker that claims to play long after the last AI audio arrived is flushed.
+     * @return true if the mic was forced open (the chunk is then dropped, the next one goes through).
+     */
+    private fun unstickIfNeeded(now: Long, speakerPlaying: Boolean): Boolean {
+        val mutedFor = now - mutedSince
+        if (mutedFor < MAX_CONTINUOUS_MUTE_MS) return false
+        val sinceAiAudio = if (lastAiAudioAt == 0L) Long.MAX_VALUE else now - lastAiAudioAt
+        val stuck = if (speakerPlaying) sinceAiAudio > SPEAKER_STUCK_MS else sinceAiAudio > TURN_STUCK_MS
+        if (!stuck) return false
+        Log.w(TAG, "Mic muted for ${mutedFor}ms (speakerPlaying=$speakerPlaying, sinceAiAudio=${sinceAiAudio}ms); forcing it open")
+        if (speakerPlaying) audio.flushPlayback()
+        resetAiTurn()
+        gate.reset()
+        mutedSince = 0L
+        AudioDiagnostics.onForcedUnmute()
+        return true
+    }
+
+    /** True while the AI is (or is about to be) talking, as far as the server's messages say. */
+    private fun aiTurnLive(now: Long): Boolean {
+        val waitingSince = awaitingAiSince
+        if (waitingSince != 0L) {
+            if (now - waitingSince < AWAIT_AI_RESPONSE_MS) return true
+            awaitingAiSince = 0L // The AI never answered; do not leave the learner unheard.
+        }
+        return aiTurnActive && now - lastAiAudioAt < AI_TURN_STALE_MS
+    }
+
+    private fun expectAiResponse() {
+        awaitingAiSince = System.currentTimeMillis()
+    }
+
+    private fun endAiTurn() {
+        aiTurnActive = false
+        awaitingAiSince = 0L
+    }
+
+    private fun resetAiTurn() {
+        endAiTurn()
+        lastAiAudioAt = 0L
+        lastTailRefreshAt = 0L
+        clearPreRoll()
+    }
+
+    /**
+     * Echo takes longer to die out on slow outputs: Bluetooth/car audio lags the playback position
+     * the app can see by a few hundred milliseconds, so the tail must be longer there.
+     * On the voice-call route the phone / car cancels the echo in hardware, so the tail can be
+     * short and a normal speaking voice is enough to interrupt the AI.
+     */
+    private fun refreshTail(now: Long) {
+        if (now - lastTailRefreshAt < TAIL_REFRESH_MS) return
+        lastTailRefreshAt = now
+        val echoCancelled = audio.isEchoCancelled()
+        gate.tailMs = when {
+            echoCancelled -> TAIL_ECHO_CANCELLED_MS
+            audio.isCarAudioConnected() -> TAIL_CAR_MS
+            audio.isHeadsetConnected() -> TAIL_HEADSET_MS
+            else -> TAIL_PHONE_SPEAKER_MS
+        }
+        gate.bargeInRms = if (echoCancelled) BARGE_IN_RMS_ECHO_CANCELLED else BARGE_IN_RMS
+    }
+
+    private fun holdPreRoll(chunk: ByteArray) = synchronized(preRoll) {
+        preRoll.addLast(chunk)
+        while (preRoll.size > PRE_ROLL_CHUNKS) preRoll.removeFirst()
+    }
+
+    private fun clearPreRoll() = synchronized(preRoll) { preRoll.clear() }
+
+    /** Barge-in just opened: send what was held back so the first word is not clipped. */
+    private fun sendPreRoll() {
+        val held = synchronized(preRoll) { preRoll.toList().also { preRoll.clear() } }
+        held.forEach {
+            utterance.appendAudio(it)
+            outgoing.trySend(it)
+        }
+    }
+
     private fun answerToolCall(target: LiveSession, call: FunctionCallPart) {
-        // Tools may do network work (Azure); answer off the receive loop so it keeps reading.
         scope.launch {
             val response = handleFunctionCall(call)
             runCatching { target.sendFunctionResponse(listOf(response)) }
+                .onSuccess { expectAiResponse() } // The model now speaks its confirmation / feedback.
                 .onFailure { Log.w(TAG, "Could not send tool response", it) }
         }
     }
@@ -248,7 +479,7 @@ class GeminiLiveManager @Inject constructor(
         optionalParameters = tool.parameters.filter { it.optional }.map { it.name }
     )
 
-    /** Catches connections that close without the receive loop noticing. */
+    /** The SDK has no "closed" callback, so poll for a connection that dropped on its own. */
     private fun startWatchdog(target: LiveSession) {
         watchdog?.cancel()
         watchdog = scope.launch {
@@ -271,6 +502,7 @@ class GeminiLiveManager @Inject constructor(
         watchdog = null
         audio.stopCapture()
         audio.flushPlayback()
+        resetAiTurn()
         outgoing.close()
         receiveJob?.cancel()
         sendJob?.cancel()
@@ -288,9 +520,38 @@ class GeminiLiveManager @Inject constructor(
     private companion object {
         const val TAG = "GeminiLiveManager"
         const val WATCHDOG_INTERVAL_MS = 1_500L
-
-        /** About 5 s of microphone audio waiting for a slow network. */
         const val OUTGOING_CHUNKS = 50
+        const val INPUT_AUDIO_MIME = "audio/pcm;rate=16000"
+
+        /** Echo tail (mic stays shut this long after the AI's audio ends) per output route. */
+        const val TAIL_PHONE_SPEAKER_MS = 450L
+        const val TAIL_HEADSET_MS = 250L
+        const val TAIL_CAR_MS = 700L
+        const val TAIL_ECHO_CANCELLED_MS = 200L
+        const val TAIL_REFRESH_MS = 3_000L
+
+        /** During barge-in, only speech clearly louder than the echo (RMS of 16-bit PCM) counts. */
+        const val BARGE_IN_RMS = 2_500
+
+        /** With hardware echo cancellation only a faint residue is left, so normal speech is enough. */
+        const val BARGE_IN_RMS_ECHO_CANCELLED = 900
+        const val BARGE_IN_CHUNKS = 2
+        const val PRE_ROLL_CHUNKS = 2
+
+        /** After we ask the AI to speak, how long we wait for its first audio before giving up. */
+        const val AWAIT_AI_RESPONSE_MS = 6_000L
+
+        /** No AI audio for this long without a "turn complete" means the turn is over anyway. */
+        const val AI_TURN_STALE_MS = 4_000L
+
+        /** Safety valve: a mute this long is suspicious ... */
+        const val MAX_CONTINUOUS_MUTE_MS = 15_000L
+
+        /** ... and is treated as stuck if no AI audio arrived for this long (turn state only) ... */
+        const val TURN_STUCK_MS = 3_000L
+
+        /** ... or, when the speaker still claims to play, for longer than any real AI reply. */
+        const val SPEAKER_STUCK_MS = 60_000L
 
         val endLessonDeclaration = FunctionDeclaration(
             name = PromptTemplates.END_LESSON_FUNCTION,

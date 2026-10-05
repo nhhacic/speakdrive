@@ -1,7 +1,9 @@
 package com.speakdrive.data.repository
 
 import com.speakdrive.ai.model.CompletedSession
+import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.ReviewWord
+import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.session.SessionStore
 import com.speakdrive.data.local.dao.SessionDao
 import com.speakdrive.data.local.dao.WordDao
@@ -51,7 +53,10 @@ class SessionRepository @Inject constructor(
             encouragement = summary?.encouragement,
             nextSuggestion = summary?.nextSuggestion,
             isCompleted = session.isCompleted,
-            pronunciationScore = summary?.pronunciationScore
+            pronunciationScore = summary?.pronunciationScore,
+            recommendedLevel = summary?.levelRecommendation?.targetLevel?.name,
+            levelRecommendationDirection = summary?.levelRecommendation?.direction?.name,
+            levelRecommendationReason = summary?.levelRecommendation?.reasonVi
         )
         val messages = session.transcript.mapIndexed { index, turn ->
             MessageEntity(sessionId = session.id, speaker = turn.speaker.name, text = turn.text, timestamp = turn.timestamp, position = index)
@@ -96,8 +101,61 @@ class SessionRepository @Inject constructor(
 
     override suspend fun recentTopicIds(limit: Int): List<String> = sessionDao.recentTopicIds(limit)
 
+    override suspend fun recentStorySessions(limit: Int): List<CompletedSession> {
+        val entities = sessionDao.recentStorySessions(limit)
+        return entities.map { entity ->
+            CompletedSession(
+                id = entity.id,
+                topicId = entity.topicId,
+                scenarioId = entity.scenarioId,
+                level = DifficultyLevel.fromStored(entity.level),
+                mode = SessionMode.STORY_LISTENING,
+                startedAt = entity.startedAt,
+                endedAt = entity.endedAt,
+                activeDurationMs = entity.activeDurationMs,
+                transcript = emptyList(),
+                summary = null,
+                reviewedWords = emptyList(),
+                isCompleted = entity.isCompleted
+            )
+        }
+    }
+
+    override suspend fun latestUnfinishedStorySession(): CompletedSession? {
+        val entity = sessionDao.latestUnfinishedStorySession() ?: return null
+        val messageEntities = sessionDao.getMessagesForSession(entity.id)
+        val transcript = messageEntities.map { msg ->
+            com.speakdrive.ai.model.TranscriptTurn(
+                id = msg.id,
+                speaker = if (msg.speaker == "USER") com.speakdrive.ai.model.Speaker.USER else com.speakdrive.ai.model.Speaker.AI,
+                text = msg.text,
+                timestamp = msg.timestamp
+            )
+        }
+        return CompletedSession(
+            id = entity.id,
+            topicId = entity.topicId,
+            scenarioId = entity.scenarioId,
+            level = DifficultyLevel.fromStored(entity.level),
+            mode = SessionMode.STORY_LISTENING,
+            startedAt = entity.startedAt,
+            endedAt = entity.endedAt,
+            activeDurationMs = entity.activeDurationMs,
+            transcript = transcript,
+            summary = null,
+            reviewedWords = emptyList(),
+            isCompleted = false
+        )
+    }
+
     override suspend fun wordsDueForReview(limit: Int): List<ReviewWord> =
         wordDao.dueWords(clock(), limit).map { ReviewWord(it.word, it.meaning) }
+
+    override suspend fun recentWords(limit: Int): List<ReviewWord> =
+        wordDao.recentWords(limit).map { ReviewWord(it.word, it.meaning) }
+
+    override suspend fun wordsByWordNames(words: List<String>): List<ReviewWord> =
+        wordDao.findByNormalized(words.map(::normalize)).map { ReviewWord(it.word, it.meaning) }
 
     override suspend fun markWordsReviewed(words: List<String>) {
         if (words.isEmpty()) return
@@ -106,6 +164,44 @@ class SessionRepository @Inject constructor(
             val count = word.reviewCount + 1
             wordDao.updateSchedule(word.id, count, SpacedRepetition.nextReviewAt(count, now))
         }
+    }
+
+    suspend fun addCustomWord(word: String, meaning: String, example: String = ""): Long {
+        val now = clock()
+        val normalized = normalize(word)
+        val existing = wordDao.findByNormalized(listOf(normalized)).firstOrNull()
+        val entity = LearnedWordEntity(
+            id = existing?.id ?: 0,
+            word = word.trim(),
+            normalizedWord = normalized,
+            meaning = meaning.trim(),
+            exampleSentence = example.trim(),
+            sessionId = null,
+            learnedAt = existing?.learnedAt ?: now,
+            reviewCount = existing?.reviewCount ?: 0,
+            nextReviewAt = existing?.nextReviewAt ?: SpacedRepetition.nextReviewAt(0, now)
+        )
+        return wordDao.upsertWord(entity)
+    }
+
+    suspend fun deleteWord(id: Long) {
+        wordDao.deleteWord(id)
+    }
+
+    suspend fun updateWordExample(id: Long, example: String) {
+        wordDao.updateExample(id, example.trim())
+    }
+
+    suspend fun markWordMastered(id: Long) {
+        val now = clock()
+        // 5 reviews marks it mastered; schedule far out (e.g. 180 days)
+        val farFuture = now + 180L * 24 * 60 * 60 * 1000
+        wordDao.updateSchedule(id, reviewCount = 5, nextReviewAt = farFuture)
+    }
+
+    suspend fun resetWordSchedule(id: Long) {
+        val now = clock()
+        wordDao.updateSchedule(id, reviewCount = 0, nextReviewAt = now)
     }
 
     fun observeSessionDetail(sessionId: String): Flow<SessionDetail?> = combine(

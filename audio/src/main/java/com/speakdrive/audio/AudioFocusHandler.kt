@@ -11,31 +11,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class AudioFocusState {
-    /** We own audio focus. */
-    GAIN,
-
-    /** Lost for good, e.g. the user started music in another app. */
-    LOSS,
-
-    /** Lost for a short while, e.g. a phone call. */
-    LOSS_TRANSIENT,
-
-    /** Someone short wants the speaker, e.g. a navigation prompt. Speech should pause, not duck. */
-    LOSS_TRANSIENT_CAN_DUCK,
-
-    /** Not requested. */
-    NONE
-}
-
-interface AudioFocus {
-    val state: StateFlow<AudioFocusState>
-
-    /** @return true if focus was granted (or will be granted later, see [AudioFocusState]). */
-    fun request(): Boolean
-    fun abandon()
-}
-
 /**
  * Requests audio focus for spoken content. Because the AI speaks, we ask the system to tell us
  * about ducking instead of lowering our volume, and the conversation engine pauses instead.

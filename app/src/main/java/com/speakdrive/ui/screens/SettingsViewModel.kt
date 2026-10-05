@@ -3,7 +3,12 @@ package com.speakdrive.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.speakdrive.ai.model.AiVoice
+import com.speakdrive.ai.model.AppLanguage
 import com.speakdrive.ai.model.DifficultyLevel
+import com.speakdrive.ai.model.DrillCategory
+import com.speakdrive.ai.model.DrillSentenceLength
+import com.speakdrive.ai.model.PronunciationStrictness
+import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.ai.pronunciation.AzureSpeechConfig
 import com.speakdrive.ai.pronunciation.PronunciationAssessor
 import com.speakdrive.data.repository.UserPreferences
@@ -38,9 +43,16 @@ class SettingsViewModel @Inject constructor(
     private val _azureTest = MutableStateFlow<AzureTestState>(AzureTestState.Idle)
     val azureTest: StateFlow<AzureTestState> = _azureTest.asStateFlow()
 
+    fun setAppLanguage(language: AppLanguage) = viewModelScope.launch { repository.setAppLanguage(language) }
+
     fun setLevel(level: DifficultyLevel) = viewModelScope.launch { repository.setLevel(level) }
 
     fun setVoice(voice: AiVoice) = viewModelScope.launch { repository.setVoice(voice) }
+
+    fun setRandomVoice(enabled: Boolean) = viewModelScope.launch { repository.setRandomVoice(enabled) }
+
+    fun setPronunciationStrictness(strictness: PronunciationStrictness) =
+        viewModelScope.launch { repository.setPronunciationStrictness(strictness) }
 
     fun setAllowVietnameseHelp(allowed: Boolean) = viewModelScope.launch { repository.setAllowVietnameseHelp(allowed) }
 
@@ -56,10 +68,48 @@ class SettingsViewModel @Inject constructor(
             val result = withContext(Dispatchers.IO) { assessor.testConnection(AzureSpeechConfig(region, key)) }
             _azureTest.value = result.fold(
                 onSuccess = { AzureTestState.Ok },
-                onFailure = { AzureTestState.Failed(it.message ?: "Không kết nối được tới Azure") }
+                onFailure = { AzureTestState.Failed(it.message ?: "Connection failed") }
+            )
+        }
+    }
+
+    /** Tests Azure connection using the currently configured (default or saved) region and key. */
+    fun testAzureConnection() {
+        _azureTest.value = AzureTestState.Testing
+        viewModelScope.launch {
+            val settings = repository.snapshot()
+            val region = settings.azureRegion
+            val key = settings.azureKey
+            val result = withContext(Dispatchers.IO) {
+                assessor.testConnection(AzureSpeechConfig(region, key))
+            }
+            _azureTest.value = result.fold(
+                onSuccess = { AzureTestState.Ok },
+                onFailure = { AzureTestState.Failed(it.message ?: "Connection failed") }
             )
         }
     }
 
     fun setDailyGoal(minutes: Int) = viewModelScope.launch { repository.setDailyGoalMinutes(minutes) }
+
+    fun setStorytellingStyle(style: StorytellingStyle) = viewModelScope.launch { repository.setStorytellingStyle(style) }
+
+    fun setStoryDuration(duration: com.speakdrive.ai.model.StoryDuration) =
+        viewModelScope.launch { repository.setStoryDuration(duration) }
+
+    fun setMultiVoiceStorytelling(enabled: Boolean) =
+        viewModelScope.launch { repository.setMultiVoiceStorytelling(enabled) }
+
+    fun setAdaptiveLevelRecommendation(enabled: Boolean) =
+        viewModelScope.launch { repository.setAdaptiveLevelRecommendation(enabled) }
+
+    fun setDrillSentenceLength(length: DrillSentenceLength) =
+        viewModelScope.launch { repository.setDrillSentenceLength(length) }
+
+    fun setDrillCategory(category: DrillCategory) =
+        viewModelScope.launch { repository.setDrillCategory(category) }
+
+    fun setAiVolume(volume: Int) =
+        viewModelScope.launch { repository.setAiVolume(volume) }
 }
+

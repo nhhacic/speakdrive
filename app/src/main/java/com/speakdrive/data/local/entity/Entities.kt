@@ -22,7 +22,13 @@ data class SessionEntity(
     val nextSuggestion: String?,
     val isCompleted: Boolean,
     /** Share of drill sentences passed (repeat-after-me lessons only). Added in schema v3. */
-    val pronunciationScore: Int? = null
+    val pronunciationScore: Int? = null,
+    /** Recommended level (e.g. "PRE_INTERMEDIATE"). Added in schema v5. */
+    val recommendedLevel: String? = null,
+    /** "LEVEL_UP", "LEVEL_DOWN", or "KEEP". Added in schema v5. */
+    val levelRecommendationDirection: String? = null,
+    /** Reason for the recommendation. Added in schema v5. */
+    val levelRecommendationReason: String? = null
 )
 
 /** One graded "repeat after me" attempt. Added in schema v3. */

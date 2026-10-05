@@ -1,0 +1,82 @@
+<resources>
+    <string name="app_name">SpeakDrive</string>
+    <string name="back">Zurück</string>
+    <string name="start">Starten</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Fortsetzen</string>
+    <string name="end_lesson">Lektion beenden</string>
+    <string name="save">Speichern</string>
+    <string name="cancel">Abbrechen</string>
+    <string name="close">Schließen</string>
+
+    <!-- Bottom Navigation -->
+    <string name="nav_home">Sprechen</string>
+    <string name="nav_vocabulary">Wortschatz</string>
+    <string name="nav_progress">Fortschritt</string>
+    <string name="nav_settings">Einstellungen</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_group_language">Sprache der Benutzeroberfläche</string>
+    <string name="settings_language_desc">Wählen Sie die Anzeigesprache und muttersprachliche Erklärungen.</string>
+    <string name="settings_language_voice_tip">💡 Sprachbefehl: \"change language to English\" oder \"auf Deutsch umstellen\".</string>
+    <string name="settings_group_learning">Übung &amp; Sprachniveau</string>
+    <string name="settings_learner_level">Lernniveau</string>
+    <string name="settings_strictness">Strenge der Aussprachebewertung</string>
+    <string name="settings_daily_goal">Tagesziel</string>
+    <string name="settings_minutes">Minuten</string>
+    <string name="settings_storytelling_mode">Geschichtenmodus (Hörverstehen)</string>
+    <string name="settings_story_duration">Geschichtendauer</string>
+    <string name="settings_multi_voice">Multi-Voice-Hörspiel</string>
+    <string name="settings_multi_voice_desc">Die KI passt Stimmen und Emotionen dynamisch an die Charaktere an.</string>
+    <string name="settings_group_voice">KI-Stimme &amp; Sprachinteraktion</string>
+    <string name="settings_voice_choice">KI-Stimme wählen</string>
+    <string name="settings_voice_random">Zufällige Stimme pro Lektion</string>
+    <string name="settings_voice_random_desc">Wählt automatisch eine zufällige KI-Stimme für jede neue Lektion.</string>
+    <string name="settings_vietnamese_help">Erklärungen in der Muttersprache erlauben</string>
+    <string name="settings_vietnamese_help_desc">Wenn Sie nicht weiterwissen, gibt die KI eine kurze Erklärung in Ihrer Sprache.</string>
+    <string name="settings_barge_in">Unterbrechen der KI erlauben (Barge-in)</string>
+    <string name="settings_barge_in_desc">Nur mit Kopfhörern empfohlen, um Echos zu vermeiden.</string>
+    <string name="settings_group_car">Fahrmodus &amp; Bildschirm</string>
+    <string name="settings_auto_start_car">Autostart bei Autoverbindung</string>
+    <string name="settings_auto_start_car_desc">Startet das Sprechtraining automatisch bei Verbindung mit Android Auto.</string>
+    <string name="settings_screen_awake">Bildschirm während des Trainings eingeschaltet lassen</string>
+    <string name="settings_group_azure">Azure Aussprache-Service</string>
+    <string name="settings_azure_enable">Mit Microsoft Azure bewerten</string>
+    <string name="settings_azure_enable_desc">Azure bewertet Phoneme und Wörter zusätzlich (0–100).</string>
+    <string name="settings_azure_test">Azure-Verbindung testen</string>
+    <string name="settings_group_info">Informationen &amp; Support</string>
+    <string name="settings_privacy_policy">Datenschutzrichtlinie</string>
+    <string name="settings_about">Über SpeakDrive &amp; Autor</string>
+
+    <!-- Home Screen -->
+    <string name="home_greeting_morning">Guten Morgen</string>
+    <string name="home_greeting_afternoon">Guten Tag</string>
+    <string name="home_greeting_evening">Guten Abend</string>
+    <string name="home_ready_drive">Bereit, heute beim Autofahren freihändig Englisch zu üben?</string>
+    <string name="home_quick_start">Schnellstart</string>
+    <string name="home_free_talk">Freies Gespräch</string>
+    <string name="home_story_listening">Geschichten hören</string>
+    <string name="home_pronunciation">Aussprache-Drill</string>
+    <string name="home_roleplay">Rollenspiel</string>
+    <string name="home_vocab_review">Wortschatz wiederholen</string>
+    <string name="home_all_topics">Gesprächsthemen</string>
+
+    <!-- Conversation Screen -->
+    <string name="convo_listening">Hört zu…</string>
+    <string name="convo_speaking">Alex spricht…</string>
+    <string name="convo_connecting">Verbindung zur KI wird hergestellt…</string>
+    <string name="convo_paused">Pausiert</string>
+    <string name="convo_mic_hint">Mikrofon berühren oder natürlich sprechen</string>
+    <string name="convo_barge_in_active">Unterbrechen: Ein</string>
+    <string name="convo_barge_in_inactive">Unterbrechen: Aus</string>
+    <string name="convo_barge_in_on_toast">KI-Unterbrechung aktiviert (Kopfhörer empfohlen)</string>
+    <string name="convo_barge_in_off_toast">KI-Unterbrechung deaktiviert</string>
+
+    <!-- Vocabulary & Progress -->
+    <string name="vocab_title">Wortschatz-Notizbuch</string>
+    <string name="vocab_empty">Noch keine Wörter gespeichert. Schließen Sie Lektionen ab, um Wörter zu sammeln!</string>
+    <string name="progress_title">Lernfortschritt</string>
+    <string name="progress_streak">Tages-Serie</string>
+    <string name="progress_total_time">Gesamtzeit</string>
+</resources>

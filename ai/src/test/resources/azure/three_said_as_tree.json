@@ -1,0 +1,295 @@
+{
+ "RecognitionStatus": "Success",
+ "Offset": 400000,
+ "Duration": 20100000,
+ "DisplayText": "I need three tickets to the city.",
+ "SNR": 39.23962,
+ "NBest": [
+  {
+   "Confidence": 0.9775244,
+   "Lexical": "i need three tickets to the city",
+   "ITN": "i need three tickets to the city",
+   "MaskedITN": "i need three tickets to the city",
+   "Display": "I need three tickets to the city.",
+   "AccuracyScore": 97.0,
+   "FluencyScore": 99.0,
+   "CompletenessScore": 100.0,
+   "PronScore": 98.0,
+   "Words": [
+    {
+     "Word": "i",
+     "Offset": 400000,
+     "Duration": 1900000,
+     "Confidence": 0.0,
+     "AccuracyScore": 97.0,
+     "ErrorType": "None",
+     "Syllables": [
+      {
+       "Syllable": "ay",
+       "Grapheme": "i",
+       "Offset": 400000,
+       "Duration": 1900000,
+       "AccuracyScore": 97.0
+      }
+     ],
+     "Phonemes": [
+      {
+       "Phoneme": "ay",
+       "Offset": 400000,
+       "Duration": 1900000,
+       "AccuracyScore": 97.0
+      }
+     ]
+    },
+    {
+     "Word": "need",
+     "Offset": 2400000,
+     "Duration": 2500000,
+     "Confidence": 0.0,
+     "AccuracyScore": 97.0,
+     "ErrorType": "None",
+     "Syllables": [
+      {
+       "Syllable": "niyd",
+       "Grapheme": "need",
+       "Offset": 2400000,
+       "Duration": 2500000,
+       "AccuracyScore": 95.0
+      }
+     ],
+     "Phonemes": [
+      {
+       "Phoneme": "n",
+       "Offset": 2400000,
+       "Duration": 1100000,
+       "AccuracyScore": 100.0
+      },
+      {
+       "Phoneme": "iy",
+       "Offset": 3600000,
+       "Duration": 600000,
+       "AccuracyScore": 100.0
+      },
+      {
+       "Phoneme": "d",
+       "Offset": 4300000,
+       "Duration": 600000,
+       "AccuracyScore": 81.0
+      }
+     ]
+    },
+    {
+     "Word": "three",
+     "Offset": 5000000,
+     "Duration": 2100000,
+     "Confidence": 0.0,
+     "AccuracyScore": 91.0,
+     "ErrorType": "None",
+     "Syllables": [
+      {
+       "Syllable": "thriy",
+       "Grapheme": "three",
+       "Offset": 5000000,
+       "Duration": 2100000,
+       "AccuracyScore": 57.0
+      }
+     ],
+     "Phonemes": [
+      {
+       "Phoneme": "th",
+       "Offset": 5000000,
+       "Duration": 500000,
+       "AccuracyScore": 18.0
+      },
+      {
+       "Phoneme": "r",
+       "Offset": 5600000,
+       "Duration": 700000,
+       "AccuracyScore": 42.0
+      },
+      {
+       "Phoneme": "iy",
+       "Offset": 6400000,
+       "Duration": 700000,
+       "AccuracyScore": 100.0
+      }
+     ]
+    },
+    {
+     "Word": "tickets",
+     "Offset": 7200000,
+     "Duration": 5500000,
+     "Confidence": 0.0,
+     "AccuracyScore": 97.0,
+     "ErrorType": "None",
+     "Syllables": [
+      {
+       "Syllable": "tihk",
+       "Grapheme": "tick",
+       "Offset": 7200000,
+       "Duration": 2100000,
+       "AccuracyScore": 97.0
+      },
+      {
+       "Syllable": "ihts",
+       "Grapheme": "ets",
+       "Offset": 9400000,
+       "Duration": 3300000,
+       "AccuracyScore": 97.0
+      }
+     ],
+     "Phonemes": [
+      {
+       "Phoneme": "t",
+       "Offset": 7200000,
+       "Duration": 700000,
+       "AccuracyScore": 97.0
+      },
+      {
+       "Phoneme": "ih",
+       "Offset": 8000000,
+       "Duration": 700000,
+       "AccuracyScore": 97.0
+      },
+      {
+       "Phoneme": "k",
+       "Offset": 8800000,
+       "Duration": 500000,
+       "AccuracyScore": 97.0
+      },
+      {
+       "Phoneme": "ih",
+       "Offset": 9400000,
+       "Duration": 700000,
+       "AccuracyScore": 97.0
+      },
+      {
+       "Phoneme": "t",
+       "Offset": 10200000,
+       "Duration": 700000,
+       "AccuracyScore": 97.0
+      },
+      {
+       "Phoneme": "s",
+       "Offset": 11000000,
+       "Duration": 1700000,
+       "AccuracyScore": 97.0
+      }
+     ]
+    },
+    {
+     "Word": "to",
+     "Offset": 13000000,
+     "Duration": 1400000,
+     "Confidence": 0.0,
+     "AccuracyScore": 97.0,
+     "ErrorType": "None",
+     "Syllables": [
+      {
+       "Syllable": "tax",
+       "Grapheme": "to",
+       "Offset": 13000000,
+       "Duration": 1400000,
+       "AccuracyScore": 97.0
+      }
+     ],
+     "Phonemes": [
+      {
+       "Phoneme": "t",
+       "Offset": 13000000,
+       "Duration": 900000,
+       "AccuracyScore": 97.0
+      },
+      {
+       "Phoneme": "ax",
+       "Offset": 14000000,
+       "Duration": 400000,
+       "AccuracyScore": 97.0
+      }
+     ]
+    },
+    {
+     "Word": "the",
+     "Offset": 14500000,
+     "Duration": 1000000,
+     "Confidence": 0.0,
+     "AccuracyScore": 97.0,
+     "ErrorType": "None",
+     "Syllables": [
+      {
+       "Syllable": "dhax",
+       "Grapheme": "the",
+       "Offset": 14500000,
+       "Duration": 1000000,
+       "AccuracyScore": 97.0
+      }
+     ],
+     "Phonemes": [
+      {
+       "Phoneme": "dh",
+       "Offset": 14500000,
+       "Duration": 300000,
+       "AccuracyScore": 97.0
+      },
+      {
+       "Phoneme": "ax",
+       "Offset": 14900000,
+       "Duration": 600000,
+       "AccuracyScore": 97.0
+      }
+     ]
+    },
+    {
+     "Word": "city",
+     "Offset": 15600000,
+     "Duration": 4900000,
+     "Confidence": 0.0,
+     "AccuracyScore": 100.0,
+     "ErrorType": "None",
+     "Syllables": [
+      {
+       "Syllable": "siht",
+       "Grapheme": "cit",
+       "Offset": 15600000,
+       "Duration": 2100000,
+       "AccuracyScore": 100.0
+      },
+      {
+       "Syllable": "iy",
+       "Grapheme": "y",
+       "Offset": 17800000,
+       "Duration": 2700000,
+       "AccuracyScore": 100.0
+      }
+     ],
+     "Phonemes": [
+      {
+       "Phoneme": "s",
+       "Offset": 15600000,
+       "Duration": 700000,
+       "AccuracyScore": 100.0
+      },
+      {
+       "Phoneme": "ih",
+       "Offset": 16400000,
+       "Duration": 600000,
+       "AccuracyScore": 100.0
+      },
+      {
+       "Phoneme": "t",
+       "Offset": 17100000,
+       "Duration": 600000,
+       "AccuracyScore": 100.0
+      },
+      {
+       "Phoneme": "iy",
+       "Offset": 17800000,
+       "Duration": 2700000,
+       "AccuracyScore": 100.0
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

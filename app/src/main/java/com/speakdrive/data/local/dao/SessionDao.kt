@@ -76,6 +76,15 @@ interface SessionDao {
     @Query("SELECT topicId FROM sessions ORDER BY startedAt DESC LIMIT :limit")
     suspend fun recentTopicIds(limit: Int): List<String>
 
+    @Query("SELECT * FROM sessions WHERE mode = 'STORY_LISTENING' ORDER BY startedAt DESC LIMIT :limit")
+    suspend fun recentStorySessions(limit: Int): List<SessionEntity>
+
+    @Query("SELECT * FROM sessions WHERE mode = 'STORY_LISTENING' AND isCompleted = 0 ORDER BY startedAt DESC LIMIT 1")
+    suspend fun latestUnfinishedStorySession(): SessionEntity?
+
+    @Query("SELECT * FROM messages WHERE sessionId = :sessionId ORDER BY position ASC")
+    suspend fun getMessagesForSession(sessionId: String): List<MessageEntity>
+
     @Query("SELECT startedAt, activeDurationMs FROM sessions WHERE startedAt >= :since")
     fun observePracticeSince(since: Long): Flow<List<PracticeEntry>>
 

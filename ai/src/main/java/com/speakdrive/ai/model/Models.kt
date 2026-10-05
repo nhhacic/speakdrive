@@ -2,17 +2,363 @@ package com.speakdrive.ai.model
 
 import com.speakdrive.ai.pronunciation.PronunciationAttempt
 
-/** Learner level. [cefr] is fed to the model; [labelVi] is shown in the UI. */
-enum class DifficultyLevel(val displayName: String, val labelVi: String, val cefr: String) {
-    BEGINNER("Beginner", "Người mới bắt đầu", "A1–A2"),
-    INTERMEDIATE("Intermediate", "Trung cấp", "B1–B2"),
-    ADVANCED("Advanced", "Nâng cao", "C1–C2");
+/** Learner level. [cefr] is fed to the model; [labelVi] is shown in Vietnamese UI. */
+enum class DifficultyLevel(
+    val displayName: String,
+    val labelVi: String,
+    val cefr: String,
+    val descriptionVi: String = "",
+    val descriptionEn: String = ""
+) {
+    BEGINNER(
+        "Beginner",
+        "Người mới bắt đầu",
+        "A1",
+        "Làm quen câu chào hỏi, từ vựng rất cơ bản, nói chậm rãi từng câu ngắn.",
+        "Basic greetings, essential vocabulary, slow and short sentences."
+    ),
+    ELEMENTARY(
+        "Elementary",
+        "Sơ cấp",
+        "A2",
+        "Giao tiếp câu đơn giản hàng ngày: gia đình, thói quen, mua sắm, chỉ đường.",
+        "Everyday simple communication: family, routines, shopping, directions."
+    ),
+    PRE_INTERMEDIATE(
+        "Pre-Intermediate",
+        "Tiền trung cấp",
+        "A2–B1",
+        "Cầu nối quan trọng: tập ghép câu, diễn đạt trải nghiệm, lý do và dự định với tốc độ vừa phải.",
+        "Sentence building, expressing experiences, reasons and plans at a moderate pace."
+    ),
+    INTERMEDIATE(
+        "Intermediate",
+        "Trung cấp",
+        "B1",
+        "Giao tiếp độc lập trong hầu hết tình huống thực tế, phản xạ đàm thoại linh hoạt.",
+        "Independent communication in most real-life situations, flexible reflex."
+    ),
+    UPPER_INTERMEDIATE(
+        "Upper-Intermediate",
+        "Trung cấp trên",
+        "B2",
+        "Thảo luận chuyên sâu, tự tin chia sẻ quan điểm với vốn từ phong phú và cấu trúc tự nhiên.",
+        "In-depth discussions, confident opinions with rich vocabulary and natural phrasing."
+    ),
+    ADVANCED(
+        "Advanced",
+        "Nâng cao",
+        "C1–C2",
+        "Sử dụng tiếng Anh lưu loát, tinh tế như người bản xứ trong mọi chủ đề.",
+        "Fluent and nuanced English like a native speaker in any topic."
+    );
+
+    fun getLabel(isVi: Boolean): String = if (isVi) labelVi else displayName
+    fun getDescription(isVi: Boolean): String = if (isVi) descriptionVi else descriptionEn
+
+    fun nextLevel(): DifficultyLevel? = when (this) {
+        BEGINNER -> ELEMENTARY
+        ELEMENTARY -> PRE_INTERMEDIATE
+        PRE_INTERMEDIATE -> INTERMEDIATE
+        INTERMEDIATE -> UPPER_INTERMEDIATE
+        UPPER_INTERMEDIATE -> ADVANCED
+        ADVANCED -> null
+    }
+
+    fun previousLevel(): DifficultyLevel? = when (this) {
+        ADVANCED -> UPPER_INTERMEDIATE
+        UPPER_INTERMEDIATE -> INTERMEDIATE
+        INTERMEDIATE -> PRE_INTERMEDIATE
+        PRE_INTERMEDIATE -> ELEMENTARY
+        ELEMENTARY -> BEGINNER
+        BEGINNER -> null
+    }
 
     companion object {
         /** Parses a stored value, tolerating enum names and display names. */
         fun fromStored(value: String?): DifficultyLevel =
             entries.firstOrNull { it.name.equals(value, ignoreCase = true) || it.displayName.equals(value, ignoreCase = true) }
                 ?: INTERMEDIATE
+    }
+}
+
+/** Strictness level when evaluating learner's pronunciation attempts. */
+enum class PronunciationStrictness(
+    val displayName: String,
+    val labelVi: String,
+    val descriptionVi: String,
+    val descriptionEn: String = ""
+) {
+    AUTO(
+        displayName = "Auto (By Level)",
+        labelVi = "Theo cấp độ",
+        descriptionVi = "Tự động áp dụng tiêu chí chấm phù hợp với trình độ học viên hiện tại của bạn",
+        descriptionEn = "Automatically adapts grading criteria to your current learner level"
+    ),
+    BEGINNER(
+        displayName = "Beginner (A1)",
+        labelVi = "A1 - Rất nhẹ",
+        descriptionVi = "Dung sai lớn, bỏ qua lỗi âm đuôi và phát âm vụng, tập trung phản xạ và độ tự tin",
+        descriptionEn = "High tolerance, lenient on endings, focus on reflex and confidence"
+    ),
+    ELEMENTARY(
+        displayName = "Elementary (A2)",
+        labelVi = "A2 - Dễ chịu",
+        descriptionVi = "Châm chước lỗi ngữ âm nhẹ, nhận diện rõ từ vựng hàng ngày cơ bản",
+        descriptionEn = "Lenient on minor phonetics, requires clear everyday words"
+    ),
+    PRE_INTERMEDIATE(
+        displayName = "Pre-Intermediate (A2–B1)",
+        labelVi = "A2–B1 - Tiền trung cấp",
+        descriptionVi = "Yêu cầu phát âm rõ từ vựng quen thuộc, bắt đầu chú ý các phụ âm chính",
+        descriptionEn = "Clear everyday vocabulary, attention to main consonants"
+    ),
+    INTERMEDIATE(
+        displayName = "Intermediate (B1)",
+        labelVi = "B1 - Tiêu chuẩn",
+        descriptionVi = "Cân bằng, yêu cầu phát âm rõ ràng từ và âm đuôi chính",
+        descriptionEn = "Balanced, requires clear pronunciation of words and key ending sounds"
+    ),
+    UPPER_INTERMEDIATE(
+        displayName = "Upper-Intermediate (B2)",
+        labelVi = "B2 - Khắt khe",
+        descriptionVi = "Khắt khe với âm cuối (-s, -ed), trọng âm từ rõ ràng và ngữ điệu tự nhiên",
+        descriptionEn = "Strict on endings (-s, -ed), word stress and natural intonation"
+    ),
+    ADVANCED(
+        displayName = "Advanced (C1–C2)",
+        labelVi = "C1–C2 - Chuẩn bản xứ",
+        descriptionVi = "Chấm chuẩn từng âm vị, âm đuôi và nối âm (chuẩn bản xứ)",
+        descriptionEn = "Strict scoring on every phoneme, ending sound, and linking (native standard)"
+    ),
+
+    // Deprecated 3-level aliases for backward compatibility
+    @Deprecated("Use ELEMENTARY instead", ReplaceWith("ELEMENTARY"))
+    RELAXED(
+        displayName = "Relaxed",
+        labelVi = "Dễ chịu",
+        descriptionVi = "Bỏ qua lỗi nhỏ, tập trung phản xạ và độ tự tin khi nói",
+        descriptionEn = "Lenient on minor errors, focus on confidence and speaking reflex"
+    ),
+    @Deprecated("Use INTERMEDIATE instead", ReplaceWith("INTERMEDIATE"))
+    STANDARD(
+        displayName = "Standard",
+        labelVi = "Tiêu chuẩn",
+        descriptionVi = "Cân bằng, yêu cầu phát âm rõ ràng từ và âm đuôi chính",
+        descriptionEn = "Balanced, requires clear pronunciation of words and key ending sounds"
+    ),
+    @Deprecated("Use ADVANCED instead", ReplaceWith("ADVANCED"))
+    STRICT(
+        displayName = "Strict",
+        labelVi = "Khắt khe",
+        descriptionVi = "Chấm chuẩn từng âm vị, âm đuôi và nối âm (chuẩn bản xứ)",
+        descriptionEn = "Strict scoring on every phoneme, ending sound, and linking (native standard)"
+    );
+
+    fun resolveForLevel(level: DifficultyLevel): PronunciationStrictness = when (this) {
+        AUTO -> when (level) {
+            DifficultyLevel.BEGINNER -> BEGINNER
+            DifficultyLevel.ELEMENTARY -> ELEMENTARY
+            DifficultyLevel.PRE_INTERMEDIATE -> PRE_INTERMEDIATE
+            DifficultyLevel.INTERMEDIATE -> INTERMEDIATE
+            DifficultyLevel.UPPER_INTERMEDIATE -> UPPER_INTERMEDIATE
+            DifficultyLevel.ADVANCED -> ADVANCED
+        }
+        RELAXED -> ELEMENTARY
+        STANDARD -> INTERMEDIATE
+        STRICT -> ADVANCED
+        else -> this
+    }
+
+    fun getLabel(isVi: Boolean): String = if (isVi) labelVi else displayName
+    fun getDescription(isVi: Boolean): String = if (isVi) descriptionVi else descriptionEn
+
+    companion object {
+        /** The entries shown to users in the UI (excluding deprecated aliases). */
+        val userFacingEntries: List<PronunciationStrictness> = listOf(
+            AUTO,
+            BEGINNER,
+            ELEMENTARY,
+            PRE_INTERMEDIATE,
+            INTERMEDIATE,
+            UPPER_INTERMEDIATE,
+            ADVANCED
+        )
+
+        fun fromStored(value: String?): PronunciationStrictness = when (value?.trim()?.uppercase()) {
+            "AUTO", "BY_LEVEL", "LEVEL" -> AUTO
+            "BEGINNER", "A1" -> BEGINNER
+            "ELEMENTARY", "A2", "RELAXED" -> ELEMENTARY
+            "PRE_INTERMEDIATE", "A2_B1", "A2-B1" -> PRE_INTERMEDIATE
+            "INTERMEDIATE", "B1", "STANDARD" -> INTERMEDIATE
+            "UPPER_INTERMEDIATE", "B2" -> UPPER_INTERMEDIATE
+            "ADVANCED", "C1", "C2", "STRICT" -> ADVANCED
+            else -> entries.firstOrNull { it.name.equals(value, ignoreCase = true) || it.displayName.equals(value, ignoreCase = true) }
+                ?: AUTO
+        }
+    }
+}
+
+/** Storytelling style when listening to AI short stories. */
+enum class StorytellingStyle(
+    val displayName: String,
+    val labelVi: String,
+    val descriptionVi: String,
+    val descriptionEn: String = ""
+) {
+    INTERACTIVE(
+        displayName = "Interactive",
+        labelVi = "Tương tác từng đoạn",
+        descriptionVi = "AI kể từng đoạn ngắn (~45–60s) và dừng lại hỏi gợi mở / kiểm tra độ hiểu",
+        descriptionEn = "AI pauses after each section to ask engaging questions and check comprehension"
+    ),
+    CONTINUOUS(
+        displayName = "Podcast (Continuous)",
+        labelVi = "Podcast liền mạch",
+        descriptionVi = "AI kể trọn vẹn toàn bộ câu chuyện từ đầu tới cuối không ngắt quãng",
+        descriptionEn = "AI narrates the entire story seamlessly without interruptions (ideal for driving focus)"
+    );
+
+    fun getLabel(isVi: Boolean): String = if (isVi) labelVi else displayName
+    fun getDescription(isVi: Boolean): String = if (isVi) descriptionVi else descriptionEn
+
+    companion object {
+        fun fromStored(value: String?): StorytellingStyle =
+            entries.firstOrNull { it.name.equals(value, ignoreCase = true) || it.displayName.equals(value, ignoreCase = true) }
+                ?: INTERACTIVE
+    }
+}
+
+/** Story duration preference: ~5-minute short stories or 10-30 minute extended stories. */
+enum class StoryDuration(
+    val displayName: String,
+    val labelVi: String,
+    val descriptionVi: String,
+    val descriptionEn: String = ""
+) {
+    SHORT_5_MIN(
+        displayName = "Short (~5 min)",
+        labelVi = "Ngắn (~5 phút)",
+        descriptionVi = "Câu chuyện ngắn gọn, súc tích khoảng 5 phút (~600–800 từ), lý tưởng cho chuyến đi ngắn.",
+        descriptionEn = "Concise story (~5 min, 600–800 words), perfect for short commutes."
+    ),
+    FULL_10_TO_30_MIN(
+        displayName = "Extended (10–30 min)",
+        labelVi = "Dài (10–30 phút)",
+        descriptionVi = "Tác phẩm đầy đủ, giàu kịch tính từ 10 đến 30 phút (~1,500–4,500 từ), hỗ trợ lưu và tiếp nối khi nghe dở.",
+        descriptionEn = "Full dramatic stories from 10 to 30 min (1,500–4,500 words), supports bookmarking and resuming."
+    );
+
+    fun getLabel(isVi: Boolean): String = if (isVi) labelVi else displayName
+    fun getDescription(isVi: Boolean): String = if (isVi) descriptionVi else descriptionEn
+
+    companion object {
+        fun fromStored(value: String?): StoryDuration =
+            entries.firstOrNull { it.name.equals(value, ignoreCase = true) || it.displayName.equals(value, ignoreCase = true) }
+                ?: FULL_10_TO_30_MIN
+    }
+}
+
+/** Sentence length preference for repeat-after-me / pronunciation drills. */
+enum class DrillSentenceLength(
+    val displayName: String,
+    val labelVi: String,
+    val descriptionVi: String,
+    val descriptionEn: String = ""
+) {
+    AUTO_ON_CAR(
+        displayName = "Auto (Short on Android Auto)",
+        labelVi = "Tự động khi lái xe",
+        descriptionVi = "Tự động rút ngắn câu (5–8 từ) khi kết nối Android Auto để người lái xe dễ nhớ và an toàn",
+        descriptionEn = "Automatically keeps repeat sentences short (5–8 words) on Android Auto for driving safety and easy recall"
+    ),
+    ALWAYS_SHORT(
+        displayName = "Always Short (3–7 words)",
+        labelVi = "Luôn ngắn gọn",
+        descriptionVi = "Luôn giới hạn câu ngắn gọn (3–7 từ) trong mọi buổi luyện để giảm tải ghi nhớ",
+        descriptionEn = "Always keeps sentences short (3–7 words) across all sessions to reduce memory load"
+    ),
+    STANDARD(
+        displayName = "Standard (by Level)",
+        labelVi = "Tiêu chuẩn theo cấp độ",
+        descriptionVi = "Độ dài câu tăng dần theo cấp độ khó CEFR (lên đến 12–18 từ ở trình độ nâng cao)",
+        descriptionEn = "Sentence length scales naturally with CEFR difficulty levels (up to 12–18 words at advanced levels)"
+    );
+
+    fun getLabel(isVi: Boolean): String = if (isVi) labelVi else displayName
+    fun getDescription(isVi: Boolean): String = if (isVi) descriptionVi else descriptionEn
+
+    companion object {
+        fun fromStored(value: String?): DrillSentenceLength =
+            entries.firstOrNull { it.name.equals(value, ignoreCase = true) || it.displayName.equals(value, ignoreCase = true) }
+                ?: AUTO_ON_CAR
+    }
+}
+
+/** Category filter for repeat-after-me pronunciation drills. */
+enum class DrillCategory(
+    val id: String,
+    val displayName: String,
+    val labelVi: String,
+    val descriptionVi: String,
+    val descriptionEn: String = ""
+) {
+    ALL(
+        id = "all",
+        displayName = "All Categories",
+        labelVi = "Tất cả danh mục",
+        descriptionVi = "Luyện tổng hợp mọi nhóm câu từ phản xạ đến lỗi ngữ âm",
+        descriptionEn = "Comprehensive mix of all categories"
+    ),
+    VIETNAMESE_PITFALLS(
+        id = "vietnamese_pitfalls",
+        displayName = "Vietnamese Pitfalls",
+        labelVi = "Đặc trị lỗi âm người Việt",
+        descriptionVi = "Tập trung âm đuôi (-s, -ed, -t, -k), cặp âm dễ nhầm (/θ/, /ʃ/, /v/) và nối âm",
+        descriptionEn = "Focus on final consonants, challenging consonant pairs and connected speech"
+    ),
+    CONVERSATIONAL_REFLEX(
+        id = "conversational_reflex",
+        displayName = "Conversational Reflex",
+        labelVi = "Phản xạ giao tiếp tự nhiên",
+        descriptionVi = "Các cụm từ cửa miệng, mẫu câu thông dụng người bản xứ dùng mỗi ngày",
+        descriptionEn = "Common chunks, collocations and everyday native speaking expressions"
+    ),
+    DRIVING_PHRASES(
+        id = "driving_phrases",
+        displayName = "Driving & Commute",
+        labelVi = "Tiếng Anh khi lái xe",
+        descriptionVi = "Câu ngắn gọn (5–8 từ), nhịp điệu dứt khoát, an toàn và dễ nhớ khi lái xe",
+        descriptionEn = "Short, punchy sentences (5–8 words) optimized for safe hands-free driving"
+    ),
+    BUSINESS_WORK(
+        id = "business_work",
+        displayName = "Business & Work",
+        labelVi = "Công sở & Kinh doanh",
+        descriptionVi = "Mẫu câu đàm phán, cuộc họp, tranh luận chuyên nghiệp tại nơi làm việc",
+        descriptionEn = "High-impact professional phrases for meetings, negotiations and presentations"
+    ),
+    TRAVEL_DAILY(
+        id = "travel_daily",
+        displayName = "Travel & Daily Life",
+        labelVi = "Du lịch & Đời sống",
+        descriptionVi = "Mẫu câu du lịch, gọi món, hỏi đường và giải quyết tình huống phát sinh",
+        descriptionEn = "Essential phrases for travel, dining, navigating and solving daily problems"
+    );
+
+    fun getLabel(isVi: Boolean): String = if (isVi) labelVi else displayName
+    fun getDescription(isVi: Boolean): String = if (isVi) descriptionVi else descriptionEn
+
+    companion object {
+        fun fromStored(value: String?): DrillCategory = when (value?.trim()?.lowercase()) {
+            "vietnamese_pitfalls", "pitfalls", "loi_am", "phat_am", "am_duoi" -> VIETNAMESE_PITFALLS
+            "conversational_reflex", "reflex", "phan_xa", "giao_tiep", "tu_nhien" -> CONVERSATIONAL_REFLEX
+            "driving_phrases", "driving", "lai_xe", "giao_thong" -> DRIVING_PHRASES
+            "business_work", "business", "work", "cong_viec", "kinh_doanh" -> BUSINESS_WORK
+            "travel_daily", "travel", "du_lich", "hang_ngay" -> TRAVEL_DAILY
+            else -> entries.firstOrNull { it.name.equals(value, ignoreCase = true) || it.id.equals(value, ignoreCase = true) }
+                ?: ALL
+        }
     }
 }
 
@@ -27,7 +373,10 @@ enum class SessionMode {
     VOCAB_REVIEW,
 
     /** The AI says a sentence, the learner repeats it, and every attempt is graded strictly. */
-    REPEAT_AFTER_ME
+    REPEAT_AFTER_ME,
+
+    /** The AI narrates engaging short stories for listening comprehension. */
+    STORY_LISTENING
 }
 
 enum class ConversationState {
@@ -62,7 +411,11 @@ data class Scenario(
     /** Who the AI plays in roleplay mode, e.g. "a hotel receptionist". */
     val aiRole: String,
     /** Who the learner plays, e.g. "a guest checking in". */
-    val learnerRole: String
+    val learnerRole: String,
+    /** Optional detailed context or prompt hint for dynamic open-ended expansion. */
+    val customContext: String? = null,
+    /** Optional specific mission objective / challenge goal for the learner to accomplish. */
+    val missionObjective: String? = null
 )
 
 data class Topic(
@@ -81,7 +434,10 @@ data class LessonRequest(
     val topicId: String? = null,
     val level: DifficultyLevel? = null,
     val mode: SessionMode = SessionMode.FREE_TALK,
-    val scenarioId: String? = null
+    val scenarioId: String? = null,
+    val resumeStoryContext: String? = null,
+    val resumeStoryTitle: String? = null,
+    val targetWords: List<ReviewWord> = emptyList()
 )
 
 /** A lesson after its topic, level and mode have been resolved. */
@@ -92,15 +448,30 @@ data class ActiveLesson(
     val level: DifficultyLevel,
     val mode: SessionMode,
     val startedAt: Long,
-    val reviewWords: List<ReviewWord>
+    val reviewWords: List<ReviewWord>,
+    val voiceId: String = AiVoice.DEFAULT.id,
+    val resumeStoryContext: String? = null,
+    val resumeStoryTitle: String? = null
 ) {
     val titleVi: String
         get() = when (mode) {
             SessionMode.VOCAB_REVIEW -> "Ôn tập từ vựng"
             SessionMode.REPEAT_AFTER_ME -> "Luyện phát âm: ${topic.titleVi}"
             SessionMode.ROLEPLAY -> "Nhập vai: ${scenario?.titleVi ?: topic.titleVi}"
+            SessionMode.STORY_LISTENING -> "Luyện nghe kể chuyện: ${scenario?.titleVi ?: topic.titleVi}"
             SessionMode.FREE_TALK -> topic.titleVi
         }
+
+    val titleEn: String
+        get() = when (mode) {
+            SessionMode.VOCAB_REVIEW -> "Vocabulary Review"
+            SessionMode.REPEAT_AFTER_ME -> "Pronunciation Drill: ${topic.titleEn}"
+            SessionMode.ROLEPLAY -> "Roleplay: ${scenario?.titleEn ?: topic.titleEn}"
+            SessionMode.STORY_LISTENING -> "Story Listening: ${scenario?.titleEn ?: topic.titleEn}"
+            SessionMode.FREE_TALK -> topic.titleEn
+        }
+
+    fun getTitle(isVi: Boolean): String = if (isVi) titleVi else titleEn
 }
 
 data class ReviewWord(val word: String, val meaning: String)
@@ -108,6 +479,19 @@ data class ReviewWord(val word: String, val meaning: String)
 data class NewWord(val word: String, val meaning: String, val example: String)
 
 data class Correction(val original: String, val corrected: String, val explanation: String)
+
+enum class LevelAdjustmentDirection {
+    KEEP,
+    LEVEL_UP,
+    LEVEL_DOWN
+}
+
+data class LevelRecommendation(
+    val direction: LevelAdjustmentDirection,
+    val targetLevel: DifficultyLevel,
+    val reasonVi: String,
+    val reasonEn: String = ""
+)
 
 data class SessionSummary(
     /** 1–10, or null when the lesson was too short to judge. */
@@ -119,7 +503,9 @@ data class SessionSummary(
     val encouragement: String,
     val nextSuggestion: String,
     /** Share of drill sentences passed, 0–100. Only for repeat-after-me lessons. */
-    val pronunciationScore: Int? = null
+    val pronunciationScore: Int? = null,
+    /** Recommendation for leveling up, down, or maintaining current difficulty. */
+    val levelRecommendation: LevelRecommendation? = null
 )
 
 data class CompletedSession(
@@ -134,7 +520,7 @@ data class CompletedSession(
     val activeDurationMs: Long,
     val transcript: List<TranscriptTurn>,
     val summary: SessionSummary?,
-    val reviewedWords: List<String>,
+    val reviewedWords: List<String> = emptyList(),
     /** False for drafts saved during the lesson, so a killed app does not lose the transcript. */
     val isCompleted: Boolean = true,
     val pronunciationAttempts: List<PronunciationAttempt> = emptyList()
@@ -154,15 +540,51 @@ data class LearnerSettings(
     /** Grade "repeat after me" attempts with Azure Pronunciation Assessment as well. */
     val azureEnabled: Boolean = false,
     val azureRegion: String = "",
-    val azureKey: String = ""
+    val azureKey: String = "",
+    val pronunciationStrictness: PronunciationStrictness = PronunciationStrictness.AUTO,
+    val storytellingStyle: StorytellingStyle = StorytellingStyle.INTERACTIVE,
+    val randomVoice: Boolean = false,
+    val storyDuration: StoryDuration = StoryDuration.FULL_10_TO_30_MIN,
+    val multiVoiceStorytelling: Boolean = true,
+    val appLanguage: AppLanguage = AppLanguage.SYSTEM,
+    val adaptiveLevelRecommendation: Boolean = true,
+    val drillSentenceLength: DrillSentenceLength = DrillSentenceLength.AUTO_ON_CAR,
+    val drillCategory: DrillCategory = DrillCategory.ALL,
+    /** Output volume percentage for AI speech, from 10 to 100. Default is comfortable 80. */
+    val aiVolume: Int = 80
 )
 
+/** App interface language option for multilingual support. */
+enum class AppLanguage(
+    val code: String,
+    val nativeName: String,
+    val englishName: String,
+    val flagEmoji: String
+) {
+    SYSTEM("", "Mặc định hệ thống", "System Default", "🌐"),
+    VIETNAMESE("vi", "Tiếng Việt", "Vietnamese", "🇻🇳"),
+    ENGLISH("en", "English", "English", "🇺🇸"),
+    SPANISH("es", "Español", "Spanish", "🇪🇸"),
+    JAPANESE("ja", "日本語", "Japanese", "🇯🇵"),
+    KOREAN("ko", "한국어", "Korean", "🇰🇷"),
+    CHINESE("zh", "简体中文", "Chinese (Simplified)", "🇨🇳"),
+    FRENCH("fr", "Français", "French", "🇫🇷"),
+    GERMAN("de", "Deutsch", "German", "🇩🇪");
+
+    companion object {
+        fun fromCode(code: String?): AppLanguage =
+            entries.firstOrNull { it.code.equals(code, ignoreCase = true) || it.name.equals(code, ignoreCase = true) } ?: SYSTEM
+    }
+}
+
 /** Prebuilt Gemini voices offered in settings. */
-enum class AiVoice(val id: String, val labelVi: String) {
-    KORE("Kore", "Nữ – rõ ràng"),
-    AOEDE("Aoede", "Nữ – nhẹ nhàng"),
-    PUCK("Puck", "Nam – vui vẻ"),
-    CHARON("Charon", "Nam – trầm ấm");
+enum class AiVoice(val id: String, val labelVi: String, val labelEn: String) {
+    KORE("Kore", "Nữ – rõ ràng", "Female – Clear"),
+    AOEDE("Aoede", "Nữ – nhẹ nhàng", "Female – Gentle"),
+    PUCK("Puck", "Nam – vui vẻ", "Male – Cheerful"),
+    CHARON("Charon", "Nam – trầm ấm", "Male – Warm");
+
+    fun getLabel(isVi: Boolean): String = if (isVi) labelVi else labelEn
 
     companion object {
         val DEFAULT = KORE
@@ -170,11 +592,30 @@ enum class AiVoice(val id: String, val labelVi: String) {
     }
 }
 
-/** Errors surfaced to the UI and to Android Auto. Messages are Vietnamese because they are shown to the learner. */
-sealed class EngineError(val messageVi: String) {
-    data object MissingMicPermission : EngineError("Hãy mở SpeakDrive trên điện thoại và cấp quyền micro.")
-    data object NoNetwork : EngineError("Không có kết nối mạng. Bài học sẽ tiếp tục khi có mạng.")
-    data object AudioFocusDenied : EngineError("Không thể phát âm thanh lúc này (đang có cuộc gọi?).")
-    data object AiNotConfigured : EngineError("Chưa cấu hình Firebase/Gemini. Xem docs/FIREBASE_SETUP.md.")
-    data class ConnectionFailed(val detail: String?) : EngineError("Không kết nối được với AI. Vui lòng thử lại.")
+/** Errors surfaced to the UI and to Android Auto. */
+sealed class EngineError(val messageVi: String, val messageEn: String) {
+    fun getMessage(isVi: Boolean): String = if (isVi) messageVi else messageEn
+
+    data object MissingMicPermission : EngineError(
+        "Hãy mở SpeakDrive trên điện thoại và cấp quyền micro.",
+        "Please open SpeakDrive on your phone and grant microphone permission."
+    )
+    data object NoNetwork : EngineError(
+        "Không có kết nối mạng. Bài học sẽ tiếp tục khi có mạng.",
+        "No network connection. The lesson will resume once connected."
+    )
+    data object AudioFocusDenied : EngineError(
+        "Không thể phát âm thanh lúc này (đang có cuộc gọi?).",
+        "Cannot play audio right now (in an active call?)."
+    )
+    data class AiNotConfigured(val detail: String? = null) : EngineError(
+        if (detail.isNullOrBlank()) "Chưa cấu hình Firebase/Gemini. Xem docs/FIREBASE_SETUP.md."
+        else "Chưa cấu hình Firebase/Gemini: $detail.\nXem docs/FIREBASE_SETUP.md.",
+        if (detail.isNullOrBlank()) "Firebase/Gemini is not configured. See docs/FIREBASE_SETUP.md."
+        else "Firebase/Gemini not configured: $detail.\nSee docs/FIREBASE_SETUP.md."
+    )
+    data class ConnectionFailed(val detail: String?) : EngineError(
+        "Không kết nối được với AI. Vui lòng thử lại.",
+        "Failed to connect to AI. Please try again."
+    )
 }

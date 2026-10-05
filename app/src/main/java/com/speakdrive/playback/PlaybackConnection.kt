@@ -21,22 +21,29 @@ import javax.inject.Singleton
  * foreground, so the lesson survives the screen turning off.
  */
 @Singleton
-class PlaybackConnection @Inject constructor(
-    @param:ApplicationContext private val context: Context
+open class PlaybackConnection internal constructor(
+    private val context: Context?,
+    @Suppress("UNUSED_PARAMETER") forTesting: Boolean
 ) {
+    @Inject
+    constructor(@ApplicationContext context: Context) : this(context, false)
+
+    constructor() : this(null, true)
+
     private val mutex = Mutex()
     private var controller: MediaController? = null
 
     @OptIn(UnstableApi::class)
     private suspend fun controller(): MediaController = mutex.withLock {
         controller?.takeIf { it.isConnected } ?: run {
-            val token = SessionToken(context, ComponentName(context, SpeakDriveMediaService::class.java))
-            MediaController.Builder(context, token).buildAsync().await().also { controller = it }
+            val ctx = checkNotNull(context) { "Context required for real PlaybackConnection" }
+            val token = SessionToken(ctx, ComponentName(ctx, SpeakDriveMediaService::class.java))
+            MediaController.Builder(ctx, token).buildAsync().await().also { controller = it }
         }
     }
 
     /** Starts the lesson behind [mediaId] (see com.speakdrive.auto.MediaIds). */
-    suspend fun play(mediaId: String) {
+    open suspend fun play(mediaId: String) {
         val controller = controller()
         controller.setMediaItem(MediaItem.Builder().setMediaId(mediaId).build())
         controller.prepare()

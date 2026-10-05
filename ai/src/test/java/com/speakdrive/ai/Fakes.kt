@@ -4,11 +4,14 @@ import com.speakdrive.ai.live.LiveConversationClient
 import com.speakdrive.ai.live.LiveEvent
 import com.speakdrive.ai.live.LiveSessionConfig
 import com.speakdrive.ai.model.ActiveLesson
+import com.speakdrive.ai.model.AiVoice
 import com.speakdrive.ai.model.CompletedSession
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.LearnerSettings
+import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.ReviewWord
 import com.speakdrive.ai.model.SessionSummary
+import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.ai.model.TranscriptTurn
 import com.speakdrive.ai.pronunciation.AzureAssessment
 import com.speakdrive.ai.pronunciation.AzureSpeechConfig
@@ -45,7 +48,10 @@ class FakeLiveClient : LiveConversationClient {
         audioPaused = false
     }
 
+    var sendTextFailsWith: Throwable? = null
+
     override suspend fun sendText(text: String) {
+        sendTextFailsWith?.let { throw it }
         sentTexts += text
     }
 
@@ -55,6 +61,18 @@ class FakeLiveClient : LiveConversationClient {
 
     override suspend fun resumeAudio() {
         audioPaused = false
+    }
+
+    var interruptionsEnabled = false
+
+    override fun updateInterruptions(enabled: Boolean) {
+        interruptionsEnabled = enabled
+    }
+
+    var currentVolume = 1.0f
+
+    override fun setVolume(volumeFraction: Float) {
+        currentVolume = volumeFraction
     }
 
     override suspend fun disconnect() {
@@ -100,14 +118,57 @@ class FakeSessionStore : SessionStore {
     }
 }
 
-class FakeSettings(var settings: LearnerSettings = LearnerSettings()) : LearningSettings {
+class FakeSettings(settings: LearnerSettings = LearnerSettings()) : LearningSettings {
+    val flow = MutableStateFlow(settings)
+    var settings: LearnerSettings
+        get() = flow.value
+        set(value) { flow.value = value }
+
     override suspend fun snapshot() = settings
+    override fun observeLearnerSettings(): kotlinx.coroutines.flow.Flow<LearnerSettings> = flow
+
     override suspend fun setLevel(level: DifficultyLevel) {
         settings = settings.copy(level = level)
     }
 
     override suspend fun setLastTopicId(topicId: String) {
         settings = settings.copy(lastTopicId = topicId)
+    }
+
+    override suspend fun setAllowVietnameseHelp(allowed: Boolean) {
+        settings = settings.copy(allowVietnameseHelp = allowed)
+    }
+
+    override suspend fun setPronunciationStrictness(strictness: PronunciationStrictness) {
+        settings = settings.copy(pronunciationStrictness = strictness)
+    }
+
+    override suspend fun setStorytellingStyle(style: StorytellingStyle) {
+        settings = settings.copy(storytellingStyle = style)
+    }
+
+    override suspend fun setAllowBargeIn(allowed: Boolean) {
+        settings = settings.copy(allowBargeIn = allowed)
+    }
+
+    override suspend fun setVoice(voice: com.speakdrive.ai.model.AiVoice) {
+        settings = settings.copy(voiceId = voice.id)
+    }
+
+    override suspend fun setRandomVoice(enabled: Boolean) {
+        settings = settings.copy(randomVoice = enabled)
+    }
+
+    override suspend fun setDrillSentenceLength(length: com.speakdrive.ai.model.DrillSentenceLength) {
+        settings = settings.copy(drillSentenceLength = length)
+    }
+
+    override suspend fun setDrillCategory(category: com.speakdrive.ai.model.DrillCategory) {
+        settings = settings.copy(drillCategory = category)
+    }
+
+    override suspend fun setAiVolume(volume: Int) {
+        settings = settings.copy(aiVolume = volume)
     }
 }
 
@@ -149,6 +210,7 @@ class FakeAssessor : PronunciationAssessor {
 
 class FakeAnnouncer : VoiceAnnouncer {
     val announcements = mutableListOf<String>()
+    val announced: List<String> get() = announcements
     override fun announce(text: String) {
         announcements += text
     }

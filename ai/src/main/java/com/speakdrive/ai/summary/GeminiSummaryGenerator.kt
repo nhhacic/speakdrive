@@ -12,6 +12,7 @@ import com.speakdrive.ai.model.SessionSummary
 import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.model.TranscriptTurn
 import com.speakdrive.ai.pronunciation.PronunciationAttempt
+import com.speakdrive.ai.pronunciation.PronunciationDrill
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -36,10 +37,19 @@ class GeminiSummaryGenerator @Inject constructor() : SummaryGenerator {
     ): SessionSummary {
         val learnerTurns = transcript.count { it.speaker == Speaker.USER && it.text.split(' ').size >= 2 }
         if (learnerTurns < MIN_LEARNER_TURNS) {
-            return SummaryParser.fallback("Buổi học hơi ngắn nên chưa đủ dữ liệu để chấm điểm. Bạn đã bắt đầu rất tốt!")
+            return SummaryParser.fallback(
+                reasonVi = "Buổi học hơi ngắn nên chưa đủ dữ liệu để chấm điểm. Bạn đã bắt đầu rất tốt!",
+                currentLevel = lesson.level
+            )
         }
         val response = model.generateContent(PromptTemplates.summaryPrompt(lesson, transcript, attempts))
-        return SummaryParser.parse(response.text ?: error("Empty summary response"))
+        val pronScore: Int? = if (attempts.isNotEmpty()) PronunciationDrill.score(attempts) else null
+        return SummaryParser.parse(
+            raw = response.text ?: error("Empty summary response"),
+            currentLevel = lesson.level,
+            pronunciationScore = pronScore,
+            learnerTurns = learnerTurns
+        )
     }
 
     private companion object {
@@ -69,7 +79,11 @@ class GeminiSummaryGenerator @Inject constructor() : SummaryGenerator {
                     )
                 ),
                 "encouragement_vi" to Schema.string(),
-                "next_suggestion_vi" to Schema.string()
+                "next_suggestion_vi" to Schema.string(),
+                "level_recommendation_direction" to Schema.string(),
+                "recommended_level" to Schema.string(),
+                "level_recommendation_reason_vi" to Schema.string(),
+                "level_recommendation_reason_en" to Schema.string()
             )
         )
     }

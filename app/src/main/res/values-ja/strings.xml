@@ -1,0 +1,82 @@
+<resources>
+    <string name="app_name">SpeakDrive</string>
+    <string name="back">戻る</string>
+    <string name="start">開始</string>
+    <string name="pause">一時停止</string>
+    <string name="resume">再開</string>
+    <string name="end_lesson">レッスン終了</string>
+    <string name="save">保存</string>
+    <string name="cancel">キャンセル</string>
+    <string name="close">閉じる</string>
+
+    <!-- Bottom Navigation -->
+    <string name="nav_home">スピーキング</string>
+    <string name="nav_vocabulary">単語帳</string>
+    <string name="nav_progress">進捗</string>
+    <string name="nav_settings">設定</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">設定</string>
+    <string name="settings_group_language">画面の言語</string>
+    <string name="settings_language_desc">アプリの表示言語および母国語でのガイダンスを選択します。</string>
+    <string name="settings_language_voice_tip">💡 音声コマンド: \"change language to English\" または \"日本語に変更\"</string>
+    <string name="settings_group_learning">練習とレベル</string>
+    <string name="settings_learner_level">学習者レベル</string>
+    <string name="settings_strictness">発音判定の厳格度</string>
+    <string name="settings_daily_goal">毎日の目標</string>
+    <string name="settings_minutes">分</string>
+    <string name="settings_storytelling_mode">ストーリーモード（リスニング）</string>
+    <string name="settings_story_duration">ストーリーの長さ</string>
+    <string name="settings_multi_voice">マルチボイス・オーディオドラマ</string>
+    <string name="settings_multi_voice_desc">AIがキャラクターごとにトーンや感情を演じ分けます。</string>
+    <string name="settings_group_voice">AI音声と音声対話</string>
+    <string name="settings_voice_choice">AI音声の選択</string>
+    <string name="settings_voice_random">レッスンごとにランダム</string>
+    <string name="settings_voice_random_desc">新しいレッスンごとに自動的にランダムな声を選択します。</string>
+    <string name="settings_vietnamese_help">母国語での解説を許可</string>
+    <string name="settings_vietnamese_help_desc">困ったときにAIが母国語で短い解説を行います。</string>
+    <string name="settings_barge_in">AIへの割り込み発話を許可 (Barge-in)</string>
+    <string name="settings_barge_in_desc">イヤホン使用時のみ推奨します（スピーカーのエコーを防ぐため）。</string>
+    <string name="settings_group_car">運転モードと画面</string>
+    <string name="settings_auto_start_car">車に接続時に自動開始</string>
+    <string name="settings_auto_start_car_desc">Android Auto接続時に自動でレッスンを開始します。</string>
+    <string name="settings_screen_awake">練習中に画面を点灯し続ける</string>
+    <string name="settings_group_azure">Azure発音評価サービス</string>
+    <string name="settings_azure_enable">Microsoft Azureで発音を精密判定</string>
+    <string name="settings_azure_enable_desc">Azureが音素や単語単位でスコア判定（0〜100）します。</string>
+    <string name="settings_azure_test">Azure接続テスト</string>
+    <string name="settings_group_info">情報とサポート</string>
+    <string name="settings_privacy_policy">プライバシーポリシー</string>
+    <string name="settings_about">SpeakDriveについて・作者情報</string>
+
+    <!-- Home Screen -->
+    <string name="home_greeting_morning">おはようございます</string>
+    <string name="home_greeting_afternoon">こんにちは</string>
+    <string name="home_greeting_evening">こんばんは</string>
+    <string name="home_ready_drive">運転中にハンズフリーで英会話を練習しませんか？</string>
+    <string name="home_quick_start">クイックスタート</string>
+    <string name="home_free_talk">フリートーク</string>
+    <string name="home_story_listening">ストーリーリスニング</string>
+    <string name="home_pronunciation">発音ドリル</string>
+    <string name="home_roleplay">ロールプレイ</string>
+    <string name="home_vocab_review">単語の復習</string>
+    <string name="home_all_topics">会話トピック</string>
+
+    <!-- Conversation Screen -->
+    <string name="convo_listening">聞いています…</string>
+    <string name="convo_speaking">Alexが話しています…</string>
+    <string name="convo_connecting">AIに接続中…</string>
+    <string name="convo_paused">一時停止中</string>
+    <string name="convo_mic_hint">マイクをタップするか自然に話してください</string>
+    <string name="convo_barge_in_active">割り込み: オン</string>
+    <string name="convo_barge_in_inactive">割り込み: オフ</string>
+    <string name="convo_barge_in_on_toast">AIへの割り込みを有効にしました（イヤホン推奨）</string>
+    <string name="convo_barge_in_off_toast">AIへの割り込みを無効にしました</string>
+
+    <!-- Vocabulary & Progress -->
+    <string name="vocab_title">単語帳</string>
+    <string name="vocab_empty">保存された単語はまだありません。レッスンを受けて単語を増やしましょう！</string>
+    <string name="progress_title">学習の進捗</string>
+    <string name="progress_streak">継続日数</string>
+    <string name="progress_total_time">合計練習時間</string>
+</resources>

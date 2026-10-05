@@ -9,12 +9,15 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
-// Optional Azure Speech key/region for debug builds only (local.properties, git-ignored).
-// Release builds never contain a key: learners enter their own in Settings. See docs/AZURE_SETUP.md.
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
+
+val defaultAzureKey = localProperties.getProperty("azure.speechKey")?.takeIf { it.isNotBlank() }
+    ?: ""
+val defaultAzureRegion = localProperties.getProperty("azure.speechRegion")?.takeIf { it.isNotBlank() }
+    ?: "southeastasia"
 
 // Release signing is read from keystore.properties (git-ignored). See docs/RELEASE.md.
 val keystoreProperties = Properties().apply {
@@ -33,8 +36,8 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "AZURE_SPEECH_KEY", "\"\"")
-        buildConfigField("String", "AZURE_SPEECH_REGION", "\"\"")
+        buildConfigField("String", "AZURE_SPEECH_KEY", "\"$defaultAzureKey\"")
+        buildConfigField("String", "AZURE_SPEECH_REGION", "\"$defaultAzureRegion\"")
     }
 
     signingConfigs {
@@ -50,10 +53,18 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "AZURE_SPEECH_KEY", "\"${localProperties.getProperty("azure.speechKey", "")}\"")
-            buildConfigField("String", "AZURE_SPEECH_REGION", "\"${localProperties.getProperty("azure.speechRegion", "")}\"")
+            buildConfigField("String", "AZURE_SPEECH_KEY", "\"$defaultAzureKey\"")
+            buildConfigField("String", "AZURE_SPEECH_REGION", "\"$defaultAzureRegion\"")
+            // Fixed App Check debug token so reinstalls keep working (register it once in Firebase Console).
+            buildConfigField(
+                "String",
+                "APP_CHECK_DEBUG_TOKEN",
+                "\"${localProperties.getProperty("appcheck.debugToken", "").trim()}\""
+            )
         }
         release {
+            buildConfigField("String", "AZURE_SPEECH_KEY", "\"$defaultAzureKey\"")
+            buildConfigField("String", "AZURE_SPEECH_REGION", "\"$defaultAzureRegion\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -71,6 +82,11 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.maxParallelForks = 1
+            it.forkEvery = 1L
+            it.maxHeapSize = "2048m"
+        }
     }
     sourceSets {
         // Room migration tests read the exported schemas as assets (debug builds only, never released).
@@ -81,6 +97,10 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 

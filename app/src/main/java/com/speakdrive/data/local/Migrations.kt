@@ -31,4 +31,14 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_2_3, MIGRATION_3_4)
+/** v5: Adaptive level recommendations (direction, recommended level, reason). */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `sessions` ADD COLUMN `recommendedLevel` TEXT")
+        db.execSQL("ALTER TABLE `sessions` ADD COLUMN `levelRecommendationDirection` TEXT")
+        db.execSQL("ALTER TABLE `sessions` ADD COLUMN `levelRecommendationReason` TEXT")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+

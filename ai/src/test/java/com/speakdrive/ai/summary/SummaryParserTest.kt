@@ -55,8 +55,53 @@ class SummaryParserTest {
 
     @Test
     fun `fallback has no scores`() {
-        val fallback = SummaryParser.fallback("Buổi học ngắn")
+        val fallback = SummaryParser.fallback("Buổi học ngắn", com.speakdrive.ai.model.DifficultyLevel.ELEMENTARY)
         assertThat(fallback.fluencyScore).isNull()
         assertThat(fallback.encouragement).isEqualTo("Buổi học ngắn")
+        assertThat(fallback.levelRecommendation).isNotNull()
+        assertThat(fallback.levelRecommendation?.targetLevel).isEqualTo(com.speakdrive.ai.model.DifficultyLevel.ELEMENTARY)
+    }
+
+    @Test
+    fun `parses explicit level recommendation from JSON`() {
+        val summary = SummaryParser.parse(
+            """
+            {
+              "fluency_score": 9, "grammar_score": 8, "vocabulary_score": 9,
+              "encouragement_vi": "Rất tốt!",
+              "next_suggestion_vi": "Tiếp tục phát huy!",
+              "level_recommendation_direction": "UP",
+              "recommended_level": "PRE_INTERMEDIATE",
+              "level_recommendation_reason_vi": "Bạn đã sẵn sàng để nâng lên Tiền trung cấp!",
+              "level_recommendation_reason_en": "You are ready for Pre-Intermediate!"
+            }
+            """.trimIndent(),
+            currentLevel = com.speakdrive.ai.model.DifficultyLevel.ELEMENTARY
+        )
+
+        assertThat(summary.levelRecommendation).isNotNull()
+        assertThat(summary.levelRecommendation?.direction).isEqualTo(com.speakdrive.ai.model.LevelAdjustmentDirection.LEVEL_UP)
+        assertThat(summary.levelRecommendation?.targetLevel).isEqualTo(com.speakdrive.ai.model.DifficultyLevel.PRE_INTERMEDIATE)
+        assertThat(summary.levelRecommendation?.reasonVi).contains("Tiền trung cấp")
+    }
+
+    @Test
+    fun `falls back to LevelEvaluator when recommendation fields are missing in JSON`() {
+        val summary = SummaryParser.parse(
+            """
+            {
+              "fluency_score": 9, "grammar_score": 9, "vocabulary_score": 9,
+              "encouragement_vi": "Xuất sắc!",
+              "next_suggestion_vi": "Tiếp tục luyện tập!"
+            }
+            """.trimIndent(),
+            currentLevel = com.speakdrive.ai.model.DifficultyLevel.ELEMENTARY,
+            learnerTurns = 4
+        )
+
+        assertThat(summary.levelRecommendation).isNotNull()
+        assertThat(summary.levelRecommendation?.direction).isEqualTo(com.speakdrive.ai.model.LevelAdjustmentDirection.LEVEL_UP)
+        assertThat(summary.levelRecommendation?.targetLevel).isEqualTo(com.speakdrive.ai.model.DifficultyLevel.PRE_INTERMEDIATE)
     }
 }
+

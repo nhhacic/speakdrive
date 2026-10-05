@@ -15,11 +15,18 @@ import javax.inject.Singleton
 
 /** Tells the phone UI whether the phone is currently projecting to Android Auto. */
 @Singleton
-class CarConnectionObserver @Inject constructor(
-    @param:ApplicationContext private val context: Context
+open class CarConnectionObserver internal constructor(
+    private val context: Context?,
+    @Suppress("UNUSED_PARAMETER") forTesting: Boolean
 ) {
-    val isConnectedToCar: Flow<Boolean> = callbackFlow {
-        val liveData = CarConnection(context).type
+    @Inject
+    constructor(@ApplicationContext context: Context) : this(context, false)
+
+    constructor() : this(null, true)
+
+    open val isConnectedToCar: Flow<Boolean> = callbackFlow {
+        val ctx = context ?: return@callbackFlow
+        val liveData = CarConnection(ctx).type
         val observer = Observer<Int> { type -> trySend(type == CarConnection.CONNECTION_TYPE_PROJECTION) }
         liveData.observeForever(observer)
         awaitClose { liveData.removeObserver(observer) }

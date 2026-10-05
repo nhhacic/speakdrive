@@ -23,6 +23,12 @@ interface LiveConversationClient {
     suspend fun resumeAudio()
 
     suspend fun disconnect()
+
+    /** Updates whether interruptions (barge-in) are enabled for the current live session. */
+    fun updateInterruptions(enabled: Boolean) = Unit
+
+    /** Sets the output volume gain for AI playback, from 0.0 (mute) to 1.0 (full). */
+    fun setVolume(volumeFraction: Float) = Unit
 }
 
 data class LiveSessionConfig(
@@ -56,7 +62,7 @@ data class LiveToolParam(
  * PCM16) are what the learner said since the AI last spoke, so a tool can judge exactly the
  * attempt the model is reacting to.
  */
-class LiveToolCall(
+data class LiveToolCall(
     val name: String,
     val args: Map<String, Any?>,
     val learnerUtterance: String,
@@ -83,4 +89,7 @@ sealed interface LiveEvent {
 
     /** The connection closed without us asking. */
     data class Disconnected(val cause: Throwable?) : LiveEvent
+
+    /** The AI's spoken turn was interrupted by learner speech. */
+    data object Interrupted : LiveEvent
 }

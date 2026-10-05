@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "PLACEHOLDER",
-    "project_id": "speakdrive-app",
-    "storage_bucket": "speakdrive-app.appspot.com"
+    "project_number": "686375503943",
+    "project_id": "speakdrive",
+    "storage_bucket": "speakdrive.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "mobilesdk_app_id": "1:686375503943:android:b0dc477c7713d796178962",
         "android_client_info": {
           "package_name": "com.speakdrive"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "PLACEHOLDER_API_KEY"
+          "current_key": "AIzaSyBUTX0CMjxW-E827alBvdpxdHSkF8ZqaHM"
         }
       ],
       "services": {

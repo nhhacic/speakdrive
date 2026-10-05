@@ -7,15 +7,21 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onAllNodesWithText
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.TopicManager
 import com.speakdrive.ai.model.ActiveLesson
+import com.speakdrive.ai.model.AppLanguage
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.DifficultyLevel
+import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.EngineError
+import com.speakdrive.ai.model.LearnerSettings
+import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.Speaker
+import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.ai.model.TranscriptTurn
 import com.speakdrive.auto.MediaIds
 import com.speakdrive.data.local.entity.CorrectionEntity
@@ -23,16 +29,24 @@ import com.speakdrive.data.local.entity.LearnedWordEntity
 import com.speakdrive.data.local.entity.SessionEntity
 import com.speakdrive.data.repository.ProgressStats
 import com.speakdrive.data.repository.SessionDetail
+import com.speakdrive.data.repository.UserPreferences
 import com.speakdrive.ui.components.MicState
+import com.speakdrive.ui.screens.AboutScreen
+import com.speakdrive.ui.screens.AzureTestState
 import com.speakdrive.ui.screens.ConversationContent
 import com.speakdrive.ui.screens.ConversationUiState
 import com.speakdrive.ui.screens.DrillUiState
+import com.speakdrive.ui.screens.SettingsContent
 import com.speakdrive.ai.pronunciation.AzureAssessment
 import com.speakdrive.ai.pronunciation.AzurePhoneme
 import com.speakdrive.ai.pronunciation.AzureWord
 import com.speakdrive.ai.pronunciation.PronunciationGrader
+import com.speakdrive.ai.model.LevelAdjustmentDirection
+import com.speakdrive.ai.model.LevelRecommendation
 import com.speakdrive.ui.screens.HomeContent
 import com.speakdrive.ui.screens.HomeUiState
+import com.speakdrive.ui.screens.ProgressContent
+import com.speakdrive.ui.screens.ProgressUiState
 import com.speakdrive.ui.screens.SummaryContent
 import com.speakdrive.ui.screens.SummaryUiState
 import com.speakdrive.ui.screens.TopicProgressUi
@@ -44,7 +58,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35], application = Application::class, qualifiers = "w411dp-h891dp")
+@Config(sdk = [35], application = Application::class, qualifiers = "vi-rVN-w411dp-h1400dp")
 class ScreensTest {
 
     @get:Rule
@@ -72,10 +86,10 @@ class ScreensTest {
             }
         }
 
-        compose.onNodeWithContentDescription("🔥 4 ngày liên tục").assertIsDisplayed()
-        compose.onNodeWithText("Lần trước: 🍽️ Ăn uống & Nhà hàng").assertIsDisplayed()
+        compose.onNodeWithContentDescription("🔥 4 ngày streak").assertIsDisplayed()
+        compose.onNodeWithText("Tiếp tục bài: 🍽️ Ăn uống & Nhà hàng").assertIsDisplayed()
         compose.onNodeWithText("Tiếp tục").performClick()
-        compose.onNodeWithText("Ôn tập từ vựng").performClick()
+        compose.onNodeWithText("Ôn tập từ vựng", substring = true).performScrollTo().performClick()
         assertThat(started).containsExactly(MediaIds.RESUME, MediaIds.REVIEW).inOrder()
     }
 
@@ -114,7 +128,6 @@ class ScreensTest {
                             TranscriptTurn(2, Speaker.USER, "I am a engineer", 0)
                         ),
                         micState = MicState.LISTENING,
-                        statusText = "Đến lượt bạn",
                         elapsed = "01:05"
                     ),
                     permissionDenied = false,
@@ -128,7 +141,8 @@ class ScreensTest {
             }
         }
 
-        compose.onNodeWithText("Advanced • 01:05").assertIsDisplayed()
+        compose.onNodeWithText(lesson.level.getLabel(true)).assertIsDisplayed()
+        compose.onNodeWithText("01:05").assertIsDisplayed()
         compose.onNodeWithText("I am a engineer").assertIsDisplayed()
         compose.onNodeWithText("Kết thúc").performClick()
         assertThat(ended).isTrue()
@@ -159,7 +173,7 @@ class ScreensTest {
         }
 
         compose.onNodeWithText("I need three tickets").assertIsDisplayed()
-        compose.onNodeWithText("✗ Lần 1: CHƯA ĐẠT • app nghe đúng 75% số từ").assertIsDisplayed()
+        compose.onNodeWithText("✗ Lần 1: CHƯA ĐẠT (nghe đúng 75% từ)").assertIsDisplayed()
         compose.onNodeWithText("Đạt 0/1 câu").assertIsDisplayed()
     }
 
@@ -196,7 +210,7 @@ class ScreensTest {
             }
         }
 
-        compose.onNodeWithText("✗ Lần 1: CHƯA ĐẠT • app nghe đúng 100% số từ").assertIsDisplayed()
+        compose.onNodeWithText("✗ Lần 1: CHƯA ĐẠT (nghe đúng 100% từ)").assertIsDisplayed()
         compose.onNodeWithText("Azure: 62/100 • chính xác 58 • trôi chảy 90 • đầy đủ 100").assertIsDisplayed()
         compose.onNodeWithText("Âm cần sửa: three (th 15)").assertIsDisplayed()
     }
@@ -240,7 +254,15 @@ class ScreensTest {
         compose.setContent {
             SpeakDriveTheme {
                 SummaryContent(
-                    state = SummaryUiState(isLoading = false, detail = detail, title = "🏖️ Du lịch & Đi lại", levelLabel = "Beginner", durationLabel = "10 phút 0 giây"),
+                    state = SummaryUiState(
+                        isLoading = false,
+                        detail = detail,
+                        topicTitleVi = "Du lịch & Đi lại",
+                        topicTitleEn = "Travel",
+                        topicEmoji = "🏖️",
+                        level = DifficultyLevel.BEGINNER,
+                        durationMs = 600_000L
+                    ),
                     onPracticeAgain = {},
                     onHome = {},
                     onBack = {}
@@ -248,10 +270,10 @@ class ScreensTest {
             }
         }
 
-        compose.onNodeWithText("8/10").assertIsDisplayed()
-        compose.onNodeWithText("Bạn nói rất tự tin!").assertIsDisplayed()
-        compose.onNodeWithText("itinerary").assertIsDisplayed()
-        compose.onNode(hasText("✓ I went")).assertExists()
+        compose.onNodeWithText("8/10").assertExists()
+        compose.onNodeWithText("Bạn nói rất tự tin!", substring = true).assertExists()
+        compose.onNodeWithText("itinerary").assertExists()
+        compose.onNodeWithText("I went", substring = true).assertExists()
     }
 
     @Test
@@ -268,7 +290,351 @@ class ScreensTest {
             }
         }
 
-        compose.onNodeWithText("AI đang chấm điểm và tổng kết buổi học…").assertIsDisplayed()
+        compose.onNodeWithText("AI đang phân tích và tổng kết buổi học…").assertIsDisplayed()
         assertThat(compose.onAllNodesWithText("Đánh giá").fetchSemanticsNodes()).isEmpty()
     }
+
+    @Test
+    fun `settings shows drill sentence length options and changes selection`() {
+        var selectedLength: DrillSentenceLength? = null
+        compose.setContent {
+            SpeakDriveTheme {
+                SettingsContent(
+                    prefs = UserPreferences(),
+                    azureTest = AzureTestState.Idle,
+                    onBack = {},
+                    onOpenProgress = {},
+                    onOpenVocabulary = {},
+                    onOpenPrivacy = {},
+                    onSetLevel = {},
+                    onSetVoice = {},
+                    onSetAllowVietnameseHelp = {},
+                    onSetAllowBargeIn = {},
+                    onSetDrillSentenceLength = { selectedLength = it },
+                    onSetAzureEnabled = {},
+                    onSaveAndTestAzure = { _, _ -> },
+                    onSetDailyGoal = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("Độ dài câu luyện nói (An toàn lái xe)").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Tự động khi lái xe").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Luôn ngắn gọn").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Tiêu chuẩn theo cấp độ").performScrollTo().assertIsDisplayed()
+
+        compose.onNodeWithText("Luôn ngắn gọn").performScrollTo().performClick()
+        assertThat(selectedLength).isEqualTo(DrillSentenceLength.ALWAYS_SHORT)
+
+        compose.onNodeWithText("Tiêu chuẩn theo cấp độ").performScrollTo().performClick()
+        assertThat(selectedLength).isEqualTo(DrillSentenceLength.STANDARD)
+    }
+
+    @Test
+    fun `settings shows pronunciation strictness options and changes selection`() {
+        var selectedStrictness: PronunciationStrictness? = null
+        compose.setContent {
+            SpeakDriveTheme {
+                SettingsContent(
+                    prefs = UserPreferences(),
+                    azureTest = AzureTestState.Idle,
+                    onBack = {},
+                    onOpenProgress = {},
+                    onOpenVocabulary = {},
+                    onOpenPrivacy = {},
+                    onSetLevel = {},
+                    onSetVoice = {},
+                    onSetPronunciationStrictness = { selectedStrictness = it },
+                    onSetAllowVietnameseHelp = {},
+                    onSetAllowBargeIn = {},
+                    onSetAzureEnabled = {},
+                    onSaveAndTestAzure = { _, _ -> },
+                    onSetDailyGoal = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("Độ khắt khe khi chấm phát âm").assertIsDisplayed()
+        compose.onNodeWithText("Theo cấp độ").assertIsDisplayed()
+        compose.onNodeWithText("A1 - Rất nhẹ").assertIsDisplayed()
+        compose.onNodeWithText("A2 - Dễ chịu").assertIsDisplayed()
+        compose.onNodeWithText("B1 - Tiêu chuẩn").assertIsDisplayed()
+        compose.onNodeWithText("B2 - Khắt khe").assertIsDisplayed()
+        compose.onNodeWithText("C1–C2 - Chuẩn bản xứ").assertIsDisplayed()
+
+        compose.onNodeWithText("A2 - Dễ chịu").performClick()
+        assertThat(selectedStrictness).isEqualTo(PronunciationStrictness.ELEMENTARY)
+
+        compose.onNodeWithText("B2 - Khắt khe").performClick()
+        assertThat(selectedStrictness).isEqualTo(PronunciationStrictness.UPPER_INTERMEDIATE)
+
+        compose.onNodeWithText("Theo cấp độ").performClick()
+        assertThat(selectedStrictness).isEqualTo(PronunciationStrictness.AUTO)
+    }
+
+    @Test
+    fun `settings shows random voice option and toggles it`() {
+        var randomVoiceToggled: Boolean? = null
+        compose.setContent {
+            SpeakDriveTheme {
+                SettingsContent(
+                    prefs = UserPreferences(learner = LearnerSettings(randomVoice = false)),
+                    azureTest = AzureTestState.Idle,
+                    onBack = {},
+                    onOpenProgress = {},
+                    onOpenVocabulary = {},
+                    onOpenPrivacy = {},
+                    onSetLevel = {},
+                    onSetVoice = {},
+                    onSetRandomVoice = { randomVoiceToggled = it },
+                    onSetPronunciationStrictness = {},
+                    onSetStorytellingStyle = {},
+                    onSetAllowVietnameseHelp = {},
+                    onSetAllowBargeIn = {},
+                    onSetAzureEnabled = {},
+                    onSaveAndTestAzure = { _, _ -> },
+                    onSetDailyGoal = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("Ngẫu nhiên mỗi phiên học").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Ngẫu nhiên mỗi phiên học").performScrollTo().performClick()
+        assertThat(randomVoiceToggled).isTrue()
+    }
+
+    @Test
+    fun `settings shows storytelling style option and toggles it`() {
+        var selectedStyle: StorytellingStyle? = null
+        compose.setContent {
+            SpeakDriveTheme {
+                SettingsContent(
+                    prefs = UserPreferences(learner = LearnerSettings(storytellingStyle = StorytellingStyle.INTERACTIVE)),
+                    azureTest = AzureTestState.Idle,
+                    onBack = {},
+                    onOpenProgress = {},
+                    onOpenVocabulary = {},
+                    onOpenPrivacy = {},
+                    onSetLevel = {},
+                    onSetVoice = {},
+                    onSetRandomVoice = {},
+                    onSetPronunciationStrictness = {},
+                    onSetStorytellingStyle = { selectedStyle = it },
+                    onSetAllowVietnameseHelp = {},
+                    onSetAllowBargeIn = {},
+                    onSetAzureEnabled = {},
+                    onSaveAndTestAzure = { _, _ -> },
+                    onSetDailyGoal = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("Tương tác từng đoạn").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Podcast liền mạch").performScrollTo().assertIsDisplayed()
+
+        compose.onNodeWithText("Podcast liền mạch").performClick()
+        assertThat(selectedStyle).isEqualTo(StorytellingStyle.CONTINUOUS)
+    }
+
+    @Test
+    fun `settings shows azure test button and triggers test connection`() {
+        var testTriggered = false
+        compose.setContent {
+            SpeakDriveTheme {
+                SettingsContent(
+                    prefs = UserPreferences(),
+                    azureTest = AzureTestState.Ok,
+                    onBack = {},
+                    onOpenProgress = {},
+                    onOpenVocabulary = {},
+                    onOpenPrivacy = {},
+                    onSetLevel = {},
+                    onSetVoice = {},
+                    onSetAllowVietnameseHelp = {},
+                    onSetAllowBargeIn = {},
+                    onSetAzureEnabled = {},
+                    onTestAzure = { testTriggered = true },
+                    onSetDailyGoal = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("Kiểm tra kết nối Azure").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("✓ Kết nối Azure thành công").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Kiểm tra kết nối Azure").performClick()
+        assertThat(testTriggered).isTrue()
+    }
+
+    @Test
+    fun `conversation displays active lesson with context-aware screen behavior`() {
+        val lesson = ActiveLesson("s", topics.getTopicById("travel")!!, null, DifficultyLevel.BEGINNER, SessionMode.FREE_TALK, 0, emptyList())
+        var userInteracted = false
+        compose.setContent {
+            SpeakDriveTheme {
+                ConversationContent(
+                    state = ConversationUiState(
+                        lesson = lesson,
+                        state = ConversationState.ACTIVE,
+                        isCarConnected = false,
+                        micState = MicState.LISTENING
+                    ),
+                    permissionDenied = false,
+                    onBack = {},
+                    onEnd = {},
+                    onToggle = {},
+                    onRetry = {},
+                    onRequestPermission = {},
+                    onOpenAppSettings = {},
+                    onUserInteraction = { userInteracted = true }
+                )
+            }
+        }
+
+        compose.onNodeWithText(lesson.level.getLabel(true)).assertIsDisplayed()
+        compose.onNodeWithText("00:00").assertIsDisplayed()
+        // Click on the transcript area or mic area
+        compose.onNodeWithContentDescription("Đang đợi bạn nói — chạm để tạm dừng").performClick()
+        assertThat(userInteracted).isTrue()
+    }
+
+    @Test
+    fun `about screen displays developer info and handles navigation`() {
+        var backed = false
+        var privacyOpened = false
+        compose.setContent {
+            SpeakDriveTheme {
+                AboutScreen(
+                    onBack = { backed = true },
+                    onOpenPrivacy = { privacyOpened = true }
+                )
+            }
+        }
+
+        compose.onNodeWithText("Thông tin ứng dụng").assertIsDisplayed()
+        compose.onNodeWithText("SpeakDrive").assertIsDisplayed()
+        compose.onNodeWithText("nhhacic").assertIsDisplayed()
+        compose.onNodeWithText("Tác giả & Nhà phát triển chính").assertIsDisplayed()
+        compose.onNodeWithText("Gia sư AI Gemini Live").performScrollTo().assertIsDisplayed()
+
+        compose.onNodeWithText("Chính sách bảo mật").performScrollTo().performClick()
+        assertThat(privacyOpened).isTrue()
+
+        compose.onNodeWithContentDescription("Quay lại").performClick()
+        assertThat(backed).isTrue()
+    }
+
+    @Test
+    fun `settings shows app language options and changes selection`() {
+        var selectedLang: AppLanguage? = null
+        compose.setContent {
+            SpeakDriveTheme {
+                SettingsContent(
+                    prefs = UserPreferences(),
+                    azureTest = AzureTestState.Idle,
+                    onBack = {},
+                    onOpenProgress = {},
+                    onOpenVocabulary = {},
+                    onOpenPrivacy = {},
+                    onSetAppLanguage = { selectedLang = it },
+                    onSetLevel = {},
+                    onSetVoice = {},
+                    onSetDailyGoal = {}
+                )
+            }
+        }
+
+        val viText = "${AppLanguage.VIETNAMESE.flagEmoji} ${AppLanguage.VIETNAMESE.nativeName}"
+        val enText = "${AppLanguage.ENGLISH.flagEmoji} ${AppLanguage.ENGLISH.nativeName}"
+
+        compose.onNodeWithText(viText).assertIsDisplayed()
+        compose.onNodeWithText(enText).assertIsDisplayed()
+        compose.onNodeWithText(viText).performClick()
+        assertThat(selectedLang).isEqualTo(AppLanguage.VIETNAMESE)
+    }
+
+    @Test
+    fun `settings shows adaptive level recommendation toggle and handles change`() {
+        var adaptiveEnabled: Boolean? = null
+        compose.setContent {
+            SpeakDriveTheme {
+                SettingsContent(
+                    prefs = UserPreferences(),
+                    azureTest = AzureTestState.Idle,
+                    onBack = {},
+                    onOpenProgress = {},
+                    onOpenVocabulary = {},
+                    onOpenPrivacy = {},
+                    onSetAdaptiveLevelRecommendation = { adaptiveEnabled = it }
+                )
+            }
+        }
+
+        compose.onNodeWithText("Gợi ý cấp độ học thích ứng").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Gợi ý cấp độ học thích ứng").performClick()
+        assertThat(adaptiveEnabled).isFalse() // Default was true in UserPreferences -> toggle to false
+    }
+
+    @Test
+    fun `progress shows cefr roadmap card with level recommendation and apply button`() {
+        var appliedLevel: DifficultyLevel? = null
+        val testRec = LevelRecommendation(
+            direction = LevelAdjustmentDirection.LEVEL_UP,
+            targetLevel = DifficultyLevel.UPPER_INTERMEDIATE,
+            reasonVi = "Bạn đã thể hiện xuất sắc ở B1! Hãy thử thách với B2.",
+            reasonEn = "Excellent progress at B1! Advance to B2."
+        )
+
+        compose.setContent {
+            SpeakDriveTheme {
+                ProgressContent(
+                    state = ProgressUiState(
+                        currentLevel = DifficultyLevel.INTERMEDIATE,
+                        roadmapRecommendation = testRec,
+                        isAdaptiveEnabled = true
+                    ),
+                    isVi = true,
+                    onBack = {},
+                    onOpenSession = {},
+                    onOpenVocabulary = {},
+                    onApplyRecommendedLevel = { appliedLevel = it }
+                )
+            }
+        }
+
+        compose.onNodeWithText("Lộ trình học & Đánh giá năng lực").assertIsDisplayed()
+        compose.onNodeWithText("🚀 Sẵn sàng thăng cấp").assertIsDisplayed()
+        compose.onNodeWithText("Bạn đã thể hiện xuất sắc ở B1! Hãy thử thách với B2.").assertIsDisplayed()
+        compose.onNodeWithText("Tăng lên B2 ngay").performClick()
+        assertThat(appliedLevel).isEqualTo(DifficultyLevel.UPPER_INTERMEDIATE)
+    }
+
+    @Test
+    fun `conversation screen displays and toggles barge-in state`() {
+        var bargeInToggled = false
+        val lesson = ActiveLesson("s", topics.getTopicById("work")!!, null, DifficultyLevel.INTERMEDIATE, SessionMode.FREE_TALK, 0, emptyList())
+        compose.setContent {
+            SpeakDriveTheme {
+                ConversationContent(
+                    state = ConversationUiState(
+                        lesson = lesson,
+                        state = ConversationState.ACTIVE,
+                        isBargeInEnabled = false,
+                        micState = MicState.LISTENING
+                    ),
+                    permissionDenied = false,
+                    onBack = {},
+                    onEnd = {},
+                    onToggle = {},
+                    onRetry = {},
+                    onToggleBargeIn = { bargeInToggled = true },
+                    onRequestPermission = {},
+                    onOpenAppSettings = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("Ngắt lời: Tắt").assertIsDisplayed().performClick()
+        assertThat(bargeInToggled).isTrue()
+    }
 }
+

@@ -2,6 +2,7 @@ package com.speakdrive.audio
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -49,18 +50,22 @@ class TextToSpeechAnnouncer @Inject constructor(
             return
         }
         engine.language = Locale.US
-        engine.setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build()
-        )
         ready = true
         pending?.let { speak(engine, it) }
         pending = null
     }
 
     private fun speak(engine: TextToSpeech, text: String) {
+        // During a lesson the AI talks on the voice-call path (car hands-free / loudspeaker);
+        // media audio may then be silent or go elsewhere, so announcements follow the same path.
+        val inCall = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.mode ==
+            AudioManager.MODE_IN_COMMUNICATION
+        engine.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(if (inCall) AudioAttributes.USAGE_VOICE_COMMUNICATION else AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+        )
         engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "speakdrive-announcement")
     }
 

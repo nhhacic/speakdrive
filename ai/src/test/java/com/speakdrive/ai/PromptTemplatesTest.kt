@@ -3,6 +3,7 @@ package com.speakdrive.ai
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.DifficultyLevel
+import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.ReviewWord
 import com.speakdrive.ai.model.SessionMode
@@ -43,8 +44,17 @@ class PromptTemplatesTest {
     @Test
     fun `reflects the level`() {
         val beginner = PromptTemplates.buildSystemInstruction(lesson(level = DifficultyLevel.BEGINNER), LearnerSettings())
+        val elementary = PromptTemplates.buildSystemInstruction(lesson(level = DifficultyLevel.ELEMENTARY), LearnerSettings())
+        val preIntermediate = PromptTemplates.buildSystemInstruction(lesson(level = DifficultyLevel.PRE_INTERMEDIATE), LearnerSettings())
+        val intermediate = PromptTemplates.buildSystemInstruction(lesson(level = DifficultyLevel.INTERMEDIATE), LearnerSettings())
+        val upperIntermediate = PromptTemplates.buildSystemInstruction(lesson(level = DifficultyLevel.UPPER_INTERMEDIATE), LearnerSettings())
         val advanced = PromptTemplates.buildSystemInstruction(lesson(level = DifficultyLevel.ADVANCED), LearnerSettings())
-        assertThat(beginner).contains("BEGINNER (CEFR A1–A2)")
+
+        assertThat(beginner).contains("BEGINNER (CEFR A1)")
+        assertThat(elementary).contains("ELEMENTARY (CEFR A2)")
+        assertThat(preIntermediate).contains("PRE-INTERMEDIATE (CEFR A2–B1)")
+        assertThat(intermediate).contains("INTERMEDIATE (CEFR B1)")
+        assertThat(upperIntermediate).contains("UPPER-INTERMEDIATE (CEFR B2)")
         assertThat(advanced).contains("ADVANCED (CEFR C1–C2)")
     }
 
@@ -96,5 +106,144 @@ class PromptTemplatesTest {
         val prompt = PromptTemplates.summaryPrompt(lesson(), listOf(TranscriptTurn(1, Speaker.USER, "hello", 0)))
         listOf("fluency_score", "grammar_score", "vocabulary_score", "new_words", "corrections", "encouragement_vi", "next_suggestion_vi")
             .forEach { assertThat(prompt).contains(it) }
+    }
+
+    @Test
+    fun `repeatAfterMeRules limits sentence length to 5-8 words when isCarConnected is true and mode is AUTO_ON_CAR`() {
+        val drillLesson = lesson(SessionMode.REPEAT_AFTER_ME, level = DifficultyLevel.ADVANCED)
+        val prompt = PromptTemplates.repeatAfterMeRules(
+            lesson = drillLesson,
+            drillSentenceLength = DrillSentenceLength.AUTO_ON_CAR,
+            isCarConnected = true
+        )
+        assertThat(prompt).contains("CRITICAL DRIVING SAFETY CONSTRAINTS (SHORT REPETITION SENTENCES)")
+        assertThat(prompt).contains("6 to 8 words (never exceed 8 words)")
+        assertThat(prompt).doesNotContain("10 to 18 words")
+    }
+
+    @Test
+    fun `repeatAfterMeRules limits sentence length when mode is ALWAYS_SHORT even without car connection`() {
+        val drillLesson = lesson(SessionMode.REPEAT_AFTER_ME, level = DifficultyLevel.UPPER_INTERMEDIATE)
+        val prompt = PromptTemplates.repeatAfterMeRules(
+            lesson = drillLesson,
+            drillSentenceLength = DrillSentenceLength.ALWAYS_SHORT,
+            isCarConnected = false
+        )
+        assertThat(prompt).contains("CRITICAL DRIVING SAFETY CONSTRAINTS (SHORT REPETITION SENTENCES)")
+        assertThat(prompt).contains("6 to 8 words")
+        assertThat(prompt).doesNotContain("9 to 15 words")
+    }
+
+    @Test
+    fun `repeatAfterMeRules uses standard length when isCarConnected is false and mode is AUTO_ON_CAR`() {
+        val drillLesson = lesson(SessionMode.REPEAT_AFTER_ME, level = DifficultyLevel.ADVANCED)
+        val prompt = PromptTemplates.repeatAfterMeRules(
+            lesson = drillLesson,
+            drillSentenceLength = DrillSentenceLength.AUTO_ON_CAR,
+            isCarConnected = false
+        )
+        assertThat(prompt).doesNotContain("CRITICAL DRIVING SAFETY CONSTRAINTS")
+        assertThat(prompt).contains("10 to 18 words")
+    }
+
+    @Test
+    fun `repeatAfterMeRules uses standard length when mode is STANDARD even if isCarConnected is true`() {
+        val drillLesson = lesson(SessionMode.REPEAT_AFTER_ME, level = DifficultyLevel.INTERMEDIATE)
+        val prompt = PromptTemplates.repeatAfterMeRules(
+            lesson = drillLesson,
+            drillSentenceLength = DrillSentenceLength.STANDARD,
+            isCarConnected = true
+        )
+        assertThat(prompt).doesNotContain("CRITICAL DRIVING SAFETY CONSTRAINTS")
+        assertThat(prompt).contains("7 to 12 words")
+    }
+
+    @Test
+    fun `buildSystemInstruction passes isCarConnected and drillSentenceLength`() {
+        val drillLesson = lesson(SessionMode.REPEAT_AFTER_ME, level = DifficultyLevel.ADVANCED)
+        val inCarPrompt = PromptTemplates.buildSystemInstruction(
+            lesson = drillLesson,
+            settings = LearnerSettings(drillSentenceLength = DrillSentenceLength.AUTO_ON_CAR),
+            isCarConnected = true
+        )
+        assertThat(inCarPrompt).contains("CRITICAL DRIVING SAFETY CONSTRAINTS")
+        assertThat(inCarPrompt).contains("6 to 8 words (never exceed 8 words)")
+
+        val notInCarPrompt = PromptTemplates.buildSystemInstruction(
+            lesson = drillLesson,
+            settings = LearnerSettings(drillSentenceLength = DrillSentenceLength.AUTO_ON_CAR),
+            isCarConnected = false
+        )
+        assertThat(notInCarPrompt).doesNotContain("CRITICAL DRIVING SAFETY CONSTRAINTS")
+        assertThat(notInCarPrompt).contains("10 to 18 words")
+    }
+
+    @Test
+    fun `carConnectionSwitchMessage and drillSentenceLengthSwitchMessage generate expected directives`() {
+        val carConnectedMsg = PromptTemplates.carConnectionSwitchMessage(true, DrillSentenceLength.AUTO_ON_CAR)
+        assertThat(carConnectedMsg).contains("Android Auto")
+        assertThat(carConnectedMsg).contains("5 to 8 words maximum")
+
+        val carDisconnectedMsg = PromptTemplates.carConnectionSwitchMessage(false, DrillSentenceLength.AUTO_ON_CAR)
+        assertThat(carDisconnectedMsg).contains("standard length")
+
+        val shortSwitchMsg = PromptTemplates.drillSentenceLengthSwitchMessage(DrillSentenceLength.ALWAYS_SHORT, false)
+        assertThat(shortSwitchMsg).contains("SHORT (5 to 8 words maximum)")
+
+        val standardSwitchMsg = PromptTemplates.drillSentenceLengthSwitchMessage(DrillSentenceLength.STANDARD, true)
+        assertThat(standardSwitchMsg).contains("STANDARD")
+    }
+
+    @Test
+    fun `storyListeningRules integrates level adaptation directives for each CEFR level`() {
+        val beginnerLesson = lesson(SessionMode.STORY_LISTENING, level = DifficultyLevel.BEGINNER, scenarioId = "story_shackleton")
+        val beginnerRules = PromptTemplates.storyListeningRules(beginnerLesson)
+        assertThat(beginnerRules).contains("STORY LEVEL ADAPTATION: BEGINNER (CEFR A1)")
+        assertThat(beginnerRules).contains("A1 core 500–800 words")
+        assertThat(beginnerRules).contains("under 10–12 words")
+        assertThat(beginnerRules).contains("Speak slowly and enunciate every syllable")
+
+        val advancedLesson = lesson(SessionMode.STORY_LISTENING, level = DifficultyLevel.ADVANCED, scenarioId = "story_shackleton")
+        val advancedRules = PromptTemplates.storyListeningRules(advancedLesson)
+        assertThat(advancedRules).contains("STORY LEVEL ADAPTATION: ADVANCED (CEFR C1–C2)")
+        assertThat(advancedRules).contains("literary brilliance")
+        assertThat(advancedRules).contains("complex narrative architecture")
+
+        val intermediateLesson = lesson(SessionMode.STORY_LISTENING, level = DifficultyLevel.INTERMEDIATE, scenarioId = "story_shackleton")
+        val intermediateRules = PromptTemplates.storyListeningRules(intermediateLesson)
+        assertThat(intermediateRules).contains("STORY LEVEL ADAPTATION: INTERMEDIATE (CEFR B1)")
+        assertThat(intermediateRules).contains("natural idioms")
+    }
+
+    @Test
+    fun `storyLevelAdaptation covers all difficulty levels comprehensively`() {
+        DifficultyLevel.entries.forEach { level ->
+            val guidance = PromptTemplates.storyLevelAdaptation(level)
+            assertThat(guidance).contains(level.displayName.uppercase())
+            assertThat(guidance).contains(level.cefr)
+            assertThat(guidance).contains("Vocabulary")
+            assertThat(guidance).contains("Sentence Structure")
+            assertThat(guidance).contains("Pacing")
+            assertThat(guidance).contains("Interactive Mode Questions")
+            assertThat(guidance).contains("Closing Takeaway")
+        }
+    }
+
+    @Test
+    fun `storyListeningRules enforces anti-summary and scene enactment directives`() {
+        val storyLesson = lesson(SessionMode.STORY_LISTENING, level = DifficultyLevel.INTERMEDIATE, scenarioId = "story_shackleton")
+        val rules = PromptTemplates.storyListeningRules(storyLesson)
+        assertThat(rules).contains("STRICT ANTI-SUMMARY & IMMERSIVE DRAMA DIRECTIVE")
+        assertThat(rules).contains("SUMMARIZING IS STRICTLY FORBIDDEN")
+        assertThat(rules).contains("MANDATORY DIRECT CHARACTER DIALOGUE")
+        assertThat(rules).contains("SHOW, DON'T TELL")
+        assertThat(rules).contains("VOCAL FOLEY & SOUND EFFECTS")
+
+        val kickoff = PromptTemplates.kickoffMessage(storyLesson)
+        assertThat(kickoff).contains("PERFORM Chapter One")
+        assertThat(kickoff).contains("ABSOLUTELY DO NOT SUMMARIZE")
+
+        val continueMsg = PromptTemplates.CONTINUE_STORY_MESSAGE
+        assertThat(continueMsg).contains("DO NOT SUMMARIZE OR RUSH TO THE END")
     }
 }

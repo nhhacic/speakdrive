@@ -1,0 +1,82 @@
+<resources>
+    <string name="app_name">SpeakDrive</string>
+    <string name="back">返回</string>
+    <string name="start">开始</string>
+    <string name="pause">暂停</string>
+    <string name="resume">继续</string>
+    <string name="end_lesson">结束课程</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="close">关闭</string>
+
+    <!-- Bottom Navigation -->
+    <string name="nav_home">练口语</string>
+    <string name="nav_vocabulary">生词本</string>
+    <string name="nav_progress">进度</string>
+    <string name="nav_settings">设置</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">设置</string>
+    <string name="settings_group_language">界面语言</string>
+    <string name="settings_language_desc">选择应用显示语言与母语辅助语言。</string>
+    <string name="settings_language_voice_tip">💡 语音指令: \"change language to English\" 或 \"切换到中文\"</string>
+    <string name="settings_group_learning">练习与水平</string>
+    <string name="settings_learner_level">学习者水平</string>
+    <string name="settings_strictness">发音评分严格度</string>
+    <string name="settings_daily_goal">每日目标</string>
+    <string name="settings_minutes">分钟</string>
+    <string name="settings_storytelling_mode">故事模式（听力训练）</string>
+    <string name="settings_story_duration">故事时长</string>
+    <string name="settings_multi_voice">多角色广播剧</string>
+    <string name="settings_multi_voice_desc">AI 根据不同角色动态变化语调、语速和情感。</string>
+    <string name="settings_group_voice">AI 语音与交互</string>
+    <string name="settings_voice_choice">选择 AI 声音</string>
+    <string name="settings_voice_random">每堂课随机声音</string>
+    <string name="settings_voice_random_desc">每节新课程自动随机挑选一个 AI 声音。</string>
+    <string name="settings_vietnamese_help">允许母语辅助解释</string>
+    <string name="settings_vietnamese_help_desc">当你遇到生词或表达困难时，AI 会用母语简短解释。</string>
+    <string name="settings_barge_in">允许打断 AI (Barge-in)</string>
+    <string name="settings_barge_in_desc">建议仅在佩戴耳机时开启，防止扬声器回音造成误判。</string>
+    <string name="settings_group_car">驾驶模式与屏幕</string>
+    <string name="settings_auto_start_car">连接车载系统自动开始</string>
+    <string name="settings_auto_start_car_desc">当手机连接到 Android Auto 时自动开启口语练习。</string>
+    <string name="settings_screen_awake">练习时保持屏幕常亮</string>
+    <string name="settings_group_azure">Azure 发音评测服务</string>
+    <string name="settings_azure_enable">使用 Microsoft Azure 评分</string>
+    <string name="settings_azure_enable_desc">Azure 提供额外的音素与单词评分 (0–100)。</string>
+    <string name="settings_azure_test">测试 Azure 连接</string>
+    <string name="settings_group_info">信息与支持</string>
+    <string name="settings_privacy_policy">隐私数据政策</string>
+    <string name="settings_about">关于 SpeakDrive 及作者</string>
+
+    <!-- Home Screen -->
+    <string name="home_greeting_morning">早上好</string>
+    <string name="home_greeting_afternoon">下午好</string>
+    <string name="home_greeting_evening">晚上好</string>
+    <string name="home_ready_drive">今天准备好在驾车时轻松练英语口语了吗？</string>
+    <string name="home_quick_start">快速开始</string>
+    <string name="home_free_talk">自由对话</string>
+    <string name="home_story_listening">故事听力</string>
+    <string name="home_pronunciation">发音跟读</string>
+    <string name="home_roleplay">情境角色扮演</string>
+    <string name="home_vocab_review">复习待记生词</string>
+    <string name="home_all_topics">对话主题</string>
+
+    <!-- Conversation Screen -->
+    <string name="convo_listening">正在聆听…</string>
+    <string name="convo_speaking">Alex 正在说话…</string>
+    <string name="convo_connecting">正在连接 AI…</string>
+    <string name="convo_paused">已暂停</string>
+    <string name="convo_mic_hint">轻触麦克风或自然说话</string>
+    <string name="convo_barge_in_active">打断AI: 开启</string>
+    <string name="convo_barge_in_inactive">打断AI: 关闭</string>
+    <string name="convo_barge_in_on_toast">已开启打断AI模式（推荐佩戴耳机）</string>
+    <string name="convo_barge_in_off_toast">已关闭打断AI模式</string>
+
+    <!-- Vocabulary & Progress -->
+    <string name="vocab_title">生词本</string>
+    <string name="vocab_empty">暂无保存的词汇。快去完成课程积累新词吧！</string>
+    <string name="progress_title">学习进度</string>
+    <string name="progress_streak">连续学习天数</string>
+    <string name="progress_total_time">总练习时长</string>
+</resources>

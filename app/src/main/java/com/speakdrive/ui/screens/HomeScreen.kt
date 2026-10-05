@@ -779,7 +779,19 @@ private fun TopicSheet(
             ) {
                 ListItem(
                     headlineContent = { Text(if (isVi) scenario.titleVi else scenario.titleEn, fontWeight = FontWeight.Medium) },
-                    supportingContent = { Text(stringResource(R.string.home_topic_sheet_role_ai, scenario.aiRole)) },
+                    supportingContent = {
+                        Column {
+                            Text(stringResource(R.string.home_topic_sheet_role_ai, scenario.aiRole))
+                            scenario.missionObjective?.let { mission ->
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "🎯 $mission",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    },
                     trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) },
                     colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
                 )

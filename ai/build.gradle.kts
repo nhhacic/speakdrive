@@ -28,6 +28,11 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.all {
+            it.maxParallelForks = 1
+            it.maxHeapSize = "384m"
+            it.jvmArgs("-XX:+UseParallelGC", "-Xms64m")
+        }
     }
 }
 

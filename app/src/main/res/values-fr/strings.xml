@@ -1,0 +1,82 @@
+<resources>
+    <string name="app_name">SpeakDrive</string>
+    <string name="back">Retour</string>
+    <string name="start">Démarrer</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Reprendre</string>
+    <string name="end_lesson">Terminer</string>
+    <string name="save">Enregistrer</string>
+    <string name="cancel">Annuler</string>
+    <string name="close">Fermer</string>
+
+    <!-- Bottom Navigation -->
+    <string name="nav_home">Parler</string>
+    <string name="nav_vocabulary">Vocabulaire</string>
+    <string name="nav_progress">Progrès</string>
+    <string name="nav_settings">Paramètres</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">Paramètres</string>
+    <string name="settings_group_language">Langue de l\'interface</string>
+    <string name="settings_language_desc">Choisissez la langue d\'affichage et les explications vocales.</string>
+    <string name="settings_language_voice_tip">💡 Commande vocale : \"change language to English\" ou \"passer en français\".</string>
+    <string name="settings_group_learning">Entraînement et Niveau</string>
+    <string name="settings_learner_level">Niveau de l\'apprenant</string>
+    <string name="settings_strictness">Exigence de prononciation</string>
+    <string name="settings_daily_goal">Objectif quotidien</string>
+    <string name="settings_minutes">minutes</string>
+    <string name="settings_storytelling_mode">Mode histoire (Compréhension orale)</string>
+    <string name="settings_story_duration">Durée de l\'histoire</string>
+    <string name="settings_multi_voice">Théâtre audio multi-voix</string>
+    <string name="settings_multi_voice_desc">L\'IA module ses voix et émotions selon chaque personnage.</string>
+    <string name="settings_group_voice">Voix de l\'IA et Interaction</string>
+    <string name="settings_voice_choice">Choisir la voix de l\'IA</string>
+    <string name="settings_voice_random">Voix aléatoire à chaque session</string>
+    <string name="settings_voice_random_desc">Choisit automatiquement une voix d\'IA aléatoire pour chaque leçon.</string>
+    <string name="settings_vietnamese_help">Autoriser les explications en langue maternelle</string>
+    <string name="settings_vietnamese_help_desc">Si vous hésitez, l\'IA fournit une courte explication dans votre langue.</string>
+    <string name="settings_barge_in">Autoriser l\'interruption de l\'IA (Barge-in)</string>
+    <string name="settings_barge_in_desc">Recommandé uniquement avec des écouteurs pour éviter l\'écho.</string>
+    <string name="settings_group_car">Conduite et Écran</string>
+    <string name="settings_auto_start_car">Démarrage automatique en voiture</string>
+    <string name="settings_auto_start_car_desc">Démarre automatiquement la leçon lors de la connexion à Android Auto.</string>
+    <string name="settings_screen_awake">Garder l\'écran allumé pendant la pratique</string>
+    <string name="settings_group_azure">Service de prononciation Azure</string>
+    <string name="settings_azure_enable">Évaluer avec Microsoft Azure</string>
+    <string name="settings_azure_enable_desc">Azure évalue les phonèmes et les mots (0–100).</string>
+    <string name="settings_azure_test">Tester la connexion Azure</string>
+    <string name="settings_group_info">Informations et Support</string>
+    <string name="settings_privacy_policy">Politique de confidentialité</string>
+    <string name="settings_about">À propos de SpeakDrive et Auteur</string>
+
+    <!-- Home Screen -->
+    <string name="home_greeting_morning">Bonjour</string>
+    <string name="home_greeting_afternoon">Bon après-midi</string>
+    <string name="home_greeting_evening">Bonsoir</string>
+    <string name="home_ready_drive">Prêt à pratiquer l\'anglais au volant aujourd\'hui ?</string>
+    <string name="home_quick_start">Démarrage rapide</string>
+    <string name="home_free_talk">Conversation libre</string>
+    <string name="home_story_listening">Écoute d\'histoires</string>
+    <string name="home_pronunciation">Exercice de prononciation</string>
+    <string name="home_roleplay">Jeu de rôle</string>
+    <string name="home_vocab_review">Réviser le vocabulaire</string>
+    <string name="home_all_topics">Sujets de conversation</string>
+
+    <!-- Conversation Screen -->
+    <string name="convo_listening">Écoute en cours…</string>
+    <string name="convo_speaking">Alex parle…</string>
+    <string name="convo_connecting">Connexion à l\'IA…</string>
+    <string name="convo_paused">En pause</string>
+    <string name="convo_mic_hint">Touchez le micro ou parlez naturellement</string>
+    <string name="convo_barge_in_active">Interruption : Activée</string>
+    <string name="convo_barge_in_inactive">Interruption : Désactivée</string>
+    <string name="convo_barge_in_on_toast">Interruption de l\'IA activée (écouteurs recommandés)</string>
+    <string name="convo_barge_in_off_toast">Interruption de l\'IA désactivée</string>
+
+    <!-- Vocabulary & Progress -->
+    <string name="vocab_title">Carnet de vocabulaire</string>
+    <string name="vocab_empty">Aucun mot enregistré pour le moment. Terminez des leçons pour en apprendre !</string>
+    <string name="progress_title">Progrès d\'apprentissage</string>
+    <string name="progress_streak">Série de jours</string>
+    <string name="progress_total_time">Temps total</string>
+</resources>

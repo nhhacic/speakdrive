@@ -1,5 +1,7 @@
 package com.speakdrive.ai.pronunciation
 
+import com.speakdrive.ai.model.DifficultyLevel
+import com.speakdrive.ai.model.PronunciationStrictness
 import java.util.Locale
 
 enum class WordStatus {
@@ -20,12 +22,13 @@ data class WordResult(
     /** Azure accuracy for this word (0–100) when Azure grading is on. */
     val azureScore: Int? = null,
     /** Azure error type (Mispronunciation, Omission…) when Azure flagged the word. */
-    val azureError: String? = null
+    val azureError: String? = null,
+    /** Azure judged this word as needing work (bad word score, error type or a weak sound). */
+    val azureFlagged: Boolean = false
 ) {
     /** True if any judge found a problem with this word. */
     val isProblem: Boolean
-        get() = status != WordStatus.OK || (azureError != null && azureError != "None") ||
-            (azureScore != null && azureScore < AzureAssessment.WORD_PASS_SCORE)
+        get() = status != WordStatus.OK || azureFlagged
 }
 
 /** One "repeat after me" attempt, judged by both the AI (from the audio) and the transcript. */
@@ -45,14 +48,18 @@ data class PronunciationAttempt(
     /** Azure Pronunciation Assessment, when it was switched on and reachable. */
     val azure: AzureAssessment? = null,
     /** Why Azure grading was skipped although it is switched on, e.g. a network error. */
-    val azureError: String? = null
+    val azureError: String? = null,
+    val strictness: PronunciationStrictness = PronunciationStrictness.AUTO
 ) {
     /** Words the learner should work on, from any judge. */
     val problemWords: List<String>
-        get() = (modelProblemWords + words.filter { it.isProblem }.map { it.word } + azure?.problemWords.orEmpty().map { it.word })
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .distinctBy { it.lowercase(Locale.US) }
+        get() {
+            val resolved = strictness.resolveForLevel(DifficultyLevel.INTERMEDIATE)
+            return (modelProblemWords + words.filter { it.isProblem }.map { it.word } + azure?.problemWords(resolved).orEmpty().map { it.word })
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinctBy { it.lowercase(Locale.US) }
+        }
 }
 
 /**
@@ -77,18 +84,38 @@ object PronunciationGrader {
         attemptNumber: Int,
         timestamp: Long,
         azure: AzureAssessment? = null,
-        azureError: String? = null
+        azureError: String? = null,
+        strictness: PronunciationStrictness = PronunciationStrictness.AUTO,
+        level: DifficultyLevel = DifficultyLevel.INTERMEDIATE
     ): PronunciationAttempt {
-        val words = attachAzureScores(compare(target, heard), azure)
+        val effectiveStrictness = strictness.resolveForLevel(level)
+        val words = attachAzureScores(compare(target, heard), azure, effectiveStrictness)
         val mismatches = words.count { it.status != WordStatus.OK }
         val accuracy = if (words.isEmpty()) 0 else (100 * words.count { it.status == WordStatus.OK } / words.size)
-        val allowedMismatches = if (words.size >= LONG_SENTENCE_WORDS) 1 else 0
+        val allowedMismatches = when (effectiveStrictness) {
+            PronunciationStrictness.BEGINNER -> maxOf(2, words.size / 2)
+            PronunciationStrictness.ELEMENTARY -> maxOf(1, words.size / 3)
+            PronunciationStrictness.PRE_INTERMEDIATE -> if (words.size >= 6) 2 else 1
+            PronunciationStrictness.INTERMEDIATE -> if (words.size >= 8) 1 else 0
+            PronunciationStrictness.UPPER_INTERMEDIATE -> if (words.size >= 12) 1 else 0
+            PronunciationStrictness.ADVANCED -> 0
+            else -> if (words.size >= 8) 1 else 0
+        }
+        val allowedMissing = when (effectiveStrictness) {
+            PronunciationStrictness.BEGINNER -> maxOf(1, words.size / 3)
+            PronunciationStrictness.ELEMENTARY -> 1
+            PronunciationStrictness.PRE_INTERMEDIATE -> if (words.size >= 8) 1 else 0
+            PronunciationStrictness.INTERMEDIATE -> 0
+            PronunciationStrictness.UPPER_INTERMEDIATE -> 0
+            PronunciationStrictness.ADVANCED -> 0
+            else -> 0
+        }
         val passed = modelSaidCorrect &&
             modelProblemWords.none { it.isNotBlank() } &&
             heard.isNotBlank() &&
-            words.none { it.status == WordStatus.MISSING } &&
+            words.count { it.status == WordStatus.MISSING } <= allowedMissing &&
             mismatches <= allowedMismatches &&
-            (azure == null || azure.passed)
+            (azure == null || azure.isPassed(effectiveStrictness))
         return PronunciationAttempt(
             target = target.trim(),
             heard = heard.trim(),
@@ -101,7 +128,8 @@ object PronunciationGrader {
             passed = passed,
             timestamp = timestamp,
             azure = azure,
-            azureError = azureError
+            azureError = azureError,
+            strictness = strictness
         )
     }
 
@@ -109,7 +137,11 @@ object PronunciationGrader {
      * Puts Azure's per-word scores next to the target words. Azure reports the reference words in
      * order (plus inserted extras), so they are matched in sequence by spelling.
      */
-    private fun attachAzureScores(words: List<WordResult>, azure: AzureAssessment?): List<WordResult> {
+    private fun attachAzureScores(
+        words: List<WordResult>,
+        azure: AzureAssessment?,
+        strictness: PronunciationStrictness = PronunciationStrictness.AUTO
+    ): List<WordResult> {
         if (azure == null) return words
         val reference = azure.words.filter { it.errorType != AzureWord.ERROR_INSERTION }
         var index = 0
@@ -126,7 +158,15 @@ object PronunciationGrader {
             }
             lastDisplay = word.word
             lastMatch = match
-            if (match == null) word else word.copy(azureScore = match.accuracy, azureError = match.errorType.takeIf { it != "None" })
+            if (match == null) {
+                word
+            } else {
+                word.copy(
+                    azureScore = match.accuracy,
+                    azureError = match.errorType.takeIf { it != "None" },
+                    azureFlagged = match.needsWork(strictness)
+                )
+            }
         }
     }
 

@@ -26,3 +26,6 @@ data object VocabularyRoute
 
 @Serializable
 data object PrivacyRoute
+
+@Serializable
+data object AboutRoute

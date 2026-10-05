@@ -1,6 +1,7 @@
 package com.speakdrive.ai.pronunciation
 
 import com.google.common.truth.Truth.assertThat
+import com.speakdrive.ai.model.PronunciationStrictness
 import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -37,7 +38,7 @@ class AzurePronunciationTest {
         assertThat(result.accuracyScore).isEqualTo(71)
         assertThat(result.recognizedText).isEqualTo("I need tree tickets.")
         assertThat(result.problemWords.map { it.word }).containsExactly("three")
-        assertThat(result.describeProblems()).containsExactly("three (th 12, r 55)")
+        assertThat(result.describeProblems(PronunciationStrictness.ADVANCED)).containsExactly("three (th 12, r 55)")
         // Overall 80 but a mispronounced word: strict grading still fails it.
         assertThat(result.passed).isFalse()
     }
@@ -89,7 +90,7 @@ class AzurePronunciationTest {
         val azure = AzureResponseParser.parse(flatResponse)
 
         // Transcript and AI both happy, Azure hears a bad "th": not passed, and the word is flagged.
-        val attempt = PronunciationGrader.grade("I need three tickets", "I need three tickets", true, emptyList(), "", 1, 0, azure)
+        val attempt = PronunciationGrader.grade("I need three tickets", "I need three tickets", true, emptyList(), "", 1, 0, azure, strictness = PronunciationStrictness.ADVANCED)
         assertThat(attempt.passed).isFalse()
         assertThat(attempt.words.first { it.word == "three" }.azureScore).isEqualTo(35)
         assertThat(attempt.words.first { it.word == "three" }.isProblem).isTrue()
@@ -106,5 +107,33 @@ class AzurePronunciationTest {
         val azure = AzureResponseParser.parse(nestedResponse)
         val attempt = PronunciationGrader.grade("Good morning", "Good morning", false, listOf("morning"), "", 1, 0, azure)
         assertThat(attempt.passed).isFalse()
+    }
+
+    @Test
+    fun `strictness thresholds change pass requirements`() {
+        val word = AzureWord("hello", 55, "None", listOf(AzurePhoneme("hh", 48), AzurePhoneme("l", 55)))
+        val assessment = AzureAssessment(
+            pronunciationScore = 75,
+            accuracyScore = 75,
+            fluencyScore = 80,
+            completenessScore = 100,
+            recognizedText = "hello",
+            words = listOf(word)
+        )
+
+        // Strict / Advanced requires pronScore >= 80, word >= 60, phoneme >= 60 -> fails
+        assertThat(assessment.isPassed(PronunciationStrictness.STRICT)).isFalse()
+        assertThat(assessment.isPassed(PronunciationStrictness.ADVANCED)).isFalse()
+
+        // Standard / Intermediate requires pronScore >= 70, word >= 50, phoneme >= 45 -> passes
+        assertThat(assessment.isPassed(PronunciationStrictness.STANDARD)).isTrue()
+        assertThat(assessment.isPassed(PronunciationStrictness.INTERMEDIATE)).isTrue()
+
+        // Relaxed / Elementary requires pronScore >= 60, word >= 40, phoneme ignored -> passes
+        assertThat(assessment.isPassed(PronunciationStrictness.RELAXED)).isTrue()
+        assertThat(assessment.isPassed(PronunciationStrictness.ELEMENTARY)).isTrue()
+
+        // Beginner requires pronScore >= 50, word >= 35, phoneme ignored -> passes
+        assertThat(assessment.isPassed(PronunciationStrictness.BEGINNER)).isTrue()
     }
 }

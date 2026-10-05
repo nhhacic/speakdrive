@@ -7,6 +7,7 @@ import com.google.common.truth.Truth.assertThat
 import com.speakdrive.data.local.AppDatabase
 import com.speakdrive.data.local.MIGRATION_2_3
 import com.speakdrive.data.local.MIGRATION_3_4
+import com.speakdrive.data.local.MIGRATION_4_5
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -75,6 +76,28 @@ class MigrationTest {
             assertThat(cursor.getString(0)).isEqualTo("Hi there")
             assertThat(cursor.isNull(1)).isTrue()
             assertThat(cursor.isNull(2)).isTrue()
+        }
+    }
+
+    @Test
+    fun `4 to 5 adds level recommendation columns to sessions`() {
+        helper.createDatabase(dbPath, 4).apply {
+            execSQL(
+                "INSERT INTO sessions (id, topicId, scenarioId, level, mode, startedAt, endedAt, activeDurationMs, " +
+                    "fluencyScore, grammarScore, vocabularyScore, encouragement, nextSuggestion, isCompleted, pronunciationScore) " +
+                    "VALUES ('s1', 'travel', NULL, 'BEGINNER', 'FREE_TALK', 1, 2, 60000, 7, 6, 5, 'ok', 'next', 1, NULL)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(dbPath, 5, true, MIGRATION_4_5)
+
+        db.query("SELECT id, recommendedLevel, levelRecommendationDirection, levelRecommendationReason FROM sessions WHERE id = 's1'").use { cursor ->
+            assertThat(cursor.moveToFirst()).isTrue()
+            assertThat(cursor.getString(0)).isEqualTo("s1")
+            assertThat(cursor.isNull(1)).isTrue()
+            assertThat(cursor.isNull(2)).isTrue()
+            assertThat(cursor.isNull(3)).isTrue()
         }
     }
 

@@ -1,6 +1,7 @@
 package com.speakdrive.ai.pronunciation
 
 import com.google.common.truth.Truth.assertThat
+import com.speakdrive.ai.model.PronunciationStrictness
 import org.junit.Test
 
 class PronunciationGraderTest {
@@ -79,6 +80,64 @@ class PronunciationGraderTest {
         assertThat(long.problemWords).containsExactly("four")
 
         assertThat(grade("Book a table for four", "Book a table for for").passed).isFalse()
+    }
+
+    @Test
+    fun `relaxed strictness tolerates minor omitted word and slips`() {
+        val relaxed = PronunciationGrader.grade(
+            target = "Could you please call me a taxi",
+            heard = "Could you call me a taxi",
+            modelSaidCorrect = true,
+            modelProblemWords = emptyList(),
+            modelNotes = "",
+            attemptNumber = 1,
+            timestamp = 0,
+            strictness = PronunciationStrictness.RELAXED
+        )
+        assertThat(relaxed.passed).isTrue()
+
+        val strict = PronunciationGrader.grade(
+            target = "Could you please call me a taxi",
+            heard = "Could you call me a taxi",
+            modelSaidCorrect = true,
+            modelProblemWords = emptyList(),
+            modelNotes = "",
+            attemptNumber = 1,
+            timestamp = 0,
+            strictness = PronunciationStrictness.STRICT
+        )
+        assertThat(strict.passed).isFalse()
+    }
+
+    @Test
+    fun `auto strictness adapts based on learner level`() {
+        // At BEGINNER level: AUTO allows missing word and errors
+        val beginnerAttempt = PronunciationGrader.grade(
+            target = "Could you please call me a taxi",
+            heard = "Could you call me a taxi",
+            modelSaidCorrect = true,
+            modelProblemWords = emptyList(),
+            modelNotes = "",
+            attemptNumber = 1,
+            timestamp = 0,
+            strictness = PronunciationStrictness.AUTO,
+            level = com.speakdrive.ai.model.DifficultyLevel.BEGINNER
+        )
+        assertThat(beginnerAttempt.passed).isTrue()
+
+        // At ADVANCED level: AUTO requires strict precision, missing word fails
+        val advancedAttempt = PronunciationGrader.grade(
+            target = "Could you please call me a taxi",
+            heard = "Could you call me a taxi",
+            modelSaidCorrect = true,
+            modelProblemWords = emptyList(),
+            modelNotes = "",
+            attemptNumber = 1,
+            timestamp = 0,
+            strictness = PronunciationStrictness.AUTO,
+            level = com.speakdrive.ai.model.DifficultyLevel.ADVANCED
+        )
+        assertThat(advancedAttempt.passed).isFalse()
     }
 
     @Test

@@ -11,6 +11,7 @@ import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.model.TranscriptTurn
 import com.speakdrive.ai.pronunciation.PronunciationAttempt
 import com.speakdrive.ai.pronunciation.PronunciationDrill
+import com.speakdrive.data.repository.UserPreferencesRepository
 import com.speakdrive.playback.PlaybackConnection
 import com.speakdrive.ui.components.MicState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -32,10 +34,14 @@ data class ConversationUiState(
     val state: ConversationState = ConversationState.IDLE,
     val transcript: List<TranscriptTurn> = emptyList(),
     val micState: MicState = MicState.BUSY,
-    val statusText: String = "",
+    val activeSpeaker: Speaker? = null,
+    val isAiThinking: Boolean = false,
     val elapsed: String = "00:00",
     val error: EngineError? = null,
-    val drill: DrillUiState? = null
+    val drill: DrillUiState? = null,
+    val isCarConnected: Boolean = false,
+    val isBargeInEnabled: Boolean = false,
+    val aiVolume: Int = 80
 )
 
 /** Repeat-after-me progress shown above the transcript. */
@@ -56,7 +62,8 @@ sealed interface ConversationEvent {
 @HiltViewModel
 class ConversationViewModel @Inject constructor(
     private val engine: ConversationEngine,
-    private val playback: PlaybackConnection
+    private val playback: PlaybackConnection,
+    private val preferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
     private val _events = Channel<ConversationEvent>(Channel.BUFFERED)
@@ -75,17 +82,19 @@ class ConversationViewModel @Inject constructor(
 
     val uiState: StateFlow<ConversationUiState> = combine(
         combine(engine.lesson, engine.state, engine.transcript, ::Triple),
-        combine(engine.activeSpeaker, engine.error, ::Pair),
+        combine(engine.activeSpeaker, engine.error, engine.isAiThinking, ::Triple),
         combine(engine.drillTarget, engine.pronunciationAttempts, ::Pair),
+        combine(engine.isCarConnected, preferencesRepository.observeLearnerSettings().map { Pair(it.allowBargeIn, it.aiVolume) }, ::Pair),
         ticker
-    ) { (lesson, state, transcript), (speaker, error), (target, attempts), _ ->
+    ) { (lesson, state, transcript), (speaker, error, isThinking), (target, attempts), (isCarConnected, settingsPair), _ ->
         val bySentence = attempts.groupBy { PronunciationDrill.key(it.target) }
+        val currentTarget = target ?: attempts.lastOrNull()?.target
         ConversationUiState(
             drill = if (lesson?.mode == SessionMode.REPEAT_AFTER_ME) {
                 DrillUiState(
-                    target = target,
+                    target = currentTarget,
                     // Only show the grade while it still refers to the sentence on screen.
-                    lastAttempt = attempts.lastOrNull()?.takeIf { target == null || PronunciationDrill.key(it.target) == PronunciationDrill.key(target) },
+                    lastAttempt = attempts.lastOrNull()?.takeIf { currentTarget == null || PronunciationDrill.key(it.target) == PronunciationDrill.key(currentTarget) },
                     passedSentences = bySentence.values.count { tries -> tries.any { it.passed } },
                     sentences = bySentence.size
                 )
@@ -95,12 +104,22 @@ class ConversationViewModel @Inject constructor(
             lesson = lesson,
             state = state,
             transcript = transcript,
-            micState = micStateFor(state, speaker),
-            statusText = statusFor(state, speaker),
+            micState = micStateFor(state, speaker, isThinking),
+            activeSpeaker = speaker,
+            isAiThinking = isThinking,
             elapsed = formatElapsed(engine.activeDurationMs()),
-            error = error
+            error = error,
+            isCarConnected = isCarConnected,
+            isBargeInEnabled = settingsPair.first,
+            aiVolume = settingsPair.second
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConversationUiState())
+
+    fun setAiVolume(volume: Int) {
+        viewModelScope.launch {
+            preferencesRepository.setAiVolume(volume)
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -141,26 +160,40 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
-    private fun micStateFor(state: ConversationState, speaker: Speaker?): MicState = when (state) {
-        ConversationState.ACTIVE -> if (speaker == Speaker.AI) MicState.AI_SPEAKING else MicState.LISTENING
-        ConversationState.PAUSED -> MicState.PAUSED
-        else -> MicState.BUSY
+    fun nextStory() {
+        viewModelScope.launch { engine.nextStory() }
     }
 
-    private fun statusFor(state: ConversationState, speaker: Speaker?): String = when (state) {
-        ConversationState.IDLE -> "Sẵn sàng"
-        ConversationState.CONNECTING -> "Đang kết nối với AI…"
-        ConversationState.ACTIVE -> when (speaker) {
-            Speaker.AI -> "AI đang nói…"
-            Speaker.USER -> "Đang nghe bạn nói…"
-            null -> "Đến lượt bạn — cứ nói tự nhiên bằng tiếng Anh"
+    fun replayStory() {
+        viewModelScope.launch { engine.replayStory() }
+    }
+
+    fun toggleBargeIn() {
+        viewModelScope.launch {
+            val current = uiState.value.isBargeInEnabled
+            preferencesRepository.setAllowBargeIn(!current)
         }
-        ConversationState.PAUSED -> "Đã tạm dừng — chạm nút để tiếp tục"
-        ConversationState.RECONNECTING -> "Đang kết nối lại…"
-        ConversationState.WAITING_FOR_NETWORK -> "Mất mạng — bài học sẽ tự tiếp tục khi có mạng"
-        ConversationState.ENDING -> "Đang lưu bài học…"
-        ConversationState.ENDED -> "Bài học đã kết thúc"
-        ConversationState.ERROR -> "Có lỗi xảy ra"
+    }
+
+    fun setBargeIn(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setAllowBargeIn(enabled)
+        }
+    }
+
+    private fun micStateFor(
+        state: ConversationState,
+        speaker: Speaker?,
+        isThinking: Boolean
+    ): MicState = when (state) {
+        ConversationState.ACTIVE -> when {
+            speaker == Speaker.AI -> MicState.AI_SPEAKING
+            isThinking -> MicState.AI_THINKING
+            speaker == Speaker.USER -> MicState.USER_SPEAKING
+            else -> MicState.LISTENING
+        }
+        ConversationState.PAUSED -> MicState.PAUSED
+        else -> MicState.BUSY
     }
 
     private fun formatElapsed(ms: Long): String {

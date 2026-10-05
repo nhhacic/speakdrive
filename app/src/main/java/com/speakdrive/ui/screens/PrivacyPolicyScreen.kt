@@ -27,10 +27,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.speakdrive.R
 import com.speakdrive.data.repository.SessionRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,9 +63,9 @@ fun PrivacyPolicyScreen(onBack: () -> Unit, viewModel: PrivacyViewModel = hiltVi
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Chính sách bảo mật") },
+                title = { Text(stringResource(R.string.privacy_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
                 }
             )
         }
@@ -73,37 +75,34 @@ fun PrivacyPolicyScreen(onBack: () -> Unit, viewModel: PrivacyViewModel = hiltVi
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Section(
-                "Âm thanh giọng nói",
-                "Chỉ khi bạn đang học, âm thanh từ micro được truyền trực tiếp tới dịch vụ Gemini của Google (qua Firebase AI Logic) " +
-                    "để AI nghe và trả lời. SpeakDrive không ghi âm hay lưu file âm thanh nào."
+                stringResource(R.string.privacy_voice_title),
+                stringResource(R.string.privacy_voice_desc)
             )
             Section(
-                "Nội dung hội thoại",
-                "Bản ghi chữ (transcript), điểm số, lỗi sai và từ mới được lưu ngay trên điện thoại của bạn. Khi buổi học kết thúc, " +
-                    "transcript được gửi tới Gemini một lần để tạo nhận xét. Ứng dụng không có máy chủ riêng và không bán dữ liệu."
+                stringResource(R.string.privacy_data_title),
+                stringResource(R.string.privacy_data_desc)
             )
             Section(
-                "Dịch vụ bên thứ ba",
-                "Firebase (Google) xử lý yêu cầu AI và dùng App Check để chống lạm dụng. Xem chính sách của Google tại policies.google.com/privacy."
+                stringResource(R.string.privacy_third_party_title),
+                stringResource(R.string.privacy_third_party_desc)
             )
             Section(
-                "Quyền của bạn",
-                "Bạn có thể xoá toàn bộ dữ liệu học tập bất cứ lúc nào bằng nút bên dưới, hoặc gỡ cài đặt ứng dụng."
+                stringResource(R.string.privacy_rights_title),
+                stringResource(R.string.privacy_rights_desc)
             )
             Section(
-                "An toàn khi lái xe",
-                "SpeakDrive được thiết kế để dùng hoàn toàn bằng giọng nói. Luôn tập trung lái xe và tuân thủ luật giao thông; " +
-                    "đừng thao tác trên điện thoại khi xe đang chạy."
+                stringResource(R.string.privacy_driving_title),
+                stringResource(R.string.privacy_driving_desc)
             )
 
             if (deleted) {
-                Text("Đã xoá toàn bộ dữ liệu học tập.", color = MaterialTheme.colorScheme.tertiary)
+                Text(stringResource(R.string.privacy_deleted_success), color = MaterialTheme.colorScheme.tertiary)
             } else {
                 OutlinedButton(
                     onClick = { confirm = true },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Xoá toàn bộ dữ liệu học tập") }
+                ) { Text(stringResource(R.string.privacy_btn_delete_all)) }
             }
         }
     }
@@ -111,15 +110,15 @@ fun PrivacyPolicyScreen(onBack: () -> Unit, viewModel: PrivacyViewModel = hiltVi
     if (confirm) {
         AlertDialog(
             onDismissRequest = { confirm = false },
-            title = { Text("Xoá dữ liệu?") },
-            text = { Text("Lịch sử, transcript và sổ từ vựng sẽ bị xoá vĩnh viễn khỏi điện thoại này.") },
+            title = { Text(stringResource(R.string.privacy_confirm_dialog_title)) },
+            text = { Text(stringResource(R.string.privacy_confirm_dialog_desc)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirm = false
                     viewModel.deleteAll()
-                }) { Text("Xoá", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.privacy_dialog_delete), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Huỷ") } }
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text(stringResource(R.string.privacy_dialog_cancel)) } }
         )
     }
 }
