@@ -52,6 +52,11 @@ App đã cài sẵn App Check: bản **debug** dùng *debug provider*, bản **r
 Mỗi lần **gỡ cài đặt** app hoặc xoá dữ liệu app, token debug sẽ đổi và phải thêm token mới.
 Cài đè bằng `./gradlew installDebug` thì token được giữ nguyên.
 
+**Khuyên dùng – token cố định:** thêm dòng `appcheck.debugToken=<một UUID>` vào `local.properties`
+(đã git-ignore). Bản debug sẽ luôn dùng token này dù gỡ/cài lại hay đổi máy, nên chỉ cần đăng ký
+nó **một lần** trong **Manage debug tokens**. Nếu token sai, server đóng kết nối Gemini Live với lý do
+`Firebase App Check token is invalid` (SDK chỉ hiện "Channel was closed by the server").
+
 ## 4. SHA-256 cho Play Integrity (khi phát hành)
 
 Play Console → **Setup → App signing** → copy **SHA-256 của khóa ký app** → Firebase

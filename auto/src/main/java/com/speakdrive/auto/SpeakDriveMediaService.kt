@@ -1,11 +1,13 @@
 package com.speakdrive.auto
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -50,9 +52,15 @@ class SpeakDriveMediaService : MediaLibraryService() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var notificationProvider: CapturingNotificationProvider
     private var librarySession: MediaLibrarySession? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "speakdrive:lesson_wakelock")?.apply {
+            setReferenceCounted(false)
+        }
+
         notificationProvider = CapturingNotificationProvider(
             DefaultMediaNotificationProvider.Builder(this).build(),
             onNotificationUpdated = { mainHandler.post(::ensureMicrophoneForegroundType) }
@@ -66,13 +74,28 @@ class SpeakDriveMediaService : MediaLibraryService() {
 
         // The engine may start a lesson without a notification update (e.g. from the phone UI).
         serviceScope.launch {
-            engine.state.collect { if (it == ConversationState.ACTIVE) triggerNotificationUpdate() }
+            engine.state.collect { state ->
+                if (state == ConversationState.ACTIVE) triggerNotificationUpdate()
+                if (state.isInLesson) {
+                    try {
+                        wakeLock?.acquire(4 * 60 * 60 * 1000L)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not acquire WakeLock", e)
+                    }
+                } else {
+                    try {
+                        if (wakeLock?.isHeld == true) wakeLock?.release()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not release WakeLock", e)
+                    }
+                }
+            }
         }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = librarySession
 
-    override fun onUpdateNotificationAsync(session: MediaSession, startInForegroundRequired: Boolean): ListenableFuture<Void> {
+    override fun onUpdateNotificationAsync(session: MediaSession, startInForegroundRequired: Boolean): ListenableFuture<Void?> {
         val future = super.onUpdateNotificationAsync(session, startInForegroundRequired)
         if (startInForegroundRequired) {
             future.addListener(::ensureMicrophoneForegroundType, ContextCompat.getMainExecutor(this))
@@ -110,6 +133,10 @@ class SpeakDriveMediaService : MediaLibraryService() {
 
     override fun onDestroy() {
         serviceScope.cancel()
+        try {
+            if (wakeLock?.isHeld == true) wakeLock?.release()
+        } catch (_: Exception) {}
+        wakeLock = null
         librarySession?.run {
             player.release()
             release()

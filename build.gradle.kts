@@ -9,3 +9,12 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.google.services) apply false
 }
+
+subprojects {
+    tasks.matching { it.name.startsWith("ksp") }.configureEach {
+        doFirst {
+            file("${layout.buildDirectory.get()}/generated/ksp/debug/java/hilt_aggregated_deps").mkdirs()
+            file("${layout.buildDirectory.get()}/generated/ksp/release/java/hilt_aggregated_deps").mkdirs()
+        }
+    }
+}

@@ -10,6 +10,7 @@ import com.speakdrive.ai.TopicManager
 import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.DifficultyLevel
+import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.session.LearningSettings
 import com.speakdrive.ai.session.SessionStore
 import javax.inject.Inject
@@ -18,7 +19,8 @@ import javax.inject.Inject
 class MediaContentProvider @Inject constructor(
     private val topicManager: TopicManager,
     private val sessionStore: SessionStore,
-    private val settings: LearningSettings
+    private val settings: LearningSettings,
+    private val artworkGenerator: AutoCardArtworkGenerator = AutoCardArtworkGenerator()
 ) {
     fun rootItem(): MediaItem = browsable(MediaIds.ROOT, "SpeakDrive", "Luyện nói tiếng Anh khi lái xe")
 
@@ -36,21 +38,117 @@ class MediaContentProvider @Inject constructor(
 
     private suspend fun browseChildren(parentId: String): List<MediaItem> = when {
         parentId == MediaIds.ROOT -> listOf(
-            browsable(MediaIds.HOME, "Bắt đầu", "Tiếp tục, ngẫu nhiên, phát âm, ôn tập"),
-            browsable(MediaIds.TOPICS, "Chủ đề", "8 chủ đề hội thoại"),
+            browsable(MediaIds.HOME, "Bắt đầu", "Tiếp tục, kể chuyện, ngẫu nhiên, phát âm, ôn tập"),
+            browsable(MediaIds.STORIES, "🎧 Luyện nghe kể chuyện", "AI kể chuyện người nổi tiếng, khoa học, lịch sử"),
+            browsable(MediaIds.TOPICS, "Chủ đề", "${topicManager.getConversationTopics().size} chủ đề hội thoại"),
             browsable(MediaIds.ROLEPLAY, "Nhập vai", "AI đóng vai trong tình huống thực tế"),
             browsable(MediaIds.LEVELS, "Độ khó", settings.snapshot().level.displayName)
         )
         parentId == MediaIds.HOME -> homeItems()
-        parentId == MediaIds.TOPICS -> topicManager.getAllTopics().map { topic ->
+        parentId == MediaIds.STORIES -> {
+            val unfinished = sessionStore.latestUnfinishedStorySession()
+            val recent = sessionStore.recentStorySessions(5)
+            buildList {
+                if (unfinished != null) {
+                    val topic = topicManager.getTopicById(unfinished.topicId)
+                    val scenario = unfinished.scenarioId?.let { topicManager.getScenario(it)?.second }
+                    val title = scenario?.titleVi ?: (topic?.titleVi ?: "câu chuyện trước")
+                    add(
+                        playable(
+                            MediaIds.STORY_RESUME,
+                            "▶ Tiếp tục: $title",
+                            "Nghe tiếp câu chuyện đang dở dang (${topic?.titleEn ?: "Story"})"
+                        )
+                    )
+                }
+                add(
+                    playable(
+                        MediaIds.STORY_RECOMMENDED,
+                        "✨ Chuyện gợi ý cho bạn",
+                        "AI chọn câu chuyện hấp dẫn theo sở thích của bạn"
+                    )
+                )
+                add(
+                    playable(
+                        MediaIds.STORY_RANDOM,
+                        "🎲 Chuyện ngẫu nhiên bất ngờ",
+                        "Nghe một mẩu chuyện ngẫu nhiên từ AI"
+                    )
+                )
+                topicManager.getStoryTopics().forEach { topic ->
+                    add(
+                        browsable(
+                            MediaIds.storyTopic(topic.id),
+                            "${topic.emoji} ${topic.titleVi}",
+                            "${topic.scenarios.size} câu chuyện hay (${topic.titleEn})"
+                        )
+                    )
+                }
+                if (recent.isNotEmpty()) {
+                    add(
+                        browsable(
+                            MediaIds.browse("stories_recent"),
+                            "🕒 Đã nghe gần đây",
+                            "${recent.size} câu chuyện nghe gần đây nhất"
+                        )
+                    )
+                }
+            }
+        }
+        parentId.startsWith(MediaIds.storyTopic("")) -> {
+            val topicId = parentId.removePrefix(MediaIds.storyTopic(""))
+            val topic = topicManager.getTopicById(topicId)
+            if (topic != null) {
+                listOf(
+                    playable(
+                        MediaIds.story(topic.id, "${TopicManager.DYNAMIC_PREFIX}story_recommended_${topic.id}"),
+                        "✨ AI kể chuyện mới trong ${topic.titleVi}",
+                        "AI sáng tác câu chuyện mới theo chủ đề ${topic.titleEn}"
+                    )
+                ) + topic.scenarios.map { playable(MediaIds.story(topic.id, it.id), it.titleVi, it.titleEn) }
+            } else {
+                emptyList()
+            }
+        }
+        parentId == MediaIds.STORIES_RECENT || parentId == MediaIds.browse("stories_recent") -> {
+            val recent = sessionStore.recentStorySessions(10)
+            recent.map { session ->
+                val topic = topicManager.getTopicById(session.topicId)
+                val topicTitle = topic?.titleVi ?: session.topicId
+                val scenarioTitle = session.scenarioId?.let { sId ->
+                    topic?.scenarios?.firstOrNull { it.id == sId }?.titleVi
+                } ?: topicTitle
+                val statusText = if (session.isCompleted) "Đã hoàn thành" else "Chưa nghe hết"
+                val subtitle = "$topicTitle • $statusText"
+                val targetScenarioId = session.scenarioId ?: "${TopicManager.DYNAMIC_PREFIX}story_recommended_${session.topicId}"
+                playable(
+                    MediaIds.story(session.topicId, targetScenarioId),
+                    "🎧 $scenarioTitle",
+                    subtitle
+                )
+            }
+        }
+        parentId == MediaIds.TOPICS -> topicManager.getConversationTopics().map { topic ->
             playable(MediaIds.topic(topic.id), "${topic.emoji} ${topic.titleVi}", topic.titleEn)
         }
-        parentId == MediaIds.ROLEPLAY -> topicManager.getAllTopics().map { topic ->
-            browsable(MediaIds.roleplayTopic(topic.id), "${topic.emoji} ${topic.titleVi}", "${topic.scenarios.size} tình huống")
+        parentId == MediaIds.ROLEPLAY -> topicManager.getConversationTopics().map { topic ->
+            browsable(MediaIds.roleplayTopic(topic.id), "${topic.emoji} ${topic.titleVi}", "${topic.scenarios.size} tình huống mẫu + AI mở rộng")
         }
         parentId.startsWith(MediaIds.roleplayTopic("")) -> {
             val topic = topicManager.getTopicById(parentId.removePrefix(MediaIds.roleplayTopic("")))
-            topic?.scenarios.orEmpty().map { playable(MediaIds.scenario(it.id), it.titleVi, it.titleEn) }
+            if (topic != null) {
+                listOf(
+                    playable(
+                        MediaIds.scenario("${TopicManager.DYNAMIC_PREFIX}explore_${topic.id}"),
+                        "🎲 Khám phá tình huống AI mới",
+                        "AI tạo tình huống chuyên sâu ngẫu nhiên trong ${topic.titleVi}"
+                    )
+                ) + topic.scenarios.map {
+                    playable(MediaIds.scenario(it.id), it.titleVi, it.missionObjective?.let { m -> "🎯 $m" } ?: it.titleEn)
+                }
+            } else {
+                emptyList()
+            }
         }
         parentId == MediaIds.LEVELS -> {
             val current = settings.snapshot().level
@@ -71,6 +169,11 @@ class MediaContentProvider @Inject constructor(
                 "Tiếp tục bài học",
                 lastTopic?.let { "${it.emoji} ${it.titleVi}" } ?: "AI chọn chủ đề cho bạn"
             ),
+            playable(
+                MediaIds.STORY_RECOMMENDED,
+                "🎧 Luyện nghe kể chuyện",
+                "AI chọn câu chuyện hấp dẫn theo sở thích của bạn"
+            ),
             playable(MediaIds.RANDOM, "Chủ đề ngẫu nhiên", "Thử một chủ đề mới"),
             playable(
                 MediaIds.PRONUNCIATION,
@@ -88,6 +191,38 @@ class MediaContentProvider @Inject constructor(
     /** Resolves any media id Android Auto or the phone may send back to us. */
     suspend fun item(mediaId: String): MediaItem? = when (val target = MediaIds.parse(mediaId)) {
         MediaTarget.Resume, MediaTarget.Random, MediaTarget.Review -> homeItems().find { it.mediaId == mediaId }
+        is MediaTarget.Vocab -> {
+            val title = if (target.word != null) "Học từ: ${target.word}" else "Luyện tập từ vựng"
+            val sub = when (target.mode) {
+                "pronunciation" -> "Luyện phát âm từ vựng"
+                "sentence" -> "Thử thách đặt câu"
+                else -> "Học từ vựng & phát âm"
+            }
+            playable(mediaId, title, sub)
+        }
+        MediaTarget.StoryRecommended -> playable(
+            mediaId,
+            "✨ Chuyện gợi ý cho bạn",
+            "AI chọn câu chuyện hấp dẫn theo sở thích của bạn"
+        )
+        MediaTarget.StoryResume -> {
+            val unfinished = sessionStore.latestUnfinishedStorySession()
+            val topic = unfinished?.let { topicManager.getTopicById(it.topicId) }
+            val scenario = unfinished?.scenarioId?.let { topicManager.getScenario(it)?.second }
+            val title = scenario?.titleVi ?: (topic?.titleVi ?: "câu chuyện trước")
+            playable(
+                mediaId,
+                "▶ Tiếp tục: $title",
+                "Nghe tiếp câu chuyện đang dở dang"
+            )
+        }
+        is MediaTarget.Story -> {
+            val topic = topicManager.getTopicById(target.topicId)
+            val scenario = target.scenarioId?.let { topicManager.getScenario(it)?.second }
+            val title = scenario?.titleVi ?: (topic?.let { "${it.emoji} Kể chuyện: ${it.titleVi}" } ?: "Luyện nghe kể chuyện")
+            val subtitle = scenario?.titleEn ?: (topic?.titleEn ?: "AI Story Listening")
+            playable(mediaId, title, subtitle)
+        }
         is MediaTarget.Pronunciation -> {
             val topic = topicManager.getTopicById(target.topicId) ?: topicManager.getTopicById(settings.snapshot().lastTopicId)
             playable(mediaId, "Luyện phát âm", topic?.let { "${it.emoji} ${it.titleVi}" } ?: "Nhắc lại câu của AI")
@@ -97,7 +232,7 @@ class MediaContentProvider @Inject constructor(
             playable(mediaId, "${topic.emoji} ${topic.titleVi}", topic.titleEn + levelNote)
         }
         is MediaTarget.Scenario -> topicManager.getScenario(target.scenarioId)?.let { (_, scenario) ->
-            playable(mediaId, scenario.titleVi, scenario.titleEn)
+            playable(mediaId, scenario.titleVi, scenario.missionObjective?.let { "🎯 $it" } ?: scenario.titleEn)
         }
         is MediaTarget.Level -> playable(mediaId, target.level.displayName, target.level.labelVi)
         is MediaTarget.Browse -> if (mediaId == MediaIds.ROOT) rootItem() else browsable(mediaId, mediaId, "")
@@ -121,28 +256,87 @@ class MediaContentProvider @Inject constructor(
     fun randomTopicIdExcept(topicId: String): String =
         topicManager.getAllTopics().filter { it.id != topicId }.random().id
 
-    /** The "now playing" item, whose subtitle tells the driver what is happening. */
-    fun lessonItem(lesson: ActiveLesson, state: ConversationState): MediaItem {
+    /** The "now playing" item, whose metadata and artwork tell the driver what is happening. */
+    fun lessonItem(
+        lesson: ActiveLesson,
+        state: ConversationState,
+        lastAiText: String? = null,
+        drillTarget: String? = null
+    ): MediaItem {
+        val isStory = lesson.mode == SessionMode.STORY_LISTENING
         val status = when (state) {
-            ConversationState.CONNECTING -> "Đang kết nối…"
-            ConversationState.ACTIVE -> "Đang trò chuyện"
+            ConversationState.CONNECTING -> if (isStory) "Đang chọn truyện…" else "Đang kết nối…"
+            ConversationState.ACTIVE -> if (isStory) "Đang kể chuyện" else "Đang trò chuyện"
             ConversationState.PAUSED -> "Tạm dừng"
             ConversationState.RECONNECTING -> "Đang kết nối lại…"
             ConversationState.WAITING_FOR_NETWORK -> "Chờ có mạng…"
             ConversationState.ENDING -> "Đang tổng kết…"
             else -> ""
         }
-        val metadata = MediaMetadata.Builder()
-            .setTitle("${lesson.topic.emoji} ${lesson.titleVi}")
-            .setArtist(listOf(lesson.level.displayName, status).filter { it.isNotEmpty() }.joinToString(" • "))
+
+        val hasTarget = !drillTarget.isNullOrBlank()
+        val hasAiText = !lastAiText.isNullOrBlank()
+
+        val (title, subtitle, artist) = when {
+            isStory -> {
+                val title = if (hasAiText) "📖 $lastAiText" else "🎧 ${lesson.titleVi}"
+                val subtitle = if (status.isNotEmpty()) "$status • Bấm Next để đổi truyện" else "Bấm Next để đổi truyện"
+                val artist = "${lesson.topic.emoji} ${lesson.titleVi} • ${lesson.level.displayName}"
+                Triple(title, subtitle, artist)
+            }
+            hasTarget -> {
+                val title = "🎯 Lặp lại theo AI"
+                val subtitle = "${lesson.topic.emoji} ${lesson.titleVi} • Đang nghe bạn nói"
+                val artist = "${lesson.level.displayName} • SpeakDrive"
+                Triple(title, subtitle, artist)
+            }
+            hasAiText -> {
+                val title = "🤖 $lastAiText"
+                val subtitle = if (status.isNotEmpty()) status else "Nói tự nhiên bằng tiếng Anh"
+                val artist = "${lesson.topic.emoji} ${lesson.titleVi} • ${lesson.level.displayName}"
+                Triple(title, subtitle, artist)
+            }
+            else -> {
+                val title = "${lesson.topic.emoji} ${lesson.titleVi}"
+                val subtitle = status
+                val artist = listOf(lesson.level.displayName, status).filter { it.isNotEmpty() }.joinToString(" • ")
+                Triple(title, subtitle, artist)
+            }
+        }
+
+        val metadataBuilder = MediaMetadata.Builder()
+            .setTitle(title)
+            .setDisplayTitle(title)
+            .setSubtitle(subtitle)
+            .setArtist(artist)
             .setAlbumTitle("SpeakDrive")
-            .setDisplayTitle(lesson.titleVi)
-            .setSubtitle(status)
+            .setIsBrowsable(false)
+            .setIsPlayable(true)
+            .setMediaType(MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE)
+
+        val cardArtwork = artworkGenerator.generateCard(lesson, state, lastAiText, drillTarget)
+        if (cardArtwork != null) {
+            metadataBuilder.setArtworkData(cardArtwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+        }
+
+        return MediaItem.Builder().setMediaId(MediaIds.LESSON).setMediaMetadata(metadataBuilder.build()).build()
+    }
+
+    /** Standby item shown on Android Auto when no lesson is active, keeping the app on screen. */
+    fun standbyItem(justEnded: Boolean = false): MediaItem {
+        val title = if (justEnded) "✓ Đã hoàn thành bài học" else "Luyện nói tiếng Anh"
+        val subtitle = if (justEnded) "Bấm ▶ để tiếp tục bài mới" else "SpeakDrive • Sẵn sàng luyện tập"
+        val metadata = MediaMetadata.Builder()
+            .setTitle(title)
+            .setDisplayTitle(title)
+            .setSubtitle(subtitle)
+            .setArtist("SpeakDrive • Bấm ▶ để bắt đầu")
+            .setAlbumTitle("SpeakDrive")
             .setIsBrowsable(false)
             .setIsPlayable(true)
             .setMediaType(MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE)
             .build()
-        return MediaItem.Builder().setMediaId(MediaIds.LESSON).setMediaMetadata(metadata).build()
+        return MediaItem.Builder().setMediaId(MediaIds.RESUME).setMediaMetadata(metadata).build()
     }
 
     private fun browsable(id: String, title: String, subtitle: String) = item(id, title, subtitle, browsable = true)

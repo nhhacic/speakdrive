@@ -34,27 +34,47 @@ class MediaContentProviderTest {
         override suspend fun snapshot() = current
         override suspend fun setLevel(level: DifficultyLevel) = Unit
         override suspend fun setLastTopicId(topicId: String) = Unit
+        override suspend fun setAllowVietnameseHelp(allowed: Boolean) = Unit
     }
     private val provider = MediaContentProvider(topics, store, settings)
 
     @Test
-    fun `root has four browsable tabs`() = runTest {
+    fun `root has five browsable tabs including stories`() = runTest {
         val root = provider.children(MediaIds.ROOT)
 
-        assertThat(root.map { it.mediaId }).containsExactly(MediaIds.HOME, MediaIds.TOPICS, MediaIds.ROLEPLAY, MediaIds.LEVELS).inOrder()
+        assertThat(root.map { it.mediaId })
+            .containsExactly(MediaIds.HOME, MediaIds.STORIES, MediaIds.TOPICS, MediaIds.ROLEPLAY, MediaIds.LEVELS).inOrder()
         assertThat(root.all { it.mediaMetadata.isBrowsable == true }).isTrue()
     }
 
     @Test
-    fun `home tab offers resume, random, pronunciation and review with live subtitles`() = runTest {
+    fun `home tab offers resume, stories, random, pronunciation and review with live subtitles`() = runTest {
         val home = provider.children(MediaIds.HOME)
 
         assertThat(home.map { it.mediaId })
-            .containsExactly(MediaIds.RESUME, MediaIds.RANDOM, MediaIds.PRONUNCIATION, MediaIds.REVIEW).inOrder()
+            .containsExactly(MediaIds.RESUME, MediaIds.STORY_RECOMMENDED, MediaIds.RANDOM, MediaIds.PRONUNCIATION, MediaIds.REVIEW).inOrder()
         assertThat(home.all { it.mediaMetadata.isPlayable == true }).isTrue()
         assertThat(home[0].mediaMetadata.subtitle.toString()).contains("Ăn uống")
-        assertThat(home[2].mediaMetadata.subtitle.toString()).contains("Ăn uống")
-        assertThat(home[3].mediaMetadata.subtitle.toString()).contains("2 từ")
+        assertThat(home[1].mediaMetadata.title.toString()).contains("Luyện nghe kể chuyện")
+        assertThat(home[3].mediaMetadata.subtitle.toString()).contains("Ăn uống")
+        assertThat(home[4].mediaMetadata.subtitle.toString()).contains("2 từ")
+    }
+
+    @Test
+    fun `stories tab offers recommended, random, and story topics`() = runTest {
+        val stories = provider.children(MediaIds.STORIES)
+
+        assertThat(stories.map { it.mediaId }).containsAtLeast(
+            MediaIds.STORY_RECOMMENDED,
+            MediaIds.STORY_RANDOM,
+            MediaIds.storyTopic("story_famous"),
+            MediaIds.storyTopic("story_science"),
+            MediaIds.storyTopic("story_history")
+        )
+
+        val famousScenarios = provider.children(MediaIds.storyTopic("story_famous"))
+        assertThat(famousScenarios).hasSize(5) // 1 dynamic ai recommendation + 4 static scenarios
+        assertThat(famousScenarios.first().mediaId).contains("dynamic_story_recommended")
     }
 
     @Test
@@ -65,19 +85,20 @@ class MediaContentProviderTest {
 
     @Test
     fun `topics and roleplay scenarios are listed`() = runTest {
-        assertThat(provider.children(MediaIds.TOPICS)).hasSize(8)
+        assertThat(provider.children(MediaIds.TOPICS)).hasSize(15)
         val roleplayTopics = provider.children(MediaIds.ROLEPLAY)
-        assertThat(roleplayTopics).hasSize(8)
+        assertThat(roleplayTopics).hasSize(15)
         val scenarios = provider.children(roleplayTopics.first().mediaId)
-        assertThat(scenarios).hasSize(4)
+        assertThat(scenarios).hasSize(9)
         assertThat(MediaIds.parse(scenarios.first().mediaId)).isInstanceOf(MediaTarget.Scenario::class.java)
+        assertThat(scenarios.first().mediaId).contains("dynamic_explore")
     }
 
     @Test
     fun `levels mark the current one`() = runTest {
         val levels = provider.children(MediaIds.LEVELS)
 
-        assertThat(levels).hasSize(3)
+        assertThat(levels).hasSize(DifficultyLevel.entries.size)
         assertThat(levels.first().mediaMetadata.title.toString()).startsWith("✓")
     }
 
@@ -104,5 +125,72 @@ class MediaContentProviderTest {
 
         assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
         assertThat(item.mediaMetadata.artist.toString()).isEqualTo("Intermediate • Tạm dừng")
+    }
+
+    @Test
+    fun `lesson item shows AI text and repeat target on Android Auto`() {
+        val lesson = ActiveLesson("id", topics.getTopicById("travel")!!, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0, emptyList())
+
+        val item = provider.lessonItem(
+            lesson = lesson,
+            state = ConversationState.ACTIVE,
+            lastAiText = "Repeat after me: I'd like a window seat, please.",
+            drillTarget = "I'd like a window seat, please."
+        )
+
+        assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
+        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 Lặp lại theo AI")
+        assertThat(item.mediaMetadata.subtitle.toString()).contains("Du lịch")
+        assertThat(item.mediaMetadata.artist.toString()).contains("Intermediate")
+        assertThat(item.mediaMetadata.artworkData).isNotNull()
+        assertThat(item.mediaMetadata.artworkData!!.isNotEmpty()).isTrue()
+    }
+
+    @Test
+    fun `lesson item shows AI text when free talking without repeat target`() {
+        val lesson = ActiveLesson("id", topics.getTopicById("travel")!!, null, DifficultyLevel.INTERMEDIATE, SessionMode.FREE_TALK, 0, emptyList())
+
+        val item = provider.lessonItem(
+            lesson = lesson,
+            state = ConversationState.ACTIVE,
+            lastAiText = "Where would you like to travel next?",
+            drillTarget = null
+        )
+
+        assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
+        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🤖 Where would you like to travel next?")
+        assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("Đang trò chuyện")
+        assertThat(item.mediaMetadata.artworkData).isNotNull()
+    }
+
+    @Test
+    fun `standby item is playable and shows clear prompt for driver`() {
+        val standby = provider.standbyItem(justEnded = false)
+        assertThat(standby.mediaId).isEqualTo(MediaIds.RESUME)
+        assertThat(standby.mediaMetadata.isPlayable).isTrue()
+        assertThat(standby.mediaMetadata.title.toString()).isEqualTo("Luyện nói tiếng Anh")
+
+        val completed = provider.standbyItem(justEnded = true)
+        assertThat(completed.mediaId).isEqualTo(MediaIds.RESUME)
+        assertThat(completed.mediaMetadata.isPlayable).isTrue()
+        assertThat(completed.mediaMetadata.title.toString()).contains("Đã hoàn thành")
+    }
+
+    @Test
+    fun `lesson item shows story metadata and next story cue for story listening`() {
+        val storyTopic = topics.getTopicById("story_science")!!
+        val lesson = ActiveLesson("id", storyTopic, null, DifficultyLevel.INTERMEDIATE, SessionMode.STORY_LISTENING, 0, emptyList())
+
+        val item = provider.lessonItem(
+            lesson = lesson,
+            state = ConversationState.ACTIVE,
+            lastAiText = "Once upon a time in a small laboratory...",
+            drillTarget = null
+        )
+
+        assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
+        assertThat(item.mediaMetadata.title.toString()).isEqualTo("📖 Once upon a time in a small laboratory...")
+        assertThat(item.mediaMetadata.subtitle.toString()).contains("Bấm Next để đổi truyện")
+        assertThat(item.mediaMetadata.artworkData).isNotNull()
     }
 }

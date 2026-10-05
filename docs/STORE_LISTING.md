@@ -1,7 +1,8 @@
 # Nội dung trang Google Play
 
-Ảnh: `docs/store/play_store_icon_512.png` (icon), `docs/store/feature_graphic_1024x500.png` (feature graphic).
-Ảnh chụp màn hình: chụp trang chủ, màn hội thoại, kết quả buổi học và Android Auto (DHU) từ máy thật.
+Ảnh: `docs/store/play_store_icon_512.png` (icon 512x512), `docs/store/feature_graphic_1024x500.png` (feature graphic).
+Ảnh chụp màn hình (Phone & Tablet/Car): Nằm sẵn tại thư mục `docs/store/screenshots/` (gồm 6 ảnh phone_01 đến phone_06 và 1 ảnh android_auto_car_showcase).
+Ảnh chụp màn hình gốc: `docs/store/screenshots/raw/`.
 
 ## Tiếng Việt (mặc định)
 

@@ -36,7 +36,7 @@ Ký hiệu:
 | Trang chủ: chủ đề, streak, phút, từ mới, mục tiêu ngày, banner Android Auto | ✅ test Compose |
 | Luyện trên điện thoại (khi không có Auto) | ✅ test UI; 🧪 hội thoại thật |
 | Màn tóm tắt sau buổi học | ✅ test Compose + Room |
-| Cài đặt (độ khó, giọng AI, giải thích tiếng Việt, mục tiêu) lưu bằng DataStore | ✅ |
+| Cài đặt (độ khó, giọng AI, giải thích tiếng Việt, màn hình khi luyện nói, mục tiêu) lưu bằng DataStore | ✅ |
 
 ### Phase 4 – AI Engine nâng cao
 | Hạng mục | Trạng thái |

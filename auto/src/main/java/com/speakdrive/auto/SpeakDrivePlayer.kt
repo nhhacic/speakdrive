@@ -13,6 +13,7 @@ import com.speakdrive.ai.ConversationEngine
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.LessonRequest
 import com.speakdrive.ai.model.SessionMode
+import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.session.LearningSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
@@ -42,41 +43,50 @@ class SpeakDrivePlayer(
 
     init {
         scope.launch {
-            combine(engine.state, engine.lesson, engine.error) { _, _, _ -> Unit }.collect { invalidateState() }
+            combine(
+                engine.state,
+                engine.lesson,
+                engine.error,
+                engine.transcript,
+                engine.drillTarget
+            ) { _, _, _, _, _ -> Unit }.collect { invalidateState() }
         }
     }
 
     override fun getState(): State {
         val engineState = engine.state.value
         val lesson = engine.lesson.value
-        val item = lesson?.let { contentProvider.lessonItem(it, engineState) } ?: selectedItem
+        val item = lesson?.let {
+            val transcript = engine.transcript.value
+            val lastAiText = transcript.lastOrNull { turn -> turn.speaker == Speaker.AI }?.text
+            val drillTarget = engine.drillTarget.value
+            contentProvider.lessonItem(it, engineState, lastAiText, drillTarget)
+        } ?: selectedItem ?: contentProvider.standbyItem(justEnded = engineState == ConversationState.ENDED)
         val error = engine.error.value
 
         val builder = State.Builder()
             .setAvailableCommands(AVAILABLE_COMMANDS)
             .setPlayWhenReady(engineState.wantsToPlay(), Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
 
-        if (item != null) {
-            builder.setPlaylist(
-                listOf(
-                    MediaItemData.Builder(item.mediaId)
-                        .setMediaItem(item)
-                        .setMediaMetadata(item.mediaMetadata)
-                        .setIsSeekable(false)
-                        .setDurationUs(C.TIME_UNSET)
-                        // A conversation has no timeline; marking it live hides the seek bar.
-                        .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().build())
-                        .build()
-                )
+        builder.setPlaylist(
+            listOf(
+                MediaItemData.Builder(item.mediaId)
+                    .setMediaItem(item)
+                    .setMediaMetadata(item.mediaMetadata)
+                    .setIsSeekable(false)
+                    .setDurationUs(C.TIME_UNSET)
+                    // A conversation has no timeline; marking it live hides the seek bar.
+                    .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().build())
+                    .build()
             )
-            builder.setCurrentMediaItemIndex(0)
-        }
+        )
+        builder.setCurrentMediaItemIndex(0)
 
         if (engineState == ConversationState.ERROR && error != null) {
             builder.setPlaybackState(Player.STATE_IDLE)
             builder.setPlayerError(PlaybackException(error.messageVi, null, PlaybackException.ERROR_CODE_UNSPECIFIED))
         } else {
-            builder.setPlaybackState(if (item == null) Player.STATE_IDLE else engineState.toPlaybackState())
+            builder.setPlaybackState(engineState.toPlaybackState())
         }
         return builder.build()
     }
@@ -104,6 +114,7 @@ class SpeakDrivePlayer(
     }
 
     override fun handleStop(): ListenableFuture<*> = scope.future {
+        selectedItem = null
         engine.end()
         Unit
     }
@@ -112,8 +123,16 @@ class SpeakDrivePlayer(
         if (seekCommand != Player.COMMAND_SEEK_TO_NEXT && seekCommand != Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM) {
             return Futures.immediateVoidFuture()
         }
+        val currentLesson = engine.lesson.value
+        if (currentLesson?.mode == SessionMode.STORY_LISTENING) {
+            // "Next" on steering wheel while listening to stories: switch to next recommended story
+            return scope.future {
+                engine.nextStory()
+                Unit
+            }
+        }
         // "Next" on the steering wheel: move on to a different topic.
-        val currentTopic = engine.lesson.value?.topic?.id
+        val currentTopic = currentLesson?.topic?.id
         return scope.future {
             selectedItem = null
             engine.start(LessonRequest(topicId = null, mode = SessionMode.FREE_TALK).avoiding(currentTopic))
@@ -124,7 +143,12 @@ class SpeakDrivePlayer(
     override fun handleRelease(): ListenableFuture<*> = Futures.immediateVoidFuture()
 
     private suspend fun startFromItem(item: MediaItem?) {
-        val request = requestFor(item?.mediaId ?: MediaIds.RESUME) ?: return
+        val mediaId = item?.mediaId ?: MediaIds.RESUME
+        if (mediaId == MediaIds.STORY_RESUME || MediaIds.parse(mediaId) is MediaTarget.StoryResume) {
+            engine.resumeStory()
+            return
+        }
+        val request = requestFor(mediaId) ?: return
         engine.start(request)
     }
 
@@ -133,6 +157,21 @@ class SpeakDrivePlayer(
         MediaTarget.Resume, MediaTarget.Unknown -> LessonRequest(topicId = settings.snapshot().lastTopicId)
         MediaTarget.Random -> LessonRequest(topicId = null)
         MediaTarget.Review -> LessonRequest(mode = SessionMode.VOCAB_REVIEW, topicId = settings.snapshot().lastTopicId)
+        is MediaTarget.Vocab -> {
+            val words = if (!target.word.isNullOrBlank()) {
+                listOf(com.speakdrive.ai.model.ReviewWord(target.word, ""))
+            } else {
+                emptyList()
+            }
+            LessonRequest(
+                mode = SessionMode.VOCAB_REVIEW,
+                topicId = settings.snapshot().lastTopicId,
+                targetWords = words
+            )
+        }
+        MediaTarget.StoryRecommended -> LessonRequest(mode = SessionMode.STORY_LISTENING)
+        MediaTarget.StoryResume -> null
+        is MediaTarget.Story -> LessonRequest(mode = SessionMode.STORY_LISTENING, topicId = target.topicId, scenarioId = target.scenarioId)
         is MediaTarget.Pronunciation ->
             LessonRequest(mode = SessionMode.REPEAT_AFTER_ME, topicId = target.topicId ?: settings.snapshot().lastTopicId)
         is MediaTarget.Topic -> {
@@ -160,13 +199,13 @@ class SpeakDrivePlayer(
     }
 
     private fun ConversationState.toPlaybackState(): Int = when (this) {
-        ConversationState.ACTIVE, ConversationState.PAUSED -> Player.STATE_READY
+        ConversationState.ACTIVE, ConversationState.PAUSED,
+        ConversationState.ENDED, ConversationState.IDLE -> Player.STATE_READY
         ConversationState.CONNECTING,
         ConversationState.RECONNECTING,
         ConversationState.WAITING_FOR_NETWORK,
         ConversationState.ENDING -> Player.STATE_BUFFERING
-        ConversationState.ENDED -> Player.STATE_ENDED
-        ConversationState.IDLE, ConversationState.ERROR -> Player.STATE_IDLE
+        ConversationState.ERROR -> Player.STATE_IDLE
     }
 
     private companion object {

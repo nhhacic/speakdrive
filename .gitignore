@@ -13,3 +13,6 @@ local.properties
 *.jks
 *.keystore
 keystore.properties
+*.log
+*.apk
+*.exe
