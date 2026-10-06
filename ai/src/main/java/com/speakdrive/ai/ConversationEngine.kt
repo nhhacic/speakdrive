@@ -202,6 +202,7 @@ open class ConversationEngine @Inject constructor(
         if (_isCarConnected.value != connected) {
             Log.i(TAG, "Car connection status changed: $connected")
             _isCarConnected.value = connected
+            liveClient.setCarConnected(connected)
             if (!connected) {
                 checkAutoPause()
             }

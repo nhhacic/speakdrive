@@ -75,10 +75,13 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val hasTarget = !drillTarget.isNullOrBlank()
         val isStory = lesson.mode == SessionMode.STORY_LISTENING
 
+        // Content is intentionally constrained to the top safe zone (y: 20f -> 295f).
+        // The bottom half (y: 300f -> 600f) is left clean and uncluttered so Android Auto's
+        // native Title, Subtitle and Media Playback Controls render without text overlap.
         if (hasTarget) {
-            renderRepeatFocusScreen(canvas, width, height, lesson, state, drillTarget)
+            renderRepeatFocusScreen(canvas, width, lesson, drillTarget)
         } else {
-            renderGeneralConversationScreen(canvas, width, height, lesson, state, lastAiText, isStory)
+            renderGeneralConversationScreen(canvas, width, lesson, lastAiText, isStory)
         }
 
         // 2. Encode to PNG ByteArray
@@ -90,56 +93,20 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
     /**
      * Dedicated glanceable screen when a repeat drill target exists.
-     * Strips away clutter and dedicates almost the entire card to the target sentence.
+     * Beautiful amber glowing hero card positioned in the top safe zone.
      */
     private fun renderRepeatFocusScreen(
         canvas: Canvas,
         width: Int,
-        height: Int,
         lesson: ActiveLesson,
-        state: ConversationState,
         targetText: String
     ) {
-        val padX = 28f
+        val padX = 24f
         val boxWidth = width - 2 * padX
 
-        // 1. Top Minimal Header: Pill Tag & Compact Topic
-        val tagTop = 26f
-        val tagBottom = 64f
-        val tagRect = RectF(padX, tagTop, padX + 210f, tagBottom)
-        val tagBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_TAG_REPEAT_BG
-            style = Paint.Style.FILL
-        }
-        val tagBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_TARGET_BORDER
-            style = Paint.Style.STROKE
-            strokeWidth = 1.5f
-        }
-        canvas.drawRoundRect(tagRect, 12f, 12f, tagBgPaint)
-        canvas.drawRoundRect(tagRect, 12f, 12f, tagBorderPaint)
-
-        val tagTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_TARGET_LABEL
-            textSize = 14.5f
-            typeface = Typeface.DEFAULT_BOLD
-            textAlign = Paint.Align.CENTER
-        }
-        canvas.drawText("🎯 REPEAT / NÓI LẠI", tagRect.centerX(), tagTop + 26f, tagTextPaint)
-
-        // Topic in top-right corner (compact, no heavy brand or divider)
-        val topicPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_TEXT_MUTED
-            textSize = 15f
-            typeface = Typeface.DEFAULT_BOLD
-            textAlign = Paint.Align.RIGHT
-        }
-        val topicTitle = "${lesson.topic.emoji} ${lesson.titleVi}"
-        canvas.drawText(topicTitle, width - padX, 48f, topicPaint)
-
-        // 2. Center Hero Box for the Repeat Target Sentence
-        val heroBoxTop = 78f
-        val heroBoxBottom = 526f
+        // Hero Box in Top Safe Zone (height ~275f)
+        val heroBoxTop = 20f
+        val heroBoxBottom = 295f
         val heroBoxHeight = heroBoxBottom - heroBoxTop
         val heroBoxRect = RectF(padX, heroBoxTop, width - padX, heroBoxBottom)
         val heroRadius = 24f
@@ -157,12 +124,12 @@ class AutoCardArtworkGenerator @Inject constructor() {
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBorderPaint)
 
         // Inner layout width with comfortable margin
-        val innerPadX = 26f
+        val innerPadX = 22f
         val textLayoutWidth = (boxWidth - 2 * innerPadX).toInt().coerceAtLeast(100)
-        val maxAvailableTextHeight = heroBoxHeight - 40f
+        val maxAvailableTextHeight = heroBoxHeight - 36f
 
-        // Adaptive Font Size: pick the largest font size that fits 100% without truncation
-        val candidateFontSizes = floatArrayOf(40f, 36f, 32f, 28f, 25f, 22f)
+        // Adaptive Font Size: pick the largest font size that fits without truncation
+        val candidateFontSizes = floatArrayOf(36f, 32f, 28f, 25f, 22f, 20f)
         var chosenLayout: StaticLayout? = null
 
         for (fontSize in candidateFontSizes) {
@@ -174,8 +141,8 @@ class AutoCardArtworkGenerator @Inject constructor() {
             val layout = StaticLayout.Builder.obtain(targetText, 0, targetText.length, paint, textLayoutWidth)
                 .setAlignment(Layout.Alignment.ALIGN_CENTER)
                 .setIncludePad(false)
-                .setLineSpacing(6f, 1.15f)
-                .setMaxLines(10)
+                .setLineSpacing(5f, 1.15f)
+                .setMaxLines(7)
                 .build()
 
             if (layout.height <= maxAvailableTextHeight || fontSize == candidateFontSizes.last()) {
@@ -186,70 +153,31 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
         // Vertically center the text inside the hero card
         val layout = chosenLayout!!
-        val textY = heroBoxTop + ((heroBoxHeight - layout.height) / 2f).coerceAtLeast(16f)
+        val textY = heroBoxTop + ((heroBoxHeight - layout.height) / 2f).coerceAtLeast(12f)
 
         canvas.save()
         canvas.translate(padX + innerPadX, textY)
         layout.draw(canvas)
         canvas.restore()
-
-        // 3. Clean, Compact Status Footer
-        renderStatusFooter(canvas, width, state, hasTarget = true, isStory = false)
     }
 
     /**
-     * Clean conversation/story screen when no specific drill repeat target is active.
+     * Clean conversation/story card in the top safe zone when no specific drill target is active.
      */
     private fun renderGeneralConversationScreen(
         canvas: Canvas,
         width: Int,
-        height: Int,
         lesson: ActiveLesson,
-        state: ConversationState,
         lastAiText: String?,
         isStory: Boolean
     ) {
-        val padX = 28f
+        val padX = 24f
         val boxWidth = width - 2 * padX
 
-        // 1. Header Pill Tag
-        val tagTop = 26f
-        val tagBottom = 64f
-        val tagRect = RectF(padX, tagTop, padX + 220f, tagBottom)
-        val tagBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (isStory) COLOR_TAG_STORY_BG else COLOR_TAG_FREE_BG
-            style = Paint.Style.FILL
-        }
-        val tagBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (isStory) COLOR_AI_LABEL else COLOR_FREE_LABEL
-            style = Paint.Style.STROKE
-            strokeWidth = 1.5f
-        }
-        canvas.drawRoundRect(tagRect, 12f, 12f, tagBgPaint)
-        canvas.drawRoundRect(tagRect, 12f, 12f, tagBorderPaint)
-
-        val tagTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (isStory) COLOR_AI_LABEL else COLOR_FREE_LABEL
-            textSize = 14.5f
-            typeface = Typeface.DEFAULT_BOLD
-            textAlign = Paint.Align.CENTER
-        }
-        val tagText = if (isStory) "🎧 KỂ CHUYỆN (STORY)" else "💬 TRÒ CHUYỆN TỰ DO"
-        canvas.drawText(tagText, tagRect.centerX(), tagTop + 26f, tagTextPaint)
-
-        // Topic on top right
-        val topicPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_TEXT_MUTED
-            textSize = 15f
-            typeface = Typeface.DEFAULT_BOLD
-            textAlign = Paint.Align.RIGHT
-        }
-        val topicTitle = "${lesson.topic.emoji} ${lesson.titleVi}"
-        canvas.drawText(topicTitle, width - padX, 48f, topicPaint)
-
-        // 2. Large Central Card for AI Speech or Story
-        val mainBoxTop = 78f
-        val mainBoxBottom = 526f
+        // Central Card in Top Safe Zone (height ~275f)
+        val mainBoxTop = 20f
+        val mainBoxBottom = 295f
+        val mainBoxHeight = mainBoxBottom - mainBoxTop
         val mainBoxRect = RectF(padX, mainBoxTop, width - padX, mainBoxBottom)
         val boxRadius = 24f
 
@@ -258,104 +186,47 @@ class AutoCardArtworkGenerator @Inject constructor() {
             style = Paint.Style.FILL
         }
         val mainBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_BOX_BORDER
+            color = if (isStory) COLOR_AI_LABEL else COLOR_FREE_LABEL
             style = Paint.Style.STROKE
-            strokeWidth = 2f
+            strokeWidth = 2.5f
         }
         canvas.drawRoundRect(mainBoxRect, boxRadius, boxRadius, mainBgPaint)
         canvas.drawRoundRect(mainBoxRect, boxRadius, boxRadius, mainBorderPaint)
 
-        val innerPadX = 26f
+        val innerPadX = 22f
         val textLayoutWidth = (boxWidth - 2 * innerPadX).toInt().coerceAtLeast(100)
 
-        // Content label
+        // 1. Content label inside top of card
         val labelPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (isStory) COLOR_AI_LABEL else COLOR_TEXT_MUTED
-            textSize = 15f
+            color = if (isStory) COLOR_AI_LABEL else COLOR_FREE_LABEL
+            textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
         }
         val label = if (isStory) "📖 NỘI DUNG CÂU CHUYỆN:" else "🤖 GIA SƯ AI NÓI:"
-        canvas.drawText(label, padX + innerPadX, mainBoxTop + 36f, labelPaint)
+        canvas.drawText(label, padX + innerPadX, mainBoxTop + 28f, labelPaint)
 
+        // 2. AI Content / Story Text
         val aiContent = lastAiText?.takeIf { it.isNotBlank() }
             ?: if (isStory) "Đang chuẩn bị câu chuyện thú vị cho bạn…" else "Đang kết nối với gia sư AI…"
 
         val aiTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_TEXT_PRIMARY
-            textSize = 24f
+            textSize = 21f
             typeface = Typeface.DEFAULT
         }
+        val maxAvailableContentHeight = mainBoxHeight - 48f
         val aiLayout = StaticLayout.Builder.obtain(aiContent, 0, aiContent.length, aiTextPaint, textLayoutWidth)
             .setAlignment(Layout.Alignment.ALIGN_NORMAL)
             .setIncludePad(false)
             .setLineSpacing(4f, 1.15f)
-            .setMaxLines(7)
+            .setMaxLines(6)
             .setEllipsize(TextUtils.TruncateAt.END)
             .build()
 
         canvas.save()
-        canvas.translate(padX + innerPadX, mainBoxTop + 54f)
+        canvas.translate(padX + innerPadX, mainBoxTop + 42f)
         aiLayout.draw(canvas)
         canvas.restore()
-
-        // Hint prompt at the bottom inside card
-        val hintPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_TEXT_MUTED
-            textSize = 16f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
-        }
-        val hintText = if (isStory) {
-            "💡 Nói 'Next' hoặc bấm nút Next trên vô lăng để đổi chuyện"
-        } else {
-            "💡 Trả lời tự nhiên bằng tiếng Anh khi AI dừng lời"
-        }
-        canvas.drawText(hintText, padX + innerPadX, mainBoxBottom - 22f, hintPaint)
-
-        // 3. Status Footer
-        renderStatusFooter(canvas, width, state, hasTarget = false, isStory = isStory)
-    }
-
-    private fun renderStatusFooter(
-        canvas: Canvas,
-        width: Int,
-        state: ConversationState,
-        hasTarget: Boolean,
-        isStory: Boolean
-    ) {
-        val footerY = 565f
-        val dotRadius = 6.5f
-        val dotX = 40f
-
-        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = when (state) {
-                ConversationState.ACTIVE -> COLOR_STATUS_ACTIVE
-                ConversationState.CONNECTING, ConversationState.RECONNECTING -> COLOR_STATUS_CONNECTING
-                ConversationState.PAUSED -> COLOR_STATUS_PAUSED
-                else -> COLOR_STATUS_MUTED
-            }
-            style = Paint.Style.FILL
-        }
-        canvas.drawCircle(dotX, footerY - 4f, dotRadius, dotPaint)
-
-        val statusText = when (state) {
-            ConversationState.CONNECTING -> "Đang kết nối AI…"
-            ConversationState.ACTIVE -> when {
-                hasTarget -> "🎙️ Đang nghe bạn lặp lại câu trên..."
-                isStory -> "Đang phát câu chuyện • Micro sẵn sàng"
-                else -> "🎙️ Micro đang mở • Nói tự nhiên"
-            }
-            ConversationState.PAUSED -> "Tạm dừng bài học"
-            ConversationState.RECONNECTING -> "Đang kết nối lại…"
-            ConversationState.WAITING_FOR_NETWORK -> "Chờ kết nối mạng…"
-            ConversationState.ENDING -> "Đang tổng kết buổi học…"
-            else -> "SpeakDrive"
-        }
-        val statusPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (hasTarget && state == ConversationState.ACTIVE) COLOR_TARGET_LABEL else COLOR_TEXT_MUTED
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        canvas.drawText(statusText, dotX + 16f, footerY, statusPaint)
     }
 
     private companion object {

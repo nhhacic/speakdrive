@@ -153,4 +153,23 @@ class LiveAudioIOTest {
         liveAudio.flushPlayback()
         assertThat(liveAudio.isPlaying()).isFalse()
     }
+
+    @Test
+    fun isCarConnected_reflectsExplicitCarConnection() {
+        assertThat(liveAudio.isCarConnected()).isFalse()
+        liveAudio.setCarConnected(true)
+        assertThat(liveAudio.isCarConnected()).isTrue()
+        liveAudio.setCarConnected(false)
+        assertThat(liveAudio.isCarConnected()).isFalse()
+    }
+
+    @Test
+    fun isCarConnected_returnsTrueWhenCarAudioDeviceConnected() {
+        val bluetoothA2dp = AudioDeviceInfoBuilder.newBuilder()
+            .setType(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+            .build()
+        shadowAudioManager.setOutputDevices(listOf(bluetoothA2dp))
+
+        assertThat(liveAudio.isCarConnected()).isTrue()
+    }
 }

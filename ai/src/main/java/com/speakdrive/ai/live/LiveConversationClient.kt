@@ -29,6 +29,9 @@ interface LiveConversationClient {
 
     /** Sets the output volume gain for AI playback, from 0.0 (mute) to 1.0 (full). */
     fun setVolume(volumeFraction: Float) = Unit
+
+    /** Informs client whether car / Android Auto connection is active. */
+    fun setCarConnected(connected: Boolean) = Unit
 }
 
 data class LiveSessionConfig(

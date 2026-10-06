@@ -189,7 +189,7 @@ class MediaContentProviderTest {
         )
 
         assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
-        assertThat(item.mediaMetadata.title.toString()).isEqualTo("📖 Once upon a time in a small laboratory...")
+        assertThat(item.mediaMetadata.title.toString()).contains(lesson.titleVi)
         assertThat(item.mediaMetadata.subtitle.toString()).contains("Bấm Next để đổi truyện")
         assertThat(item.mediaMetadata.artworkData).isNotNull()
     }

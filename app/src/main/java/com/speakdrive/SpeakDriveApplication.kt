@@ -1,6 +1,7 @@
 package com.speakdrive
 
 import android.app.Application
+import android.util.Log
 import com.speakdrive.playback.CarConnectionAutoStarter
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -16,6 +17,8 @@ class SpeakDriveApplication : Application() {
         // Debug builds use the App Check debug provider, release builds use Play Integrity.
         // The implementations live in src/debug and src/release.
         AppCheckInstaller.install(this)
-        carConnectionAutoStarter.start()
+        runCatching {
+            carConnectionAutoStarter.start()
+        }.onFailure { Log.w("SpeakDriveApplication", "Failed to start car connection starter", it) }
     }
 }

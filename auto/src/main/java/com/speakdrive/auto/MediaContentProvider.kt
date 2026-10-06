@@ -278,19 +278,20 @@ class MediaContentProvider @Inject constructor(
         val hasAiText = !lastAiText.isNullOrBlank()
 
         val (title, subtitle, artist) = when {
-            isStory -> {
-                val title = if (hasAiText) "📖 $lastAiText" else "🎧 ${lesson.titleVi}"
-                val subtitle = if (status.isNotEmpty()) "$status • Bấm Next để đổi truyện" else "Bấm Next để đổi truyện"
-                val artist = "${lesson.topic.emoji} ${lesson.titleVi} • ${lesson.level.displayName}"
-                Triple(title, subtitle, artist)
-            }
             hasTarget -> {
                 val title = "🎯 Lặp lại theo AI"
                 val subtitle = "${lesson.topic.emoji} ${lesson.titleVi} • Đang nghe bạn nói"
                 val artist = "${lesson.level.displayName} • SpeakDrive"
                 Triple(title, subtitle, artist)
             }
-            hasAiText -> {
+            isStory -> {
+                val storyTitle = lesson.scenario?.titleVi ?: lesson.titleVi
+                val title = "📖 $storyTitle"
+                val subtitle = if (status.isNotEmpty()) "$status • Bấm Next để đổi truyện" else "Bấm Next để đổi truyện"
+                val artist = "${lesson.topic.emoji} ${lesson.titleVi} • ${lesson.level.displayName}"
+                Triple(title, subtitle, artist)
+            }
+            hasAiText && lastAiText.length <= 50 -> {
                 val title = "🤖 $lastAiText"
                 val subtitle = if (status.isNotEmpty()) status else "Nói tự nhiên bằng tiếng Anh"
                 val artist = "${lesson.topic.emoji} ${lesson.titleVi} • ${lesson.level.displayName}"
@@ -298,7 +299,7 @@ class MediaContentProvider @Inject constructor(
             }
             else -> {
                 val title = "${lesson.topic.emoji} ${lesson.titleVi}"
-                val subtitle = status
+                val subtitle = if (status.isNotEmpty()) "$status • Nói tự nhiên bằng tiếng Anh" else "Nói tự nhiên bằng tiếng Anh"
                 val artist = listOf(lesson.level.displayName, status).filter { it.isNotEmpty() }.joinToString(" • ")
                 Triple(title, subtitle, artist)
             }

@@ -30,7 +30,7 @@ class AppLaunchTest {
 
         compose.onNodeWithContentDescription("Cài đặt").performClick()
         compose.onNodeWithText("Giọng nói & Tương tác AI").performScrollTo().assertExists()
-        compose.onNodeWithText("Tự động luyện nói khi kết nối xe").performScrollTo().assertExists()
+        compose.onNodeWithText("Tự động tạm dừng khi rời app hoặc tắt màn hình", substring = true).performScrollTo().assertExists()
         compose.onNodeWithText("Chấm phát âm bằng Azure").performScrollTo().assertExists()
 
         compose.onNodeWithText("Giới thiệu ứng dụng & Tác giả").performScrollTo().performClick()

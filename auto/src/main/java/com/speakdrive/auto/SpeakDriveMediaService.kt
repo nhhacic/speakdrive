@@ -25,6 +25,7 @@ import com.speakdrive.ai.ConversationEngine
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.session.LearningSettings
 import com.speakdrive.ai.session.MicPermissionChecker
+import com.speakdrive.audio.LiveAudio
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +48,7 @@ class SpeakDriveMediaService : MediaLibraryService() {
     @Inject lateinit var voiceCommandHandler: VoiceCommandHandler
     @Inject lateinit var settings: LearningSettings
     @Inject lateinit var micPermission: MicPermissionChecker
+    @Inject lateinit var liveAudio: LiveAudio
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -56,6 +58,7 @@ class SpeakDriveMediaService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
+        liveAudio.setCarConnected(true)
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
         wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "speakdrive:lesson_wakelock")?.apply {
             setReferenceCounted(false)
@@ -142,6 +145,7 @@ class SpeakDriveMediaService : MediaLibraryService() {
             release()
         }
         librarySession = null
+        liveAudio.setCarConnected(false)
         super.onDestroy()
     }
 

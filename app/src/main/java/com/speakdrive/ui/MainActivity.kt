@@ -60,7 +60,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.speakdrive.ai.ConversationEngine
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import android.os.Build
+import android.util.Log
 import java.util.Locale
 import javax.inject.Inject
 
@@ -87,23 +91,30 @@ class MainActivity : ComponentActivity() {
         applyInitialLocale()
         enableEdgeToEdge()
 
-        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-        engine.setScreenOn(powerManager?.isInteractive ?: true)
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_SCREEN_OFF)
-            addAction(Intent.ACTION_SCREEN_ON)
-        }
-        ContextCompat.registerReceiver(this, screenReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+        runCatching {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            engine.setScreenOn(powerManager?.isInteractive ?: true)
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(screenReceiver, filter)
+            }
+        }.onFailure { Log.w("MainActivity", "Failed to register screenReceiver", it) }
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                engine.state.collect { state ->
-                    volumeControlStream = if (state.isInLesson) {
+                combine(engine.state, engine.isCarConnected) { state, isCar ->
+                    volumeControlStream = if (state.isInLesson && !isCar) {
                         AudioManager.STREAM_VOICE_CALL
                     } else {
                         AudioManager.STREAM_MUSIC
                     }
-                }
+                }.collect()
             }
         }
         setContent {
@@ -161,21 +172,21 @@ class MainActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (!isChangingConfigurations) {
-            engine.setAppFocused(hasFocus)
+            runCatching { engine.setAppFocused(hasFocus) }
         }
     }
 
     override fun onStart() {
         super.onStart()
         if (!isChangingConfigurations && hasWindowFocus()) {
-            engine.setAppFocused(true)
+            runCatching { engine.setAppFocused(true) }
         }
     }
 
     override fun onStop() {
         super.onStop()
         if (!isChangingConfigurations) {
-            engine.setAppFocused(false)
+            runCatching { engine.setAppFocused(false) }
         }
     }
 

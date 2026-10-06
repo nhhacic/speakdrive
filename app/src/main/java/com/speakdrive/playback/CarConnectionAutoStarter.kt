@@ -6,6 +6,7 @@ import com.speakdrive.auto.MediaIds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,7 +29,9 @@ class CarConnectionAutoStarter @Inject constructor(
         if (isStarted) return
         isStarted = true
         scope.launch {
-            carConnection.isConnectedToCar.collect { isConnected ->
+            carConnection.isConnectedToCar
+                .catch { e -> Log.w(TAG, "Car connection collection error", e) }
+                .collect { isConnected ->
                 engine.setCarConnected(isConnected)
                 if (isConnected && !wasConnected) {
                     Log.d(TAG, "Android Auto connected, automatically starting lesson")

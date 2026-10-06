@@ -16,6 +16,7 @@ import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import android.os.Build
 import android.util.Log
+import androidx.car.app.connection.CarConnection
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.LinkedBlockingQueue
@@ -47,6 +48,12 @@ interface LiveAudio {
 
     /** Whether an in-car audio output (Bluetooth A2DP, AUX, USB accessory/device) is connected. */
     fun isCarAudioConnected(): Boolean = false
+
+    /** Whether Android Auto projection or in-car audio is active. */
+    fun isCarConnected(): Boolean = false
+
+    /** Manually notify audio system of car / Android Auto state. */
+    fun setCarConnected(connected: Boolean) = Unit
 
     /**
      * True when the AI's voice and the microphone both run on the voice-call path, so the phone's
@@ -148,14 +155,19 @@ class LiveAudioIO @Inject constructor(
         val bufferSize = maxOf(minBuffer, CHUNK_BYTES * 4)
 
         var record: AudioRecord? = null
-        if (runCatching { enterCommunicationRoute() }.onFailure { Log.w(TAG, "Call route failed", it) }.getOrDefault(false)) {
-            // The call mic carries the hardware echo canceller. Bluetooth hands-free needs up to a
-            // second to connect, so it gets a longer probe before being declared silent.
-            record = openRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, bufferSize, COMM_PROBE_CHUNKS)
-            if (record == null) {
-                Log.w(TAG, "Call mic unusable on route $routeName; falling back to the media route")
-                leaveCommunicationRoute()
+        val carConnected = isCarConnected()
+        if (!carConnected) {
+            if (runCatching { enterCommunicationRoute() }.onFailure { Log.w(TAG, "Call route failed", it) }.getOrDefault(false)) {
+                // The call mic carries the hardware echo canceller. Bluetooth hands-free needs up to a
+                // second to connect, so it gets a longer probe before being declared silent.
+                record = openRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, bufferSize, COMM_PROBE_CHUNKS)
+                if (record == null) {
+                    Log.w(TAG, "Call mic unusable on route $routeName; falling back to the media route")
+                    leaveCommunicationRoute()
+                }
             }
+        } else {
+            Log.i(TAG, "Car / Android Auto audio detected, using Media Route exclusively to prevent SCO call jumping")
         }
         if (record == null) {
             enterMediaRoute()
@@ -370,6 +382,13 @@ class LiveAudioIO @Inject constructor(
         }.getOrDefault(false)
     }
 
+    @Volatile private var carConnectedExplicit: Boolean? = null
+
+    fun isCarProjected(): Boolean = runCatching {
+        val type = CarConnection(context).type.value ?: CarConnection.CONNECTION_TYPE_NOT_CONNECTED
+        type == CarConnection.CONNECTION_TYPE_PROJECTION
+    }.getOrDefault(false)
+
     override fun isCarAudioConnected(): Boolean {
         return runCatching {
             val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
@@ -380,6 +399,17 @@ class LiveAudioIO @Inject constructor(
                 it.type == AudioDeviceInfo.TYPE_USB_DEVICE
             }
         }.getOrDefault(false)
+    }
+
+    override fun isCarConnected(): Boolean {
+        carConnectedExplicit?.let { return it }
+        return isCarProjected() || isCarAudioConnected()
+    }
+
+    override fun setCarConnected(connected: Boolean) {
+        carConnectedExplicit = connected
+        Log.i(TAG, "Car connected state set explicitly to: $connected")
+        applyAudioRouting()
     }
 
     override fun isEchoCancelled(): Boolean =
@@ -411,6 +441,10 @@ class LiveAudioIO @Inject constructor(
      * the loudspeaker. Returns false (and leaves the mode untouched) if none could be selected.
      */
     private fun enterCommunicationRoute(): Boolean {
+        if (isCarConnected()) {
+            Log.i(TAG, "Car / Android Auto is active, refusing communication route to avoid SCO phone call loop")
+            return false
+        }
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
         if (!selectCommunicationDevice()) {
             audioManager.mode = AudioManager.MODE_NORMAL
@@ -532,6 +566,15 @@ class LiveAudioIO @Inject constructor(
 
     private fun applyAudioRouting() {
         runCatching {
+            if (isCarConnected()) {
+                if (communicationRoute) {
+                    Log.i(TAG, "Car / Android Auto connected mid-lesson, leaving communication route")
+                    leaveCommunicationRoute()
+                    enterMediaRoute()
+                }
+                return@runCatching
+            }
+
             if (communicationRoute) {
                 // A car / headset connected or disconnected mid-lesson: move the call to it.
                 selectCommunicationDevice()

@@ -236,6 +236,10 @@ class GeminiLiveManager @Inject constructor(
         audio.setVolume(volumeFraction)
     }
 
+    override fun setCarConnected(connected: Boolean) {
+        audio.setCarConnected(connected)
+    }
+
     private fun startPipeline(target: LiveSession) {
         audioPaused = false
         outgoing = newOutgoingChannel()
