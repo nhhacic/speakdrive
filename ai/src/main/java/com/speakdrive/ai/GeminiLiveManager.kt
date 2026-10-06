@@ -122,6 +122,9 @@ class GeminiLiveManager @Inject constructor(
     /** Mic chunks held back while barge-in is deciding if they are speech or echo. */
     private val preRoll = ArrayDeque<ByteArray>()
 
+    private val pendingAiTranscript = StringBuilder()
+    private val transcriptLock = Any()
+
     override val isConnected: Boolean
         get() = session?.isClosed() == false
 
@@ -272,6 +275,7 @@ class GeminiLiveManager @Inject constructor(
     private fun onContent(message: LiveServerContent) {
         AudioDiagnostics.onServerMessage()
         if (message.interrupted) {
+            synchronized(transcriptLock) { pendingAiTranscript.clear() }
             // The AI's turn ended early either way. Only cut the speaker when the learner allowed
             // interruptions; otherwise this is the server reacting to leaked echo/noise and the
             // learner never asked to be talked over.
@@ -283,26 +287,73 @@ class GeminiLiveManager @Inject constructor(
                 Log.d(TAG, "Ignoring server interruption: barge-in is off")
             }
         }
+
+        val aiTextChunk = message.outputTranscription?.text?.takeIf { it.isNotEmpty() }
+        if (aiTextChunk != null) {
+            synchronized(transcriptLock) {
+                pendingAiTranscript.append(aiTextChunk)
+            }
+        }
+
         if (!audioPaused) {
-            message.content?.parts?.filterIsInstance<InlineDataPart>()?.forEach { part ->
-                if (part.mimeType.startsWith("audio")) {
-                    audio.play(part.inlineData)
+            val audioParts = message.content?.parts?.filterIsInstance<InlineDataPart>()
+                ?.filter { it.mimeType.startsWith("audio") } ?: emptyList()
+            if (audioParts.isNotEmpty()) {
+                audioParts.forEachIndexed { index, part ->
+                    val textToEmit = if (index == 0) {
+                        synchronized(transcriptLock) {
+                            if (pendingAiTranscript.isNotEmpty()) {
+                                val text = pendingAiTranscript.toString()
+                                pendingAiTranscript.clear()
+                                text
+                            } else null
+                        }
+                    } else null
+
+                    if (textToEmit != null) {
+                        audio.play(part.inlineData) {
+                            Log.d(TAG, "AI speech playing at speaker: $textToEmit")
+                            _events.tryEmit(LiveEvent.AiTranscript(textToEmit))
+                        }
+                    } else {
+                        audio.play(part.inlineData)
+                    }
                     lastAiAudioAt = System.currentTimeMillis()
                     aiTurnActive = true
                     awaitingAiSince = 0L
                 }
+            } else if (aiTextChunk != null && !audio.isPlaying()) {
+                // If message has text but no audio parts and speaker is idle, emit immediately
+                val text = synchronized(transcriptLock) {
+                    val t = pendingAiTranscript.toString()
+                    pendingAiTranscript.clear()
+                    t
+                }
+                if (text.isNotEmpty()) {
+                    Log.d(TAG, "AI speech (text-only): $text")
+                    _events.tryEmit(LiveEvent.AiTranscript(text))
+                }
             }
         }
-        if (message.turnComplete) endAiTurn()
+
+        if (message.turnComplete) {
+            val remaining = synchronized(transcriptLock) {
+                val t = pendingAiTranscript.toString()
+                pendingAiTranscript.clear()
+                t
+            }
+            if (remaining.isNotEmpty()) {
+                Log.d(TAG, "AI speech (turnComplete flush): $remaining")
+                _events.tryEmit(LiveEvent.AiTranscript(remaining))
+            }
+            endAiTurn()
+        }
+
         message.inputTranscription?.text?.takeIf { it.isNotEmpty() }?.let {
             utterance.appendText(it)
             AudioDiagnostics.onUserTranscript()
             Log.d(TAG, "User speech recognized: $it")
             _events.tryEmit(LiveEvent.UserTranscript(it))
-        }
-        message.outputTranscription?.text?.takeIf { it.isNotEmpty() }?.let {
-            Log.d(TAG, "AI speech: $it")
-            _events.tryEmit(LiveEvent.AiTranscript(it))
         }
     }
 
@@ -502,6 +553,7 @@ class GeminiLiveManager @Inject constructor(
         watchdog = null
         audio.stopCapture()
         audio.flushPlayback()
+        synchronized(transcriptLock) { pendingAiTranscript.clear() }
         resetAiTurn()
         outgoing.close()
         receiveJob?.cancel()

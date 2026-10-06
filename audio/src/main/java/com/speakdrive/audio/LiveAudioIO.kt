@@ -33,6 +33,9 @@ interface LiveAudio {
     /** Queues 24 kHz mono PCM16 from the AI for playback. */
     fun play(pcm: ByteArray)
 
+    /** Queues 24 kHz mono PCM16 with a callback triggered when playback actually reaches the speaker. */
+    fun play(pcm: ByteArray, onPlayStarted: (() -> Unit)?) { play(pcm) }
+
     /** Drops everything queued or still buffered, e.g. when the learner interrupts. */
     fun flushPlayback()
 
@@ -101,10 +104,15 @@ class LiveAudioIO @Inject constructor(
     private var captureThread: Thread? = null
     @Volatile private var capturing = false
 
+    private data class PlaybackChunk(
+        val pcm: ByteArray,
+        val onPlayStarted: (() -> Unit)? = null
+    )
+
     private var track: AudioTrack? = null
     private var trackUsage = -1
     private var playbackThread: Thread? = null
-    private val playbackQueue = LinkedBlockingQueue<ByteArray>()
+    private val playbackQueue = LinkedBlockingQueue<PlaybackChunk>()
     @Volatile private var framesWritten = 0L
     @Volatile private var playbackRunning = false
     @Volatile private var playbackGeneration = 0
@@ -286,8 +294,16 @@ class LiveAudioIO @Inject constructor(
     }
 
     override fun play(pcm: ByteArray) {
+        play(pcm, null)
+    }
+
+    override fun play(pcm: ByteArray, onPlayStarted: (() -> Unit)?) {
+        if (pcm.isEmpty()) {
+            onPlayStarted?.invoke()
+            return
+        }
         ensurePlayback()
-        playbackQueue.offer(pcm)
+        playbackQueue.offer(PlaybackChunk(pcm, onPlayStarted))
     }
 
     override fun flushPlayback() {
@@ -591,11 +607,13 @@ class LiveAudioIO @Inject constructor(
                     playbackQueue.offer(chunk)
                     break
                 }
+                runCatching { chunk.onPlayStarted?.invoke() }
+                val pcm = chunk.pcm
                 val gain = volumeGain
                 val effectiveChunk = if (gain < 0.999f) {
-                    scalePcm16(chunk, gain)
+                    scalePcm16(pcm, gain)
                 } else {
-                    chunk
+                    pcm
                 }
                 val written = runCatching { newTrack.write(effectiveChunk, 0, effectiveChunk.size) }.getOrDefault(-1)
                 if (written > 0) {

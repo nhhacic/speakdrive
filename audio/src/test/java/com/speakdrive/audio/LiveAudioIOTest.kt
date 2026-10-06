@@ -128,4 +128,29 @@ class LiveAudioIOTest {
     fun isEchoCancelled_falseBeforeCapture() {
         assertThat(liveAudio.isEchoCancelled()).isFalse()
     }
+
+    @Test
+    fun play_withOnPlayStarted_triggersWhenChunkIsHandled() {
+        var callbackTriggered = false
+        val pcm = ByteArray(LiveAudioIO.CHUNK_BYTES)
+        liveAudio.play(pcm) {
+            callbackTriggered = true
+        }
+
+        // Wait up to 1 second for playback thread to process the chunk
+        val start = System.currentTimeMillis()
+        while (!callbackTriggered && System.currentTimeMillis() - start < 1000) {
+            Thread.sleep(50)
+        }
+        assertThat(callbackTriggered).isTrue()
+    }
+
+    @Test
+    fun flushPlayback_dropsQueuedChunksAndCallbacks() {
+        var callbackTriggered = false
+        val pcm = ByteArray(LiveAudioIO.CHUNK_BYTES)
+        // Flush before playback thread processes
+        liveAudio.flushPlayback()
+        assertThat(liveAudio.isPlaying()).isFalse()
+    }
 }

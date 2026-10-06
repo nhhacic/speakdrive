@@ -42,10 +42,15 @@ class TranscriptAccumulator(private val clock: () -> Long = System::currentTimeM
         else -> "$current $chunk"
     }
 
-    private fun normalizeSpaces(text: String) = text.replace(WHITESPACE, " ").trim()
+    private fun normalizeSpaces(text: String): String {
+        return text
+            .replace(Regex("[ \\t]+"), " ")
+            .replace(Regex(" ?\\n ?"), "\n")
+            .replace(Regex("\\n{3,}"), "\n\n")
+            .trim()
+    }
 
     private companion object {
         val NO_SPACE_BEFORE = setOf('.', ',', '!', '?', ';', ':', '\'', ')', '’')
-        val WHITESPACE = Regex("\\s+")
     }
 }

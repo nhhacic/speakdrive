@@ -55,4 +55,14 @@ class TranscriptAccumulatorTest {
 
         assertThat(accumulator.snapshot()).isEmpty()
     }
+
+    @Test
+    fun `preserves paragraphs and newlines for storytelling and long speeches`() {
+        accumulator.append(Speaker.AI, "Chapter One: The Crushing Ice.")
+        accumulator.append(Speaker.AI, "\n\nThe ship was stuck.")
+        val turns = accumulator.append(Speaker.AI, "\n\nCaptain was calm.")
+
+        assertThat(turns).hasSize(1)
+        assertThat(turns.single().text).isEqualTo("Chapter One: The Crushing Ice.\n\nThe ship was stuck.\n\nCaptain was calm.")
+    }
 }

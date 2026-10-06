@@ -262,6 +262,7 @@ object PromptTemplates {
             StorytellingStyle.INTERACTIVE -> """
                 INTERACTIVE 'CHOOSE YOUR OWN ADVENTURE' STORYTELLING MODE (CURRENT MODE):
                 - Break the story into distinct, gripping chapters (~2 to 3 minutes each).
+                - FORMATTING: Use natural paragraph breaks (double newlines) between narration, character dialogue, and chapter headers for clear on-screen reading.
                 - AT THE END OF EACH CHAPTER, present a high-stakes CRITICAL DECISION POINT for the protagonist with TWO distinct, dramatic choices:
                   * For example: "Captain Sully has 30 seconds: Should he turn back towards LaGuardia runway 13, or aim for the freezing Hudson River? Tell me your choice: RUNWAY or HUDSON!"
                   * Or: "Dr. Watson notices a muddy footprint and a broken violin string: Should Holmes examine the window lock or question the nervous butler first? Which path do you take?"
@@ -272,6 +273,7 @@ object PromptTemplates {
             StorytellingStyle.CONTINUOUS -> """
                 CONTINUOUS PODCAST STORYTELLING MODE (CURRENT MODE):
                 - Tell the entire story smoothly and expressively from start to finish across chapters without stopping for mid-way questions.
+                - FORMATTING: Use natural paragraph breaks (double newlines) between narration, character dialogue, and chapter headers for clear on-screen reading.
                 - NEVER ask the learner anything mid-story: no comprehension questions, no "What do you think?", no "Shall I continue?",
                   no "Are you ready?", no "Do you want to hear more?". The learner is only listening, like a podcast.
                 - Each speaking turn should be a long narrative segment. When a turn naturally ends, just stop talking (no question);

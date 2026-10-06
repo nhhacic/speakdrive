@@ -48,13 +48,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -199,92 +204,153 @@ fun ConversationContent(
             }
         },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 1.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    // Hàng 1: Nút Back + Tiêu đề bài học + Nút Kết thúc
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.back)
+                            )
+                        }
+                        Spacer(Modifier.width(6.dp))
                         Text(
-                            lesson?.let { "${it.topic.emoji} ${it.getTitle(isVi)}" } ?: stringResource(R.string.convo_title_default),
+                            text = lesson?.let { "${it.topic.emoji} ${it.getTitle(isVi)}" }
+                                ?: stringResource(R.string.convo_title_default),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
-                        if (lesson != null) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        Spacer(Modifier.width(8.dp))
+                        if (state.state.isInLesson) {
+                            FilledTonalButton(
+                                onClick = onEnd,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                modifier = Modifier.height(34.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(MaterialTheme.colorScheme.primaryContainer)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        lesson.level.getLabel(isVi),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
                                 Text(
-                                    state.elapsed,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = stringResource(R.string.convo_btn_end),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
-                },
-                actions = {
-                    if (state.state.isInLesson) {
-                        IconButton(
-                            onClick = { showVolumeDialog = true },
-                            modifier = Modifier.size(40.dp)
+
+                    // Hàng 2: Trình độ + Thời gian + Các nút chức năng (Âm lượng, Ngắt lời)
+                    if (state.state.isInLesson && lesson != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 46.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                                contentDescription = if (isVi) "Âm lượng AI" else "AI Volume",
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(Modifier.width(4.dp))
-                        FilledTonalIconToggleButton(
-                            checked = state.isBargeInEnabled,
-                            onCheckedChange = { onToggleBargeIn() },
-                            modifier = Modifier.size(40.dp),
-                            colors = IconButtonDefaults.filledTonalIconToggleButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        ) {
-                            Icon(
-                                imageVector = if (state.isBargeInEnabled) Icons.Filled.RecordVoiceOver else Icons.Filled.VoiceOverOff,
-                                contentDescription = stringResource(
-                                    if (state.isBargeInEnabled) R.string.convo_barge_in_active
-                                    else R.string.convo_barge_in_inactive
-                                ),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        OutlinedButton(
-                            onClick = onEnd,
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            )
-                        ) {
-                            Text(stringResource(R.string.convo_btn_end), fontWeight = FontWeight.SemiBold)
+                            // Trình độ & Thời gian học
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ) {
+                                    Text(
+                                        text = lesson.level.getLabel(isVi),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Timer,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = state.elapsed,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+
+                            // Cụm nút Âm lượng & Ngắt lời
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                IconButton(
+                                    onClick = { showVolumeDialog = true },
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                        contentDescription = if (isVi) "Âm lượng AI" else "AI Volume",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                FilledTonalIconToggleButton(
+                                    checked = state.isBargeInEnabled,
+                                    onCheckedChange = { onToggleBargeIn() },
+                                    modifier = Modifier.size(34.dp),
+                                    colors = IconButtonDefaults.filledTonalIconToggleButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = if (state.isBargeInEnabled) Icons.Filled.RecordVoiceOver else Icons.Filled.VoiceOverOff,
+                                        contentDescription = stringResource(
+                                            if (state.isBargeInEnabled) R.string.convo_barge_in_active
+                                            else R.string.convo_barge_in_inactive
+                                        ),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
-            )
+            }
         }
     ) { padding ->
         Column(
@@ -511,9 +577,12 @@ fun ConversationContent(
 private fun Transcript(state: ConversationUiState, modifier: Modifier = Modifier) {
     val listState = rememberLazyListState()
     val lastText = state.transcript.lastOrNull()?.text
+    val totalItems = if (state.transcript.isNotEmpty()) state.transcript.size + 1 else 0
+
     LaunchedEffect(state.transcript.size, lastText) {
-        if (state.transcript.isNotEmpty()) {
-            listState.animateScrollToItem(state.transcript.lastIndex)
+        if (totalItems > 0) {
+            // Cuộn thẳng xuống bottom_anchor ở đáy danh sách để đảm bảo nội dung mới nhất luôn hiển thị trọn vẹn
+            listState.animateScrollToItem(totalItems - 1)
         }
     }
     if (state.drill == null && state.transcript.isEmpty() && state.state.isInLesson) {
@@ -557,11 +626,16 @@ private fun Transcript(state: ConversationUiState, modifier: Modifier = Modifier
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         items(state.transcript, key = { it.id }) { turn ->
             ChatBubble(text = turn.text, isUser = turn.speaker == Speaker.USER)
+        }
+        if (state.transcript.isNotEmpty()) {
+            item(key = "bottom_anchor") {
+                Spacer(modifier = Modifier.height(28.dp))
+            }
         }
     }
 }
