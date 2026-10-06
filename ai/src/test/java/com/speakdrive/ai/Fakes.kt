@@ -170,6 +170,10 @@ class FakeSettings(settings: LearnerSettings = LearnerSettings()) : LearningSett
     override suspend fun setAiVolume(volume: Int) {
         settings = settings.copy(aiVolume = volume)
     }
+
+    override suspend fun setAutoPauseWhenUnfocused(enabled: Boolean) {
+        settings = settings.copy(autoPauseWhenUnfocused = enabled)
+    }
 }
 
 class FakeAudioFocus : AudioFocus {

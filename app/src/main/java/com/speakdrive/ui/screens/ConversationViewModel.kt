@@ -160,6 +160,14 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
+    fun next() {
+        viewModelScope.launch { engine.next() }
+    }
+
+    fun repeat() {
+        viewModelScope.launch { engine.repeat() }
+    }
+
     fun nextStory() {
         viewModelScope.launch { engine.nextStory() }
     }

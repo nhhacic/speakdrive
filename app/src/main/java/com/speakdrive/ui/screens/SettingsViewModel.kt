@@ -111,5 +111,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setAiVolume(volume: Int) =
         viewModelScope.launch { repository.setAiVolume(volume) }
+
+    fun setAutoPauseWhenUnfocused(enabled: Boolean) =
+        viewModelScope.launch { repository.setAutoPauseWhenUnfocused(enabled) }
 }
 

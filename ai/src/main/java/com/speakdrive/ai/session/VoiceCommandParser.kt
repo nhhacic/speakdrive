@@ -266,6 +266,17 @@ object VoiceCommandParser {
     }
 
     /**
+     * Parses an utterance for a request to repeat/replay the current pronunciation/shadowing sentence.
+     * Supports Vietnamese and English voice commands.
+     */
+    fun parseRepeatDrillSentenceCommand(utterance: String): Boolean {
+        val q = TopicManager.normalize(utterance)
+        if (q.isBlank()) return false
+        if (q == "repeat" || q == "again" || q == "say again" || q == "repeat please" || q == "doc lai" || q == "noi lai" || q == "nghe lai" || q == "lap lai" || q == "nhac lai") return true
+        return containsAny(q, REPEAT_DRILL_SENTENCE_PHRASES)
+    }
+
+    /**
      * Parses an utterance for a request to replay/restart the current story.
      */
     fun parseReplayStoryCommand(utterance: String): Boolean {
@@ -542,6 +553,17 @@ object VoiceCommandParser {
         "qua cau khac", "sang cau khac", "chuyen cau khac", "doc cau khac", "luyen cau khac"
     )
 
+    private val REPEAT_DRILL_SENTENCE_PHRASES = listOf(
+        "repeat sentence", "repeat this sentence", "repeat that", "repeat it", "repeat please",
+        "say again", "say that again", "say it again", "can you repeat", "could you repeat",
+        "read again", "read this sentence again", "one more time", "once more", "play again",
+        "doc lai", "doc lai cau nay", "doc lai cau", "doc lai giup toi", "doc lai di",
+        "noi lai", "noi lai cau nay", "noi lai cau", "noi lai giup toi", "noi lai di",
+        "nghe lai", "nghe lai cau nay", "nghe lai cau", "cho nghe lai", "cho nghe lai cau nay",
+        "lap lai cau nay", "lap lai cau", "nhac lai cau nay", "nhac lai cau", "lap lai giup toi", "nhac lai giup toi",
+        "doc cham lai", "noi cham lai", "phat am lai", "phat am lai cau nay"
+    )
+
     private val AUTO_PRONUNCIATION_PHRASES = listOf(
         "cham theo cap do", "cham theo trinh do", "cham tu dong", "do khat khe tu dong", "tu dong theo cap do",
         "tu dong theo trinh do", "cham theo level", "cham theo trinh do hoc vien", "cham theo cap do hoc vien",
@@ -725,5 +747,44 @@ object VoiceCommandParser {
         return needles.any { needle ->
             padded.contains(" $needle ")
         }
+    }
+
+    /**
+     * Parses commands requesting to enable or disable auto-pausing when the app loses focus or screen turns off.
+     * Returns true to enable, false to disable, or null if no command was recognized.
+     */
+    fun parseAutoPauseWhenUnfocusedCommand(text: String): Boolean? {
+        val q = TopicManager.normalize(text)
+
+        // Disable phrases first
+        val disablePhrases = listOf(
+            "tat tu dong tam dung", "tat tam dung khi tat man hinh", "khong tam dung khi tat man hinh",
+            "dung tam dung khi tat man hinh", "tat tam dung khi roi app", "dung tam dung khi roi app",
+            "khong tam dung khi roi app", "tat tu dong dung", "dung tu dong dung",
+            "tat tu dong pause", "dung tu dong pause", "tat pause khi tat man hinh",
+            "disable auto pause", "turn off auto pause", "stop auto pause",
+            "don't auto pause", "dont auto pause", "do not auto pause",
+            "don't pause when screen off", "dont pause when screen off", "do not pause when screen off",
+            "don't pause when screen locked", "dont pause when screen locked", "do not pause when screen locked",
+            "don't pause when leaving app", "dont pause when leaving app", "do not pause when leaving app",
+            "keep playing in background", "continue in background"
+        ).map { TopicManager.normalize(it) }
+        if (disablePhrases.any { q.contains(it) }) return false
+
+        // Enable phrases
+        val enablePhrases = listOf(
+            "bat tu dong tam dung", "tu dong tam dung khi tat man hinh", "tam dung khi tat man hinh",
+            "tam dung khi khoa man hinh", "tu dong tam dung khi khoa man hinh", "tu dong dung khi tat man hinh",
+            "tu dong tam dung khi roi app", "tam dung khi roi app", "tam dung khi thoat app",
+            "tam dung khi chuyen app", "tu dong dung khi thoat app", "tu dong pause khi tat man hinh",
+            "tu dong pause khi roi app", "bat tu dong dung", "bat tu dong pause", "tu dong tam dung",
+            "enable auto pause", "turn on auto pause", "auto pause on screen off",
+            "pause when screen off", "pause when screen is off", "pause on screen off",
+            "pause when screen locked", "pause when leaving app", "auto pause when leaving app",
+            "pause when app unfocused", "auto pause when unfocused", "auto pause"
+        ).map { TopicManager.normalize(it) }
+        if (enablePhrases.any { q.contains(it) }) return true
+
+        return null
     }
 }

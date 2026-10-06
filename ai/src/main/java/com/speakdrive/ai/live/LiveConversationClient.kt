@@ -65,7 +65,7 @@ data class LiveToolParam(
 data class LiveToolCall(
     val name: String,
     val args: Map<String, Any?>,
-    val learnerUtterance: String,
+    val learnerUtterance: String = "",
     val learnerAudio: ByteArray = ByteArray(0)
 )
 

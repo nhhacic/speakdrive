@@ -72,6 +72,8 @@
     <string name="convo_barge_in_inactive">Unterbrechen: Aus</string>
     <string name="convo_barge_in_on_toast">KI-Unterbrechung aktiviert (Kopfhörer empfohlen)</string>
     <string name="convo_barge_in_off_toast">KI-Unterbrechung deaktiviert</string>
+    <string name="convo_btn_repeat">Wiederholen</string>
+    <string name="convo_btn_next">Weiter</string>
 
     <!-- Vocabulary & Progress -->
     <string name="vocab_title">Wortschatz-Notizbuch</string>

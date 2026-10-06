@@ -177,6 +177,24 @@ class ConversationEngineTest {
     }
 
     @Test
+    fun `new repeat-after-me sentence replaces pinned card even when user transcript arrives after grading`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+        val config = live.connects.single()
+        say(Speaker.AI, "Repeat after me: To be honest, that makes sense.")
+        config.toolHandler!!.handle(
+            LiveToolCall(
+                PronunciationDrill.CHECK_ATTEMPT_FUNCTION,
+                mapOf("target_sentence" to "To be honest, that makes sense.", "verdict" to "correct"),
+                learnerUtterance = "To be honest that makes sense"
+            )
+        )
+        say(Speaker.USER, "To be honest, that makes sense.") // late transcript
+        say(Speaker.AI, "Correct. Repeat after me: That rings a bell to me.")
+        assertThat(engine.drillTarget.value).isEqualTo("That rings a bell to me.")
+    }
+
+    @Test
     fun `drill target sentence remains strictly unchanged during AI pronunciation feedback until next sentence is delivered`(): TestResult = engineTest {
         val engine = createEngine()
         engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
@@ -1207,6 +1225,185 @@ class ConversationEngineTest {
         engine.pause()
         runCurrent()
         assertThat(engine.isAiThinking.value).isFalse()
+    }
+
+    @Test
+    fun `repeat in REPEAT_AFTER_ME mode announces and instructs AI to repeat current drill sentence`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.REPEAT_AFTER_ME))
+        say(Speaker.AI, "Repeat after me: I would like a cup of coffee.")
+        runCurrent()
+        assertThat(engine.drillTarget.value).isEqualTo("I would like a cup of coffee.")
+
+        engine.repeat()
+        runCurrent()
+        assertThat(announcer.announcements.last()).contains("Đọc lại câu")
+        assertThat(live.sentTexts.last()).contains("Repeat after me: I would like a cup of coffee.")
+    }
+
+    @Test
+    fun `next in REPEAT_AFTER_ME mode clears target and requests next sentence`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.REPEAT_AFTER_ME))
+        say(Speaker.AI, "Repeat after me: I would like a cup of coffee.")
+        runCurrent()
+        assertThat(engine.drillTarget.value).isEqualTo("I would like a cup of coffee.")
+
+        engine.next()
+        runCurrent()
+        assertThat(engine.drillTarget.value).isNull()
+        assertThat(announcer.announcements.last()).contains("Chuyển câu tiếp theo")
+        assertThat(live.sentTexts.last()).contains("The learner skipped to the next sentence")
+    }
+
+    @Test
+    fun `fallback voice command triggers repeat and skip in REPEAT_AFTER_ME`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.REPEAT_AFTER_ME))
+        say(Speaker.AI, "Repeat after me: Where is the nearest station?")
+        runCurrent()
+
+        // User says "đọc lại câu này"
+        say(Speaker.USER, "đọc lại câu này")
+        runCurrent()
+        assertThat(announcer.announcements.last()).contains("Đọc lại câu")
+        assertThat(live.sentTexts.last()).contains("Repeat after me: Where is the nearest station?")
+
+        // User says "câu tiếp theo"
+        say(Speaker.USER, "câu tiếp theo")
+        runCurrent()
+        assertThat(engine.drillTarget.value).isNull()
+        assertThat(live.sentTexts.last()).contains("The learner skipped to the next sentence")
+    }
+
+    @Test
+    fun `handle repeat_drill_sentence live tool call returns repeat instruction`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.REPEAT_AFTER_ME))
+        say(Speaker.AI, "Repeat after me: Keep your hands on the wheel.")
+        runCurrent()
+
+        val config = live.connects.single()
+        val result = config.toolHandler!!.handle(
+            LiveToolCall(
+                VoiceSettingsTools.REPEAT_DRILL_SENTENCE_FUNCTION,
+                emptyMap(),
+                learnerUtterance = ""
+            )
+        )
+        assertThat(result["status"]).isEqualTo("success")
+        assertThat(result["instruction"].toString()).contains("Repeat after me: Keep your hands on the wheel.")
+        assertThat(announcer.announcements.last()).contains("Đọc lại câu")
+    }
+
+    @Test
+    fun `when app loses focus and not connected to car, active lesson auto-pauses`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+
+        engine.setAppFocused(false)
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+    }
+
+    @Test
+    fun `when screen turns off and not connected to car, active lesson auto-pauses`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+
+        engine.setScreenOn(false)
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+    }
+
+    @Test
+    fun `when connected to Android Auto, losing app focus or screen off does not pause`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.setCarConnected(true)
+        engine.start(LessonRequest(topicId = "travel"))
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+
+        engine.setAppFocused(false)
+        engine.setScreenOn(false)
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `when autoPauseWhenUnfocused is disabled, losing focus does not pause`(): TestResult = engineTest {
+        settings.setAutoPauseWhenUnfocused(false)
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+
+        engine.setAppFocused(false)
+        engine.setScreenOn(false)
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `disconnecting from car while phone screen is off pauses active lesson`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.setCarConnected(true)
+        engine.setScreenOn(false)
+        engine.setAppFocused(false)
+        engine.start(LessonRequest(topicId = "travel"))
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+
+        engine.setCarConnected(false)
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+    }
+
+    @Test
+    fun `voice setting tool set_auto_pause_when_unfocused updates settings and announces confirmation`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        val config = live.connects.single()
+
+        val resultDisable = config.toolHandler!!.handle(
+            LiveToolCall(
+                VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION,
+                mapOf("enabled" to false),
+                learnerUtterance = ""
+            )
+        )
+        assertThat(resultDisable["status"]).isEqualTo("success")
+        assertThat(resultDisable["auto_pause_when_unfocused"]).isEqualTo(false)
+        assertThat(announcer.announcements.last()).contains("Đã tắt tự động tạm dừng")
+
+        val resultEnable = config.toolHandler!!.handle(
+            LiveToolCall(
+                VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION,
+                mapOf("enabled" to true),
+                learnerUtterance = ""
+            )
+        )
+        assertThat(resultEnable["status"]).isEqualTo("success")
+        assertThat(resultEnable["auto_pause_when_unfocused"]).isEqualTo(true)
+        assertThat(announcer.announcements.last()).contains("Đã bật tự động tạm dừng")
+    }
+
+    @Test
+    fun `fallback voice command enables and disables auto pause`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+
+        say(Speaker.USER, "tắt tự động tạm dừng khi tắt màn hình")
+        runCurrent()
+        assertThat(announcer.announcements.last()).contains("Đã tắt tự động tạm dừng")
+
+        say(Speaker.USER, "bật tự động tạm dừng khi rời app")
+        runCurrent()
+        assertThat(announcer.announcements.last()).contains("Đã bật tự động tạm dừng")
     }
 }
 

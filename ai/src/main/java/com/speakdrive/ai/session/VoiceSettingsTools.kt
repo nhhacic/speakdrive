@@ -30,11 +30,27 @@ object VoiceSettingsTools {
     const val REPLAY_STORY_FUNCTION = "replay_story"
     const val RESUME_STORY_FUNCTION = "resume_story"
     const val SKIP_DRILL_SENTENCE_FUNCTION = "skip_drill_sentence"
+    const val REPEAT_DRILL_SENTENCE_FUNCTION = "repeat_drill_sentence"
     const val APPLY_LEVEL_RECOMMENDATION_FUNCTION = "apply_level_recommendation"
     const val SET_ADAPTIVE_LEVEL_FUNCTION = "set_adaptive_level"
     const val SET_DRILL_SENTENCE_LENGTH_FUNCTION = "set_drill_sentence_length"
     const val SET_DRILL_CATEGORY_FUNCTION = "set_drill_category"
     const val SET_AI_VOLUME_FUNCTION = "set_ai_volume"
+    const val SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION = "set_auto_pause_when_unfocused"
+
+    val setAutoPauseWhenUnfocusedTool = LiveTool(
+        name = SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION,
+        description = "Enables or disables auto-pausing the lesson when the app loses focus or screen turns off (outside Android Auto) when requested by the learner in Vietnamese or English " +
+            "(e.g. \"bật tự động tạm dừng khi tắt màn hình\", \"tự động tạm dừng khi rời app\", \"tắt tạm dừng khi tắt màn hình\", \"đừng tạm dừng khi thoát app\", \"bật tự động dừng\", \"tắt tự động pause\", " +
+            "\"enable auto pause\", \"turn on auto pause\", \"pause when leaving app\", \"pause on screen off\", \"disable auto pause\", \"turn off auto pause\", \"don't pause when screen off\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "enabled",
+                type = LiveToolParam.Type.BOOLEAN,
+                description = "True to auto-pause when leaving the app or turning off screen outside Android Auto; false to keep playing in the background."
+            )
+        )
+    )
 
     val setAiVolumeTool = LiveTool(
         name = SET_AI_VOLUME_FUNCTION,
@@ -295,6 +311,13 @@ object VoiceSettingsTools {
         )
     )
 
+    val repeatDrillSentenceTool = LiveTool(
+        name = REPEAT_DRILL_SENTENCE_FUNCTION,
+        description = "Repeats or replays the current pronunciation/shadowing sentence clearly when requested by the learner in Vietnamese or English " +
+            "(e.g. \"repeat\", \"đọc lại\", \"nói lại\", \"nghe lại\", \"lặp lại câu này\", \"say again\", \"can you repeat\", \"one more time\", \"repeat sentence\").",
+        parameters = emptyList()
+    )
+
     val allTools: List<LiveTool> = listOf(
         setDifficultyLevelTool,
         setVietnameseHelpTool,
@@ -310,12 +333,32 @@ object VoiceSettingsTools {
         replayStoryTool,
         resumeStoryTool,
         skipDrillSentenceTool,
+        repeatDrillSentenceTool,
         applyLevelRecommendationTool,
         setAdaptiveLevelTool,
         setDrillSentenceLengthTool,
         setDrillCategoryTool,
-        setAiVolumeTool
+        setAiVolumeTool,
+        setAutoPauseWhenUnfocusedTool
     )
+
+    /**
+     * Resolves an auto-pause when unfocused/screen off toggle argument from Gemini Live tool calls or transcripts.
+     */
+    fun parseAutoPauseWhenUnfocused(value: Any?): Boolean? = when (value) {
+        is Boolean -> value
+        is String -> {
+            val normalized = TopicManager.normalize(value.trim())
+            when {
+                normalized.contains("false") || normalized.contains("tat") || normalized.contains("disable") ||
+                    normalized.contains("off") || normalized.contains("khong") || normalized.contains("dung") -> false
+                normalized.contains("true") || normalized.contains("bat") || normalized.contains("enable") ||
+                    normalized.contains("on") || normalized.contains("co") -> true
+                else -> null
+            }
+        }
+        else -> null
+    }
 
     /**
      * Resolves a volume argument from Gemini or text commands.

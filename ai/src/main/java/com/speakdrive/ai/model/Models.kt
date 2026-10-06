@@ -551,7 +551,9 @@ data class LearnerSettings(
     val drillSentenceLength: DrillSentenceLength = DrillSentenceLength.AUTO_ON_CAR,
     val drillCategory: DrillCategory = DrillCategory.ALL,
     /** Output volume percentage for AI speech, from 10 to 100. Default is comfortable 80. */
-    val aiVolume: Int = 80
+    val aiVolume: Int = 80,
+    /** Automatically pause practice when app loses focus or screen turns off (outside Android Auto). Default is true. */
+    val autoPauseWhenUnfocused: Boolean = true
 )
 
 /** App interface language option for multilingual support. */

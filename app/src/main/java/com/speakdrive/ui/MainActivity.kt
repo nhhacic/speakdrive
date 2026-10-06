@@ -48,6 +48,11 @@ import com.speakdrive.ui.screens.SettingsScreen
 import com.speakdrive.ui.screens.SummaryScreen
 import com.speakdrive.ui.screens.VocabularyScreen
 import com.speakdrive.ui.theme.SpeakDriveTheme
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.PowerManager
+import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
 import android.content.Context
 import android.media.AudioManager
@@ -68,10 +73,27 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var engine: ConversationEngine
 
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> engine.setScreenOn(false)
+                Intent.ACTION_SCREEN_ON -> engine.setScreenOn(true)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyInitialLocale()
         enableEdgeToEdge()
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        engine.setScreenOn(powerManager?.isInteractive ?: true)
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
+        ContextCompat.registerReceiver(this, screenReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -134,6 +156,32 @@ class MainActivity : ComponentActivity() {
                 applicationContext.resources.updateConfiguration(config, applicationContext.resources.displayMetrics)
             }
         } catch (_: Exception) {}
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!isChangingConfigurations) {
+            engine.setAppFocused(hasFocus)
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (!isChangingConfigurations && hasWindowFocus()) {
+            engine.setAppFocused(true)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) {
+            engine.setAppFocused(false)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        runCatching { unregisterReceiver(screenReceiver) }
     }
 }
 

@@ -112,7 +112,8 @@ fun SettingsScreen(
         onSetAdaptiveLevelRecommendation = viewModel::setAdaptiveLevelRecommendation,
         onSetDrillSentenceLength = viewModel::setDrillSentenceLength,
         onSetDrillCategory = viewModel::setDrillCategory,
-        onSetAiVolume = viewModel::setAiVolume
+        onSetAiVolume = viewModel::setAiVolume,
+        onSetAutoPauseWhenUnfocused = viewModel::setAutoPauseWhenUnfocused
     )
 }
 
@@ -143,7 +144,8 @@ fun SettingsContent(
     onTestAzure: () -> Unit = {},
     onSaveAndTestAzure: (String, String) -> Unit = { _, _ -> },
     onSetDailyGoal: (Int) -> Unit = {},
-    onSetAiVolume: (Int) -> Unit = {}
+    onSetAiVolume: (Int) -> Unit = {},
+    onSetAutoPauseWhenUnfocused: (Boolean) -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -504,6 +506,31 @@ fun SettingsContent(
                     prefs.learner.drillCategory.getDescription(isVi) + "\n" + stringResource(R.string.settings_drill_category_voice_tip),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            stringResource(R.string.settings_auto_pause_unfocused),
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            stringResource(R.string.settings_auto_pause_unfocused_desc) + "\n" + stringResource(R.string.settings_auto_pause_unfocused_voice_tip),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = prefs.learner.autoPauseWhenUnfocused,
+                            onCheckedChange = onSetAutoPauseWhenUnfocused
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
             }
 

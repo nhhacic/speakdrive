@@ -633,8 +633,43 @@ class ScreensTest {
             }
         }
 
-        compose.onNodeWithText("Ngắt lời: Tắt").assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription("Ngắt lời: Tắt").assertIsDisplayed().performClick()
         assertThat(bargeInToggled).isTrue()
+    }
+
+    @Test
+    fun `conversation screen displays and triggers next and repeat buttons`() {
+        var repeatClicked = false
+        var nextClicked = false
+        val lesson = ActiveLesson("s", topics.getTopicById("work")!!, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0, emptyList())
+        compose.setContent {
+            SpeakDriveTheme {
+                ConversationContent(
+                    state = ConversationUiState(
+                        lesson = lesson,
+                        state = ConversationState.ACTIVE,
+                        isBargeInEnabled = false,
+                        micState = MicState.LISTENING
+                    ),
+                    permissionDenied = false,
+                    onBack = {},
+                    onEnd = {},
+                    onToggle = {},
+                    onRetry = {},
+                    onRepeat = { repeatClicked = true },
+                    onNext = { nextClicked = true },
+                    onToggleBargeIn = {},
+                    onRequestPermission = {},
+                    onOpenAppSettings = {}
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Lặp lại").assertIsDisplayed().performClick()
+        assertThat(repeatClicked).isTrue()
+
+        compose.onNodeWithContentDescription("Tiếp theo").assertIsDisplayed().performClick()
+        assertThat(nextClicked).isTrue()
     }
 }
 

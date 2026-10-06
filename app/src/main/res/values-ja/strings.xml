@@ -72,6 +72,8 @@
     <string name="convo_barge_in_inactive">割り込み: オフ</string>
     <string name="convo_barge_in_on_toast">AIへの割り込みを有効にしました（イヤホン推奨）</string>
     <string name="convo_barge_in_off_toast">AIへの割り込みを無効にしました</string>
+    <string name="convo_btn_repeat">リピート</string>
+    <string name="convo_btn_next">次へ</string>
 
     <!-- Vocabulary & Progress -->
     <string name="vocab_title">単語帳</string>

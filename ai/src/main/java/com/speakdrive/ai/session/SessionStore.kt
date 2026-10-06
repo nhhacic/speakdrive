@@ -57,5 +57,6 @@ interface LearningSettings {
     suspend fun setDrillSentenceLength(length: com.speakdrive.ai.model.DrillSentenceLength) {}
     suspend fun setDrillCategory(category: com.speakdrive.ai.model.DrillCategory) {}
     suspend fun setAiVolume(volume: Int) {}
+    suspend fun setAutoPauseWhenUnfocused(enabled: Boolean) {}
 }
 

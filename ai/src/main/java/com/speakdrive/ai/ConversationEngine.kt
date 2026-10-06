@@ -155,10 +155,56 @@ open class ConversationEngine @Inject constructor(
     private val _isCarConnected = MutableStateFlow(false)
     open val isCarConnected: StateFlow<Boolean> = _isCarConnected.asStateFlow()
 
+    /** Whether the app is currently in foreground/focus on the phone. */
+    private val _isAppFocused = MutableStateFlow(true)
+    open val isAppFocused: StateFlow<Boolean> = _isAppFocused.asStateFlow()
+
+    /** Whether the phone screen is currently turned on. */
+    private val _isScreenOn = MutableStateFlow(true)
+    open val isScreenOn: StateFlow<Boolean> = _isScreenOn.asStateFlow()
+
+    open fun setAppFocused(focused: Boolean) {
+        if (_isAppFocused.value != focused) {
+            Log.i(TAG, "App focus changed: $focused")
+            _isAppFocused.value = focused
+            if (!focused) {
+                checkAutoPause()
+            }
+        }
+    }
+
+    open fun setScreenOn(screenOn: Boolean) {
+        if (_isScreenOn.value != screenOn) {
+            Log.i(TAG, "Screen on state changed: $screenOn")
+            _isScreenOn.value = screenOn
+            if (!screenOn) {
+                checkAutoPause()
+            }
+        }
+    }
+
+    internal fun checkAutoPause() {
+        if (!learnerSettings.autoPauseWhenUnfocused) return
+        if (_isCarConnected.value) return
+        if (_state.value != ConversationState.ACTIVE) return
+
+        if (!_isAppFocused.value || !_isScreenOn.value) {
+            Log.i(TAG, "Auto-pausing lesson: appFocused=${_isAppFocused.value}, screenOn=${_isScreenOn.value}, carConnected=${_isCarConnected.value}")
+            pauseAsync()
+        }
+    }
+
+    open fun pauseAsync() {
+        scope.launch { pause() }
+    }
+
     open fun setCarConnected(connected: Boolean) {
         if (_isCarConnected.value != connected) {
             Log.i(TAG, "Car connection status changed: $connected")
             _isCarConnected.value = connected
+            if (!connected) {
+                checkAutoPause()
+            }
             if (_state.value == ConversationState.ACTIVE && _lesson.value?.mode == SessionMode.REPEAT_AFTER_ME) {
                 scope.launch {
                     runCatching {
@@ -431,11 +477,13 @@ open class ConversationEngine @Inject constructor(
         VoiceSettingsTools.REPLAY_STORY_FUNCTION -> handleReplayStoryTool(call)
         VoiceSettingsTools.RESUME_STORY_FUNCTION -> handleResumeStoryTool(call)
         VoiceSettingsTools.SKIP_DRILL_SENTENCE_FUNCTION -> handleSkipDrillSentence(call)
+        VoiceSettingsTools.REPEAT_DRILL_SENTENCE_FUNCTION -> handleRepeatDrillSentence(call)
         VoiceSettingsTools.APPLY_LEVEL_RECOMMENDATION_FUNCTION -> handleApplyLevelRecommendation(call)
         VoiceSettingsTools.SET_ADAPTIVE_LEVEL_FUNCTION -> handleSetAdaptiveLevel(call)
         VoiceSettingsTools.SET_DRILL_SENTENCE_LENGTH_FUNCTION -> handleSetDrillSentenceLength(call)
         VoiceSettingsTools.SET_DRILL_CATEGORY_FUNCTION -> handleSetDrillCategory(call)
         VoiceSettingsTools.SET_AI_VOLUME_FUNCTION -> handleSetAiVolume(call)
+        VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION -> handleSetAutoPauseWhenUnfocused(call)
         PronunciationDrill.CHECK_ATTEMPT_FUNCTION -> gradeAttempt(call)
         else -> mapOf("status" to "unknown function")
     }
@@ -597,6 +645,37 @@ open class ConversationEngine @Inject constructor(
             "status" to "success",
             "new_volume" to clamped,
             "instruction" to "AI voice volume set to $clamped%. Confirm warmly in one short sentence to the learner, then naturally continue the conversation."
+        )
+    }
+
+    private fun handleSetAutoPauseWhenUnfocused(call: LiveToolCall): Map<String, Any> {
+        val enabledArg = call.args["enabled"]
+        val parsed = VoiceSettingsTools.parseAutoPauseWhenUnfocused(enabledArg) ?: true
+        return applyAutoPauseWhenUnfocusedChange(parsed)
+    }
+
+    internal fun applyAutoPauseWhenUnfocusedChange(enabled: Boolean): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(autoPauseWhenUnfocused = enabled)
+        scope.launch { settings.setAutoPauseWhenUnfocused(enabled) }
+
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val confirmation = if (isVi) {
+            if (enabled) "Đã bật tự động tạm dừng khi rời ứng dụng hoặc tắt màn hình."
+            else "Đã tắt tự động tạm dừng khi rời ứng dụng hoặc tắt màn hình."
+        } else {
+            if (enabled) "Auto-pause when leaving app or turning screen off enabled."
+            else "Auto-pause when leaving app or turning screen off disabled."
+        }
+        announcer.announce(confirmation)
+
+        if (enabled) {
+            checkAutoPause()
+        }
+
+        return mapOf(
+            "status" to "success",
+            "auto_pause_when_unfocused" to enabled,
+            "instruction" to "Auto-pause when app is unfocused or screen off set to $enabled. Confirm warmly in one short sentence to the learner, then naturally continue the conversation."
         )
     }
 
@@ -991,6 +1070,102 @@ open class ConversationEngine @Inject constructor(
         )
     }
 
+    private fun handleRepeatDrillSentence(call: LiveToolCall): Map<String, Any> {
+        Log.i(TAG, "Live tool repeat_drill_sentence invoked")
+        announcer.announce("Đọc lại câu")
+        val target = _drillTarget.value
+        val instruction = if (target.isNullOrBlank()) {
+            "The learner requested to hear the sentence again. Please repeat the sentence clearly and slowly. " +
+                "You MUST start with: \"Repeat after me: <sentence>\"."
+        } else {
+            "The learner requested to hear the target sentence again. " +
+                "Say clearly: \"Repeat after me: $target\"."
+        }
+        return mapOf(
+            "status" to "success",
+            "instruction" to instruction
+        )
+    }
+
+    /**
+     * Advances to the next item in the lesson:
+     * - In STORY_LISTENING: skips to the next story.
+     * - In REPEAT_AFTER_ME: skips to the next practice sentence.
+     * - In other modes: prompts the AI to move to the next question or topic.
+     */
+    fun next(): Boolean {
+        val currentLesson = _lesson.value ?: return false
+        return when (currentLesson.mode) {
+            SessionMode.STORY_LISTENING -> nextStory()
+            SessionMode.REPEAT_AFTER_ME -> {
+                skipDrillSentence()
+                val topic = currentLesson.topic.titleEn
+                scope.launch {
+                    runCatching {
+                        liveClient.sendText(
+                            "System: The learner skipped to the next sentence. " +
+                                "Confirm in one short phrase, then give a new sentence related to $topic immediately. " +
+                                "You MUST ALWAYS start the new sentence with: \"Repeat after me: <sentence>\"."
+                        )
+                    }.onFailure { Log.w(TAG, "Could not send skip drill sentence to Live client", it) }
+                }
+                true
+            }
+            else -> {
+                scope.launch {
+                    runCatching {
+                        liveClient.sendText(
+                            "System: The learner clicked 'Next'. Wrap up this thought and move on to the next question or topic."
+                        )
+                    }.onFailure { Log.w(TAG, "Could not send next command to Live client", it) }
+                }
+                true
+            }
+        }
+    }
+
+    /**
+     * Repeats the current item in the lesson:
+     * - In STORY_LISTENING: replays the story from the beginning.
+     * - In REPEAT_AFTER_ME: repeats the current drill target sentence clearly.
+     * - In other modes: asks AI to repeat what it just said.
+     */
+    fun repeat(): Boolean {
+        val currentLesson = _lesson.value ?: return false
+        return when (currentLesson.mode) {
+            SessionMode.STORY_LISTENING -> replayStory()
+            SessionMode.REPEAT_AFTER_ME -> {
+                val target = _drillTarget.value
+                announcer.announce("Đọc lại câu")
+                scope.launch {
+                    runCatching {
+                        if (target.isNullOrBlank()) {
+                            liveClient.sendText(
+                                "System: The learner wants to hear the sentence again. Please repeat the sentence clearly and slowly. " +
+                                    "You MUST start with: \"Repeat after me: <sentence>\"."
+                            )
+                        } else {
+                            liveClient.sendText(
+                                "System: The learner wants to hear the sentence again. Say clearly: \"Repeat after me: $target\"."
+                            )
+                        }
+                    }.onFailure { Log.w(TAG, "Could not send repeat command to Live client", it) }
+                }
+                true
+            }
+            else -> {
+                scope.launch {
+                    runCatching {
+                        liveClient.sendText(
+                            "System: The learner asked you to repeat what you just said. Please repeat your last sentence clearly."
+                        )
+                    }.onFailure { Log.w(TAG, "Could not send repeat command to Live client", it) }
+                }
+                true
+            }
+        }
+    }
+
     /**
      * Skips the current sentence in the pronunciation drill and clears the displayed target
      * until the AI delivers the next sentence.
@@ -1034,7 +1209,10 @@ open class ConversationEngine @Inject constructor(
         if (attempt.heard.isNotBlank()) _pronunciationAttempts.value = _pronunciationAttempts.value + attempt
         val isDoneWithSentence = attempt.passed || attemptNumber >= PronunciationGrader.MAX_ATTEMPTS_PER_SENTENCE
         awaitingNewDrillTarget = isDoneWithSentence
-        _drillTarget.value = target
+        val shown = _drillTarget.value
+        if (shown.isNullOrBlank() || PronunciationDrill.key(shown) == PronunciationDrill.key(target)) {
+            _drillTarget.value = target
+        }
         Log.d(
             TAG,
             "Attempt $attemptNumber at '$target': passed=${attempt.passed} strictness=${learnerSettings.pronunciationStrictness} " +
@@ -1327,7 +1505,11 @@ open class ConversationEngine @Inject constructor(
                         val isExtension = current != null &&
                             newTarget.length > current.length &&
                             newTarget.contains(current.trimEnd('.', '!', '?', ',', ' ', '"', '”'), ignoreCase = true)
-                        if (awaitingNewDrillTarget || current == null || isExtension) {
+                        val norm = { s: String -> PronunciationDrill.key(s) }
+                        val isPartialOfCurrent = current != null &&
+                            norm(current).startsWith(norm(newTarget)) && norm(newTarget) != norm(current)
+                        val explicitCue = turn.text.contains("repeat after me", ignoreCase = true)
+                        if (awaitingNewDrillTarget || current == null || isExtension || (explicitCue && !isPartialOfCurrent)) {
                             _drillTarget.value = newTarget
                         }
                     }
@@ -1590,22 +1772,14 @@ open class ConversationEngine @Inject constructor(
         }
 
         if (_lesson.value?.mode == SessionMode.REPEAT_AFTER_ME) {
+            if (VoiceCommandParser.parseRepeatDrillSentenceCommand(text)) {
+                Log.i(TAG, "Fallback voice command parser detected repeat drill sentence request")
+                repeat()
+                return
+            }
             if (VoiceCommandParser.parseSkipDrillSentenceCommand(text)) {
                 Log.i(TAG, "Fallback voice command parser detected skip drill sentence request")
-                skipDrillSentence()
-                scope.launch {
-                    val topic = _lesson.value?.topic?.titleEn ?: "daily situations"
-                    val sent = runCatching {
-                        liveClient.sendText(
-                            "System: The learner requested to skip to the next sentence. " +
-                                "Confirm in one short phrase, then give a new sentence related to $topic immediately. " +
-                                "You MUST ALWAYS start the new sentence with: \"Repeat after me: <sentence>\"."
-                        )
-                    }
-                    if (sent.isFailure) {
-                        Log.w(TAG, "Could not send skip drill sentence instruction to Live client", sent.exceptionOrNull())
-                    }
-                }
+                next()
                 return
             }
         }
@@ -1666,6 +1840,13 @@ open class ConversationEngine @Inject constructor(
         if (volumeCmd != null && learnerSettings.aiVolume != volumeCmd) {
             Log.i(TAG, "Fallback voice command parser detected volume change: $volumeCmd")
             applyAiVolume(volumeCmd)
+            return
+        }
+
+        val autoPauseCmd = VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand(text)
+        if (autoPauseCmd != null && learnerSettings.autoPauseWhenUnfocused != autoPauseCmd) {
+            Log.i(TAG, "Fallback voice command parser detected auto pause toggle: $autoPauseCmd")
+            applyAutoPauseWhenUnfocusedChange(autoPauseCmd)
             return
         }
     }

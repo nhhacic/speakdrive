@@ -72,6 +72,8 @@
     <string name="convo_barge_in_inactive">打断AI: 关闭</string>
     <string name="convo_barge_in_on_toast">已开启打断AI模式（推荐佩戴耳机）</string>
     <string name="convo_barge_in_off_toast">已关闭打断AI模式</string>
+    <string name="convo_btn_repeat">重复</string>
+    <string name="convo_btn_next">下一项</string>
 
     <!-- Vocabulary & Progress -->
     <string name="vocab_title">生词本</string>

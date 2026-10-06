@@ -29,12 +29,40 @@ class VoiceSettingsToolsTest {
             VoiceSettingsTools.REPLAY_STORY_FUNCTION,
             VoiceSettingsTools.RESUME_STORY_FUNCTION,
             VoiceSettingsTools.SKIP_DRILL_SENTENCE_FUNCTION,
+            VoiceSettingsTools.REPEAT_DRILL_SENTENCE_FUNCTION,
             VoiceSettingsTools.APPLY_LEVEL_RECOMMENDATION_FUNCTION,
             VoiceSettingsTools.SET_ADAPTIVE_LEVEL_FUNCTION,
             VoiceSettingsTools.SET_DRILL_SENTENCE_LENGTH_FUNCTION,
             VoiceSettingsTools.SET_DRILL_CATEGORY_FUNCTION,
-            VoiceSettingsTools.SET_AI_VOLUME_FUNCTION
+            VoiceSettingsTools.SET_AI_VOLUME_FUNCTION,
+            VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION
         )
+    }
+
+    @Test
+    fun `parseAutoPauseWhenUnfocused resolves boolean and string inputs`() {
+        // Boolean inputs
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused(true)).isTrue()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused(false)).isFalse()
+
+        // String inputs - True
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("true")).isTrue()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("enable")).isTrue()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("bật")).isTrue()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("on")).isTrue()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("có")).isTrue()
+
+        // String inputs - False
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("false")).isFalse()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("disable")).isFalse()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("tắt")).isFalse()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("off")).isFalse()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("không")).isFalse()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("đừng")).isFalse()
+
+        // Null / Unknown
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused(null)).isNull()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("xyz")).isNull()
     }
 
     @Test
@@ -236,6 +264,13 @@ class VoiceSettingsToolsTest {
         val tool = VoiceSettingsTools.skipDrillSentenceTool
         assertThat(tool.name).isEqualTo(VoiceSettingsTools.SKIP_DRILL_SENTENCE_FUNCTION)
         assertThat(tool.description).contains("skip")
+    }
+
+    @Test
+    fun `repeatDrillSentenceTool is registered with correct name and description`() {
+        val tool = VoiceSettingsTools.repeatDrillSentenceTool
+        assertThat(tool.name).isEqualTo(VoiceSettingsTools.REPEAT_DRILL_SENTENCE_FUNCTION)
+        assertThat(tool.description).contains("repeat")
     }
 
     @Test

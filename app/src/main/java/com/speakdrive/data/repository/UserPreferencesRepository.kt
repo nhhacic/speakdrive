@@ -128,7 +128,8 @@ class UserPreferencesRepository @Inject constructor(
                 adaptiveLevelRecommendation = prefs[ADAPTIVE_LEVEL_RECOMMENDATION] ?: true,
                 drillSentenceLength = DrillSentenceLength.fromStored(prefs[DRILL_SENTENCE_LENGTH]),
                 drillCategory = DrillCategory.fromStored(prefs[DRILL_CATEGORY]),
-                aiVolume = (prefs[AI_VOLUME] ?: 80).coerceIn(10, 100)
+                aiVolume = (prefs[AI_VOLUME] ?: 80).coerceIn(10, 100),
+                autoPauseWhenUnfocused = prefs[AUTO_PAUSE_WHEN_UNFOCUSED] ?: true
             ),
             dailyGoalMinutes = prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL,
             onboardingCompleted = prefs[ONBOARDING_COMPLETED] ?: false,
@@ -239,6 +240,10 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[AI_VOLUME] = clamped }
     }
 
+    override suspend fun setAutoPauseWhenUnfocused(enabled: Boolean) {
+        dataStore.edit { it[AUTO_PAUSE_WHEN_UNFOCUSED] = enabled }
+    }
+
     private companion object {
         val DIFFICULTY_LEVEL = stringPreferencesKey("difficulty_level")
         val VOICE_ID = stringPreferencesKey("voice_id")
@@ -262,5 +267,6 @@ class UserPreferencesRepository @Inject constructor(
         val DRILL_SENTENCE_LENGTH = stringPreferencesKey("drill_sentence_length")
         val DRILL_CATEGORY = stringPreferencesKey("drill_category")
         val AI_VOLUME = intPreferencesKey("ai_volume")
+        val AUTO_PAUSE_WHEN_UNFOCUSED = booleanPreferencesKey("auto_pause_when_unfocused")
     }
 }

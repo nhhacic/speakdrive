@@ -72,6 +72,8 @@
     <string name="convo_barge_in_inactive">Interruption : Désactivée</string>
     <string name="convo_barge_in_on_toast">Interruption de l\'IA activée (écouteurs recommandés)</string>
     <string name="convo_barge_in_off_toast">Interruption de l\'IA désactivée</string>
+    <string name="convo_btn_repeat">Répéter</string>
+    <string name="convo_btn_next">Suivant</string>
 
     <!-- Vocabulary & Progress -->
     <string name="vocab_title">Carnet de vocabulaire</string>

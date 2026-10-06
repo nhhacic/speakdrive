@@ -517,6 +517,38 @@ class VoiceCommandParserTest {
     }
 
     @Test
+    fun `parses repeat drill sentence commands in Vietnamese and English`() {
+        // Vietnamese with diacritics
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("đọc lại câu này")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("nói lại câu này")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("cho nghe lại")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("lặp lại")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("nhắc lại câu này")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("đọc lại")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("nói lại")).isTrue()
+
+        // Vietnamese without diacritics
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("doc lai cau nay")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("noi lai cau nay")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("nghe lai")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("lap lai")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("doc lai")).isTrue()
+
+        // English
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("repeat")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("repeat sentence")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("repeat this sentence")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("say again")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("say that again")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("one more time")).isTrue()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("repeat please")).isTrue()
+
+        // Irrelevant phrases
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("I am ready to speak")).isFalse()
+        assertThat(VoiceCommandParser.parseRepeatDrillSentenceCommand("The sentence is very difficult")).isFalse()
+    }
+
+    @Test
     fun `parses apply level recommendation commands in Vietnamese and English`() {
         // Vietnamese with diacritics - Accept
         assertThat(VoiceCommandParser.parseApplyRecommendationCommand("đồng ý tăng cấp độ")).isTrue()
@@ -885,5 +917,42 @@ class VoiceCommandParserTest {
 
         // Non-matching
         assertThat(VoiceCommandParser.parseVolumeCommand("hôm nay trời đẹp quá")).isNull()
+    }
+
+    @Test
+    fun `parseAutoPauseWhenUnfocusedCommand recognizes Vietnamese and English intents`() {
+        // Vietnamese enable
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("bật tự động tạm dừng")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("tự động tạm dừng khi tắt màn hình")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("tạm dừng khi rời app")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("tạm dừng khi khóa màn hình")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("tự động dừng khi thoát app")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("tự động pause khi tắt màn hình")).isTrue()
+
+        // Vietnamese disable
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("tắt tự động tạm dừng")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("tắt tạm dừng khi tắt màn hình")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("không tạm dừng khi tắt màn hình")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("đừng tạm dừng khi rời app")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("tắt tự động pause")).isFalse()
+
+        // English enable
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("enable auto pause")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("turn on auto pause")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("auto pause on screen off")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("pause when screen off")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("pause when leaving app")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("pause when screen locked")).isTrue()
+
+        // English disable
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("disable auto pause")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("turn off auto pause")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("stop auto pause")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("don't pause when screen off")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("keep playing in background")).isFalse()
+
+        // Non-matching
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("hôm nay thời tiết đẹp quá")).isNull()
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("tell me about your day")).isNull()
     }
 }

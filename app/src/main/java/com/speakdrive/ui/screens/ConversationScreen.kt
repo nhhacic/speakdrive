@@ -9,6 +9,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,8 +44,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconToggleButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -50,6 +51,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -120,12 +122,12 @@ fun ConversationScreen(
         }
     }
 
-    val isInLesson = state.state.isInLesson
+    val isPracticing = state.state == ConversationState.ACTIVE
     val isCarConnected = state.isCarConnected
     // Context-aware screen awake behavior:
-    // When connected to Android Auto: let phone screen turn off automatically according to device timeout.
-    // When not connected to Android Auto: keep phone screen awake continuously during practice.
-    val shouldKeepScreenOn = isInLesson && !isCarConnected
+    // When actively speaking outside Android Auto: keep phone screen awake continuously.
+    // When paused, inactive, or on Android Auto: allow screen to turn off normally according to system timeout.
+    val shouldKeepScreenOn = isPracticing && !isCarConnected
 
     val view = LocalView.current
     DisposableEffect(shouldKeepScreenOn) {
@@ -140,6 +142,8 @@ fun ConversationScreen(
         onEnd = viewModel::end,
         onToggle = viewModel::togglePause,
         onRetry = { viewModel.retry(mediaId) },
+        onNext = viewModel::next,
+        onRepeat = viewModel::repeat,
         onNextStory = viewModel::nextStory,
         onReplayStory = viewModel::replayStory,
         onToggleBargeIn = {
@@ -172,8 +176,10 @@ fun ConversationContent(
     onEnd: () -> Unit,
     onToggle: () -> Unit,
     onRetry: () -> Unit,
-    onNextStory: () -> Unit = {},
-    onReplayStory: () -> Unit = {},
+    onRepeat: () -> Unit = {},
+    onNext: () -> Unit = {},
+    onNextStory: () -> Unit = onNext,
+    onReplayStory: () -> Unit = onRepeat,
     onToggleBargeIn: () -> Unit = {},
     onRequestPermission: () -> Unit,
     onOpenAppSettings: () -> Unit,
@@ -350,114 +356,114 @@ fun ConversationContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Glanceable Status Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        rememberStatusText(state.state, state.activeSpeaker, state.lesson, state.isAiThinking),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
                 if (state.state.isInLesson) {
-                    if (lesson?.mode == SessionMode.STORY_LISTENING) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Nút Repeat bên trái (<<)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            OutlinedButton(
-                                onClick = onReplayStory,
-                                shape = RoundedCornerShape(12.dp)
+                            Surface(
+                                onClick = onRepeat,
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                tonalElevation = 2.dp,
+                                modifier = Modifier.size(56.dp)
                             ) {
-                                Icon(Icons.Filled.Replay, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(stringResource(R.string.convo_btn_replay_story), style = MaterialTheme.typography.labelLarge)
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Replay,
+                                        contentDescription = stringResource(R.string.convo_btn_repeat),
+                                        modifier = Modifier.size(28.dp),
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
-                            Button(
-                                onClick = onNextStory,
-                                shape = RoundedCornerShape(12.dp)
+                            Text(
+                                text = stringResource(R.string.convo_btn_repeat),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // Nút Mic ở giữa
+                        VoiceMicButton(state = state.micState, onClick = onToggle)
+
+                        // Nút Next bên phải (>>)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Surface(
+                                onClick = onNext,
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                tonalElevation = 2.dp,
+                                modifier = Modifier.size(56.dp)
                             ) {
-                                Icon(Icons.Filled.SkipNext, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(stringResource(R.string.convo_btn_next_story), style = MaterialTheme.typography.labelLarge)
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Filled.SkipNext,
+                                        contentDescription = stringResource(R.string.convo_btn_next),
+                                        modifier = Modifier.size(30.dp),
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
+                            Text(
+                                text = stringResource(R.string.convo_btn_next),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
-
-                    VoiceMicButton(state = state.micState, onClick = onToggle)
-
-                    FilterChip(
-                        selected = state.isBargeInEnabled,
-                        onClick = onToggleBargeIn,
-                        leadingIcon = {
-                            Icon(
-                                imageVector = if (state.isBargeInEnabled) Icons.Filled.RecordVoiceOver else Icons.Filled.VoiceOverOff,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = stringResource(
-                                    if (state.isBargeInEnabled) R.string.convo_barge_in_active
-                                    else R.string.convo_barge_in_inactive
-                                ),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Medium
-                            )
-                        },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            selectedLeadingIconColor = MaterialTheme.colorScheme.primary
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = state.isBargeInEnabled,
-                            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                            selectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                        )
-                    )
-
-                    val tipText = if (lesson?.mode == SessionMode.STORY_LISTENING) {
-                        stringResource(R.string.convo_tip_story)
-                    } else {
-                        stringResource(R.string.convo_tip_driving)
-                    }
-                    Text(
-                        tipText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
         }
     }
 
     if (showVolumeDialog) {
-        AlertDialog(
-            onDismissRequest = { showVolumeDialog = false },
-            title = {
-                Text(
-                    text = if (isVi) "Âm lượng giọng nói AI" else "AI Voice Volume",
-                    style = MaterialTheme.typography.titleLarge
-                )
-            },
-            text = {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { showVolumeDialog = false }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {} // Consume click inside card so it doesn't dismiss
+                    ),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    Text(
+                        text = if (isVi) "Âm lượng giọng nói AI" else "AI Voice Volume",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -487,50 +493,18 @@ fun ConversationContent(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showVolumeDialog = false }) {
-                    Text(if (isVi) "Đóng" else "Close")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showVolumeDialog = false }) {
+                            Text(if (isVi) "Đóng" else "Close")
+                        }
+                    }
                 }
             }
-        )
-    }
-}
-
-@Composable
-private fun rememberStatusText(
-    state: ConversationState,
-    speaker: Speaker?,
-    lesson: ActiveLesson?,
-    isThinking: Boolean = false
-): String = when (state) {
-    ConversationState.IDLE -> stringResource(R.string.convo_status_idle)
-    ConversationState.CONNECTING -> if (lesson?.mode == SessionMode.STORY_LISTENING) stringResource(R.string.convo_status_selecting_story) else stringResource(R.string.convo_connecting)
-    ConversationState.ACTIVE -> when {
-        isThinking -> if (lesson?.mode == SessionMode.STORY_LISTENING) {
-            stringResource(R.string.convo_status_ai_story_thinking)
-        } else {
-            stringResource(R.string.convo_status_ai_thinking)
-        }
-        speaker == Speaker.AI -> if (lesson?.mode == SessionMode.STORY_LISTENING) {
-            stringResource(R.string.convo_status_ai_storytelling)
-        } else {
-            stringResource(R.string.convo_speaking)
-        }
-        speaker == Speaker.USER -> stringResource(R.string.convo_listening)
-        else -> if (lesson?.mode == SessionMode.STORY_LISTENING) {
-            stringResource(R.string.convo_status_story_hint)
-        } else {
-            stringResource(R.string.convo_status_your_turn)
         }
     }
-    ConversationState.PAUSED -> stringResource(R.string.convo_paused)
-    ConversationState.RECONNECTING -> stringResource(R.string.convo_status_reconnecting)
-    ConversationState.WAITING_FOR_NETWORK -> stringResource(R.string.convo_status_waiting_network)
-    ConversationState.ENDING -> stringResource(R.string.convo_status_ending)
-    ConversationState.ENDED -> stringResource(R.string.convo_status_ended)
-    ConversationState.ERROR -> stringResource(R.string.convo_status_error)
 }
 
 @Composable

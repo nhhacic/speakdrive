@@ -46,6 +46,9 @@
     <string name="settings_auto_start_car">Auto-start on Car Connect</string>
     <string name="settings_auto_start_car_desc">Automatically start practicing when phone connects to Android Auto.</string>
     <string name="settings_screen_awake">Keep Screen Awake During Practice</string>
+    <string name="settings_auto_pause_unfocused">Auto-pause When Leaving App or Screen Off</string>
+    <string name="settings_auto_pause_unfocused_desc">Automatically pauses lesson when app loses focus or screen turns off outside Android Auto.</string>
+    <string name="settings_auto_pause_unfocused_voice_tip">💡 Voice command: \"auto pause when screen off\" or \"disable auto pause\".</string>
     <string name="settings_group_azure">Azure Pronunciation Service</string>
     <string name="settings_azure_enable">Grade with Microsoft Azure</string>
     <string name="settings_azure_enable_desc">Azure provides additional phoneme and word scoring (0–100).</string>
@@ -184,6 +187,8 @@
     <string name="convo_btn_home">Back to Home</string>
     <string name="convo_btn_replay_story">Replay</string>
     <string name="convo_btn_next_story">Next Story</string>
+    <string name="convo_btn_repeat">Repeat</string>
+    <string name="convo_btn_next">Next</string>
     <string name="convo_tip_story">Hands-free tips: say \"Next\" to change story, \"Replay\" to listen again, \"End\" to stop</string>
     <string name="convo_tip_driving">Driving tip: say \"end the lesson\" to stop hands-free</string>
     <string name="convo_empty_transcript_story">AI is preparing an engaging story for you.\nRelax and listen!</string>

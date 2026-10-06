@@ -72,6 +72,8 @@
     <string name="convo_barge_in_inactive">말 끊기: 꺼짐</string>
     <string name="convo_barge_in_on_toast">AI 말 끊기 허용됨 (이어폰 권장)</string>
     <string name="convo_barge_in_off_toast">AI 말 끊기 비활성화됨</string>
+    <string name="convo_btn_repeat">반복</string>
+    <string name="convo_btn_next">다음</string>
 
     <!-- Vocabulary & Progress -->
     <string name="vocab_title">단어장</string>
