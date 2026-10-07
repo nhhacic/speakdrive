@@ -65,8 +65,12 @@ class VoiceCommandHandlerTest {
     @Test
     fun `pronunciation practice, with or without a topic`() {
         assertThat(handler.resolve("pronunciation practice")).isEqualTo(MediaIds.PRONUNCIATION)
+        assertThat(handler.resolve("luyện shadowing")).isEqualTo(MediaIds.PRONUNCIATION)
+        assertThat(handler.resolve("chuyển sang shadowing")).isEqualTo(MediaIds.PRONUNCIATION)
+        assertThat(handler.resolve("tập phát âm")).isEqualTo(MediaIds.PRONUNCIATION)
         assertThat(handler.resolve("repeat after me travel English")).isEqualTo(MediaIds.pronunciation("travel"))
         assertThat(handler.resolve("luyện phát âm phỏng vấn")).isEqualTo(MediaIds.pronunciation("interview"))
+        assertThat(handler.resolve("luyện shadowing phỏng vấn")).isEqualTo(MediaIds.pronunciation("interview"))
     }
 
     @Test

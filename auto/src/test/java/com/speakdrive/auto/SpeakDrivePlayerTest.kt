@@ -152,8 +152,15 @@ class SpeakDrivePlayerTest {
         dispatcher = Dispatchers.Unconfined
     ) {
         var lastStartRequest: LessonRequest? = null
+        var resumeCallCount = 0
+
         override suspend fun start(request: LessonRequest): Boolean {
             lastStartRequest = request
+            return true
+        }
+
+        override suspend fun resume(): Boolean {
+            resumeCallCount++
             return true
         }
 
@@ -306,4 +313,97 @@ class SpeakDrivePlayerTest {
         assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.ROLEPLAY)
         assertThat(testEngine.lastStartRequest?.scenarioId).isEqualTo("interview")
     }
+
+    @Test
+    fun `picking pronunciation item while lesson is PAUSED starts pronunciation and does not resume old lesson`() = runTest(testDispatcher) {
+        val topic = topics.getTopicById("travel")!!
+        lessonFlow.value = ActiveLesson(
+            sessionId = "s1",
+            topic = topic,
+            scenario = null,
+            level = DifficultyLevel.INTERMEDIATE,
+            mode = SessionMode.FREE_TALK,
+            startedAt = 0L,
+            reviewWords = emptyList()
+        )
+        stateFlow.value = ConversationState.PAUSED
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        // User picks "Luyện phát âm" from car screen while paused
+        val pronItem = MediaItem.Builder().setMediaId(MediaIds.PRONUNCIATION).build()
+        player.setMediaItem(pronItem)
+        player.prepare()
+        player.play()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        // Must start REPEAT_AFTER_ME, NOT resume the old FREE_TALK lesson
+        assertThat(testEngine.resumeCallCount).isEqualTo(0)
+        assertThat(testEngine.lastStartRequest).isNotNull()
+        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+    }
+
+    @Test
+    fun `picking pronunciation item while lesson is ACTIVE starts pronunciation immediately`() = runTest(testDispatcher) {
+        val topic = topics.getTopicById("travel")!!
+        lessonFlow.value = ActiveLesson(
+            sessionId = "s1",
+            topic = topic,
+            scenario = null,
+            level = DifficultyLevel.INTERMEDIATE,
+            mode = SessionMode.FREE_TALK,
+            startedAt = 0L,
+            reviewWords = emptyList()
+        )
+        stateFlow.value = ConversationState.ACTIVE
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        // User picks "Luyện phát âm" from car screen while active
+        val pronItem = MediaItem.Builder().setMediaId(MediaIds.PRONUNCIATION).build()
+        player.setMediaItem(pronItem)
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.lastStartRequest).isNotNull()
+        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+    }
+
+    @Test
+    fun `picking topic item preserves REPEAT_AFTER_ME mode when lastSessionMode was REPEAT_AFTER_ME`() = runTest(testDispatcher) {
+        settings.current = settings.current.copy(
+            lastTopicId = "travel",
+            lastSessionMode = SessionMode.REPEAT_AFTER_ME
+        )
+        val topicItem = MediaItem.Builder().setMediaId(MediaIds.topic("interview")).build()
+        player.setMediaItem(topicItem)
+        player.prepare()
+        player.play()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.lastStartRequest).isNotNull()
+        assertThat(testEngine.lastStartRequest?.topicId).isEqualTo("interview")
+        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+    }
+
+    @Test
+    fun `picking topic item uses FREE_TALK when lastSessionMode was FREE_TALK`() = runTest(testDispatcher) {
+        settings.current = settings.current.copy(
+            lastTopicId = "travel",
+            lastSessionMode = SessionMode.FREE_TALK
+        )
+        val topicItem = MediaItem.Builder().setMediaId(MediaIds.topic("shopping")).build()
+        player.setMediaItem(topicItem)
+        player.prepare()
+        player.play()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.lastStartRequest).isNotNull()
+        assertThat(testEngine.lastStartRequest?.topicId).isEqualTo("shopping")
+        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.FREE_TALK)
+    }
 }
+

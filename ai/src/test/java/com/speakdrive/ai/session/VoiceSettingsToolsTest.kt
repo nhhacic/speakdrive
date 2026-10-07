@@ -6,6 +6,7 @@ import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.DrillCategory
 import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.PronunciationStrictness
+import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.StorytellingStyle
 import org.junit.Test
 
@@ -36,7 +37,8 @@ class VoiceSettingsToolsTest {
             VoiceSettingsTools.SET_DRILL_CATEGORY_FUNCTION,
             VoiceSettingsTools.SET_AI_VOLUME_FUNCTION,
             VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION,
-            VoiceSettingsTools.SET_TRANSLATION_SUBTITLES_FUNCTION
+            VoiceSettingsTools.SET_TRANSLATION_SUBTITLES_FUNCTION,
+            VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION
         )
     }
 
@@ -416,4 +418,44 @@ class VoiceSettingsToolsTest {
         assertThat(VoiceSettingsTools.parseTranslationSubtitles(null)).isNull()
         assertThat(VoiceSettingsTools.parseTranslationSubtitles("xyz")).isNull()
     }
+
+    @Test
+    fun `parseSessionMode resolves mode inputs correctly`() {
+        // Direct enum names
+        assertThat(VoiceSettingsTools.parseSessionMode("REPEAT_AFTER_ME")).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceSettingsTools.parseSessionMode("FREE_TALK")).isEqualTo(SessionMode.FREE_TALK)
+        assertThat(VoiceSettingsTools.parseSessionMode("STORY_LISTENING")).isEqualTo(SessionMode.STORY_LISTENING)
+        assertThat(VoiceSettingsTools.parseSessionMode("ROLEPLAY")).isEqualTo(SessionMode.ROLEPLAY)
+        assertThat(VoiceSettingsTools.parseSessionMode("VOCAB_REVIEW")).isEqualTo(SessionMode.VOCAB_REVIEW)
+
+        // Shadowing / Pronunciation phrases
+        assertThat(VoiceSettingsTools.parseSessionMode("shadowing")).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceSettingsTools.parseSessionMode("luyện phát âm")).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceSettingsTools.parseSessionMode("tập phát âm")).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceSettingsTools.parseSessionMode("nhắc lại theo bạn")).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceSettingsTools.parseSessionMode("repeat after me")).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceSettingsTools.parseSessionMode("pronunciation drill")).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+
+        // Free talk / Conversation
+        assertThat(VoiceSettingsTools.parseSessionMode("hội thoại tự do")).isEqualTo(SessionMode.FREE_TALK)
+        assertThat(VoiceSettingsTools.parseSessionMode("trò chuyện")).isEqualTo(SessionMode.FREE_TALK)
+        assertThat(VoiceSettingsTools.parseSessionMode("free talk")).isEqualTo(SessionMode.FREE_TALK)
+
+        // Story listening
+        assertThat(VoiceSettingsTools.parseSessionMode("kể chuyện")).isEqualTo(SessionMode.STORY_LISTENING)
+        assertThat(VoiceSettingsTools.parseSessionMode("story listening")).isEqualTo(SessionMode.STORY_LISTENING)
+
+        // Roleplay
+        assertThat(VoiceSettingsTools.parseSessionMode("nhập vai")).isEqualTo(SessionMode.ROLEPLAY)
+        assertThat(VoiceSettingsTools.parseSessionMode("roleplay")).isEqualTo(SessionMode.ROLEPLAY)
+
+        // Vocab review
+        assertThat(VoiceSettingsTools.parseSessionMode("ôn từ vựng")).isEqualTo(SessionMode.VOCAB_REVIEW)
+        assertThat(VoiceSettingsTools.parseSessionMode("vocabulary review")).isEqualTo(SessionMode.VOCAB_REVIEW)
+
+        // Unknown / null
+        assertThat(VoiceSettingsTools.parseSessionMode(null)).isNull()
+        assertThat(VoiceSettingsTools.parseSessionMode("bla bla bla")).isNull()
+    }
 }
+

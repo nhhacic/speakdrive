@@ -142,7 +142,10 @@ class VoiceCommandHandler @Inject constructor(
         )
         val PRONUNCIATION_WORDS = listOf(
             "pronunciation", "pronounce", "repeat after me", "shadowing", "phat am", "nhac lai", "doc theo", "noi theo",
-            "cau ngan", "short repetition", "short drill", "lap lai", "luyen cau ngan"
+            "cau ngan", "short repetition", "short drill", "lap lai", "luyen cau ngan",
+            "luyen shadowing", "chuyen sang shadowing", "chuyen qua shadowing", "tap phat am", "chuyen sang phat am",
+            "chuyen sang luyen phat am", "chuyen qua phat am", "luyen noi theo", "tap noi theo", "doc theo ban",
+            "nhac lai theo ban", "chuyen sang tap phat am", "shadowing mode", "practice pronunciation"
         )
         val ROLEPLAY_WORDS = listOf("roleplay", "role play", "role playing", "nhap vai", "dong vai")
         // "dễ" is left out: without diacritics it collides with the very common "để".

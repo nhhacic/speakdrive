@@ -554,8 +554,51 @@ open class ConversationEngine @Inject constructor(
         VoiceSettingsTools.SET_AI_VOLUME_FUNCTION -> handleSetAiVolume(call)
         VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION -> handleSetAutoPauseWhenUnfocused(call)
         VoiceSettingsTools.SET_TRANSLATION_SUBTITLES_FUNCTION -> handleSetTranslationSubtitles(call)
+        VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION -> handleSwitchSessionMode(call)
         PronunciationDrill.CHECK_ATTEMPT_FUNCTION -> gradeAttempt(call)
         else -> mapOf("status" to "unknown function")
+    }
+
+    private fun handleSwitchSessionMode(call: LiveToolCall): Map<String, Any> {
+        val rawMode = call.args["mode"] as? String
+        val targetMode = VoiceSettingsTools.parseSessionMode(rawMode) ?: SessionMode.REPEAT_AFTER_ME
+        return applySessionModeSwitch(targetMode)
+    }
+
+    internal fun applySessionModeSwitch(newMode: SessionMode, topicId: String? = null): Map<String, Any> {
+        val currentLesson = _lesson.value
+        val effectiveTopicId = topicId ?: currentLesson?.topic?.id ?: learnerSettings.lastTopicId
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+
+        if (currentLesson?.mode == newMode && _state.value.isInLesson) {
+            val alreadyMsg = when (newMode) {
+                SessionMode.REPEAT_AFTER_ME -> if (isVi) "Bạn đang ở chế độ luyện phát âm shadowing rồi." else "You are already in repeat-after-me pronunciation mode."
+                SessionMode.FREE_TALK -> if (isVi) "Bạn đang ở chế độ hội thoại tự do rồi." else "You are already in free conversation mode."
+                SessionMode.STORY_LISTENING -> if (isVi) "Bạn đang ở chế độ nghe kể chuyện rồi." else "You are already in story listening mode."
+                SessionMode.ROLEPLAY -> if (isVi) "Bạn đang ở chế độ nhập vai rồi." else "You are already in roleplay mode."
+                SessionMode.VOCAB_REVIEW -> if (isVi) "Bạn đang ở chế độ ôn tập từ vựng rồi." else "You are already in vocabulary review mode."
+            }
+            announcer.announce(alreadyMsg)
+            return mapOf("status" to "already_active", "mode" to newMode.name)
+        }
+
+        val confirmationMsg = when (newMode) {
+            SessionMode.REPEAT_AFTER_ME -> if (isVi) "Đã chuyển sang chế độ luyện phát âm shadowing. Hãy nghe và nhắc lại từng câu nhé!" else "Switched to repeat-after-me pronunciation mode. Listen and repeat after me!"
+            SessionMode.FREE_TALK -> if (isVi) "Đã chuyển sang chế độ hội thoại tự do." else "Switched to free conversation mode."
+            SessionMode.STORY_LISTENING -> if (isVi) "Đã chuyển sang chế độ luyện nghe kể chuyện." else "Switched to story listening mode."
+            SessionMode.ROLEPLAY -> if (isVi) "Đã chuyển sang chế độ nhập vai." else "Switched to roleplay mode."
+            SessionMode.VOCAB_REVIEW -> if (isVi) "Đã chuyển sang chế độ ôn tập từ vựng." else "Switched to vocabulary review mode."
+        }
+        announcer.announce(confirmationMsg)
+
+        scope.launch {
+            if (effectiveTopicId != null) {
+                settings.setLastSession(effectiveTopicId, newMode, if (newMode == SessionMode.ROLEPLAY) currentLesson?.scenario?.id else null)
+            }
+            start(LessonRequest(mode = newMode, topicId = effectiveTopicId))
+        }
+
+        return mapOf("status" to "switched", "new_mode" to newMode.name)
     }
 
     private fun handleApplyLevelRecommendation(call: LiveToolCall): Map<String, Any> {
@@ -1659,6 +1702,13 @@ open class ConversationEngine @Inject constructor(
     }
 
     private fun checkVoiceCommandFallback(text: String) {
+        val modeCmd = VoiceCommandParser.parseSessionModeCommand(text)
+        if (modeCmd != null && _lesson.value?.mode != modeCmd) {
+            Log.i(TAG, "Fallback voice command parser detected session mode switch: $modeCmd")
+            applySessionModeSwitch(modeCmd)
+            return
+        }
+
         val currentLevel = _lesson.value?.level ?: learnerSettings.level
         val levelCmd = VoiceCommandParser.parseDifficultyCommand(text, currentLevel)
         if (levelCmd != null && _lesson.value?.level != levelCmd) {

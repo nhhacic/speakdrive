@@ -7,6 +7,7 @@ import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.DrillCategory
 import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.PronunciationStrictness
+import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.StorytellingStyle
 
 /**
@@ -831,4 +832,61 @@ object VoiceCommandParser {
 
         return null
     }
+
+    /**
+     * Parses commands requesting to switch the current learning mode
+     * (e.g. Shadowing/Pronunciation, Free Talk, Story Listening, Roleplay, Vocab Review).
+     * Returns the target [SessionMode] if detected, or null.
+     */
+    fun parseSessionModeCommand(text: String): SessionMode? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return null
+
+        // 1. REPEAT_AFTER_ME / SHADOWING / PRONUNCIATION DRILL
+        val repeatAfterMePhrases = listOf(
+            "luyen phat am", "chuyen sang phat am", "chuyen sang luyen phat am", "chuyen qua phat am",
+            "chuyen qua luyen phat am", "tap phat am", "chuyen sang tap phat am", "hoc phat am",
+            "luyen shadowing", "chuyen sang shadowing", "chuyen qua shadowing", "shadowing", "che do shadowing",
+            "nhac lai theo ban", "doc theo ban", "noi theo ban", "luyen noi theo", "tap noi theo",
+            "luyen doc theo", "nhac lai tung cau", "tap nhac lai", "nhac lai cau", "doc theo tung cau",
+            "switch to pronunciation", "practice pronunciation", "pronunciation practice", "pronunciation drill",
+            "switch to shadowing", "shadowing mode", "repeat after me", "repeat after me mode",
+            "practice repeat after me", "pronunciation mode"
+        ).map { TopicManager.normalize(it) }
+        if (repeatAfterMePhrases.any { q.contains(it) }) return SessionMode.REPEAT_AFTER_ME
+
+        // 2. STORY LISTENING
+        val storyPhrases = listOf(
+            "chuyen sang ke chuyen", "nghe ke chuyen", "luyen nghe ke chuyen", "chuyen sang nghe truyen",
+            "chuyen sang nghe chuyen", "ke chuyen di", "ke truyen di", "ke chuyen tieng anh",
+            "story listening", "switch to storytelling", "tell me a story", "story mode", "switch to story"
+        ).map { TopicManager.normalize(it) }
+        if (storyPhrases.any { q.contains(it) }) return SessionMode.STORY_LISTENING
+
+        // 3. ROLEPLAY
+        val roleplayPhrases = listOf(
+            "chuyen sang nhap vai", "dong vai", "nhap vai tinh huong", "chuyen sang dong vai",
+            "switch to roleplay", "roleplay mode", "scenario mode", "start roleplay"
+        ).map { TopicManager.normalize(it) }
+        if (roleplayPhrases.any { q.contains(it) }) return SessionMode.ROLEPLAY
+
+        // 4. VOCAB REVIEW
+        val vocabPhrases = listOf(
+            "chuyen sang on tu vung", "on tap tu vung", "hoc tu vung", "chuyen sang tu vung",
+            "chuyen sang on tap tu", "switch to vocabulary", "vocab review", "review words", "vocabulary practice"
+        ).map { TopicManager.normalize(it) }
+        if (vocabPhrases.any { q.contains(it) }) return SessionMode.VOCAB_REVIEW
+
+        // 5. FREE TALK / CONVERSATION
+        val freeTalkPhrases = listOf(
+            "chuyen sang hoi thoai", "hoi thoai tu do", "tro chuyen tu do", "noi chuyen tu do",
+            "chuyen sang tro chuyen", "chuyen sang noi chuyen", "chuyen qua hoi thoai", "chuyen qua tro chuyen",
+            "free talk", "conversation mode", "switch to conversation", "switch to free talk",
+            "talk freely", "open conversation"
+        ).map { TopicManager.normalize(it) }
+        if (freeTalkPhrases.any { q.contains(it) }) return SessionMode.FREE_TALK
+
+        return null
+    }
 }
+

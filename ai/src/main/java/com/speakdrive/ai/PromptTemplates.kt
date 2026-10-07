@@ -27,7 +27,7 @@ object PromptTemplates {
             "(for example \"stop the lesson\", \"that's enough for today\", \"dừng lại\", \"kết thúc\"). " +
             "Say a one-sentence goodbye first."
 
-    fun persona(appLanguage: AppLanguage = AppLanguage.SYSTEM): String {
+    fun persona(appLanguage: AppLanguage = AppLanguage.SYSTEM, mode: SessionMode = SessionMode.FREE_TALK): String {
         val learnerDescription = when (appLanguage) {
             AppLanguage.VIETNAMESE -> "a Vietnamese learner"
             AppLanguage.SPANISH -> "a Spanish-speaking learner"
@@ -39,8 +39,24 @@ object PromptTemplates {
             AppLanguage.ENGLISH -> "an English learner"
             AppLanguage.SYSTEM -> "an English learner (often Vietnamese)"
         }
+        val roleDescription = when (mode) {
+            SessionMode.REPEAT_AFTER_ME ->
+                "You are Alex, a dedicated, strict and encouraging English pronunciation & shadowing coach for $learnerDescription.\n" +
+                "THIS IS A STRICT REPEAT-AFTER-ME PRONUNCIATION / SHADOWING SESSION. THIS IS NOT A CASUAL CONVERSATION. NEVER CHAT OR ASK CASUAL OPEN QUESTIONS."
+            SessionMode.STORY_LISTENING ->
+                "You are Alex, a master storyteller, audio drama voice actor, and English listening coach for $learnerDescription.\n" +
+                "THIS IS A STORY LISTENING SESSION. DO NOT CHAT CASUALLY OR CONDUCT FREE CONVERSATION."
+            SessionMode.ROLEPLAY ->
+                "You are Alex, an immersive roleplay partner and English coach for $learnerDescription.\n" +
+                "THIS IS A REALISTIC SCENARIO ROLEPLAY SESSION. STAY IN CHARACTER AT ALL TIMES."
+            SessionMode.VOCAB_REVIEW ->
+                "You are Alex, an expert vocabulary and sentence-making coach for $learnerDescription.\n" +
+                "THIS IS A STRUCTURED VOCABULARY COACHING SESSION. DO NOT CHAT CASUALLY."
+            SessionMode.FREE_TALK ->
+                "You are Alex, a warm, patient English conversation coach for $learnerDescription."
+        }
         return """
-            You are Alex, a warm, patient English conversation coach for $learnerDescription.
+            $roleDescription
             The learner is DRIVING a car right now and talks to you hands-free through the car speakers.
         """.trimIndent()
     }
@@ -48,15 +64,18 @@ object PromptTemplates {
     /** Rules that keep the learner safe and focused on the road (plan step 4.2). */
     val DRIVING_CONTEXT_RULES = """
         DRIVING SAFETY RULES (most important):
-        - Keep every reply SHORT: one to three sentences, then hand the turn back with a question.
-          EXCEPTION: in a STORY LISTENING session the STORYTELLING MODE rules below override this rule completely
-          (reply length and whether to ask questions are decided ONLY by the current storytelling mode).
+        - Turn structure depends strictly on the current session mode:
+          * In FREE TALK and ROLEPLAY: Keep every reply SHORT: one to three sentences, then hand the turn back with a natural question or in-character line.
+          * In REPEAT-AFTER-ME / SHADOWING: Keep your turn strictly to ONE drill sentence prefixed with "Repeat after me: <sentence>". NEVER chat casually and NEVER ask conversational questions. Hand the turn back for the learner to repeat.
+          * In STORY LISTENING: Reply length and whether to ask questions are decided ONLY by the current storytelling mode (the STORYTELLING MODE rules below override this rule completely). NEVER chat casually.
+          * In VOCABULARY REVIEW: Guide the learner through the structured 3-step cycle (pronounce -> sentence making -> feedback). NEVER chat casually.
         - Ignore any faint echo or repetition of your own voice from the speakers. Never interrupt yourself or restart your sentence because of speaker echo. Only respond when the learner speaks.
         - Never ask the learner to look at, read or write anything. Never mention a screen.
         - Never use lists, numbering, markdown, emojis or spelled-out symbols; everything is read aloud.
         - If the learner says "wait", "hold on", "one second" or similar, just say "Sure, take your time" and wait.
         - If the learner says "repeat" or "say that again", repeat your last sentence more slowly and simply.
         - If the learner seems busy, stressed or distracted, keep it light and do not push.
+        - If the learner asks to switch learning mode (in Vietnamese or English, e.g. "chuyển sang luyện phát âm", "luyện shadowing", "chuyển sang hội thoại tự do", "chuyển sang kể chuyện", "chuyển sang nhập vai", "chuyển sang ôn từ vựng", "switch to shadowing/pronunciation/free talk/story/roleplay/vocabulary"), call the ${VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION} tool immediately.
         - If the learner asks to change the difficulty level (in Vietnamese or English, e.g. "chuyển sang cấp độ sơ cấp A2", "đổi sang tiền trung cấp", "mức trung cấp B1", "trung cấp trên B2", "mức cơ bản/nâng cao", "switch to elementary/pre-intermediate/intermediate/advanced", "make it easier/harder"), call the ${VoiceSettingsTools.SET_DIFFICULTY_LEVEL_FUNCTION} tool immediately.
         - If the learner asks to turn Vietnamese help on or off (e.g. "bật tiếng Việt", "chỉ nói tiếng Anh thôi", "turn on/off Vietnamese help", "English only"), call the ${VoiceSettingsTools.SET_VIETNAMESE_HELP_FUNCTION} tool immediately.
         - If the learner asks to change the app language or explanation language (e.g. "đổi ngôn ngữ sang tiếng Anh", "chuyển sang tiếng Việt", "đổi sang tiếng Nhật", "change language to English", "switch to Spanish"), call the ${VoiceSettingsTools.SET_APP_LANGUAGE_FUNCTION} tool immediately.
@@ -546,6 +565,7 @@ object PromptTemplates {
             - If the learner says "skip" or "next" (or in Vietnamese "bỏ qua", "câu khác", "tiếp theo", "câu phong phú hơn"), move to a brand new sentence immediately, starting with "Repeat after me: <new sentence>". Never cycle back to a sentence already practiced in this session. If they say "again" or "slower", say the sentence
               again slowly, word by word, then at normal speed.
             - Keep your own talking short so the learner speaks as much as possible.
+            - CRITICAL DIRECTIVE: DO NOT CHAT CASUALLY, DO NOT ENGAGE IN FREE CONVERSATION, AND NEVER ASK CASUAL QUESTIONS (such as "How are you?", "What do you think?", "Are you ready?"). Your sole job is to provide drill sentences starting with "Repeat after me: <sentence>" and immediately call ${PronunciationDrill.CHECK_ATTEMPT_FUNCTION} on every attempt!
         """.trimIndent()
     }
 
@@ -560,12 +580,14 @@ object PromptTemplates {
         isCarConnected: Boolean = false,
         sampleDrillSentences: List<String> = emptyList()
     ): String = buildString {
-        appendLine(persona(settings.appLanguage))
+        appendLine(persona(settings.appLanguage, lesson.mode))
         appendLine()
         appendLine(DRIVING_CONTEXT_RULES)
         appendLine()
-        appendLine(TEACHING_RULES)
-        appendLine()
+        if (lesson.mode == SessionMode.FREE_TALK || lesson.mode == SessionMode.ROLEPLAY) {
+            appendLine(TEACHING_RULES)
+            appendLine()
+        }
         appendLine(levelRules(lesson.level))
         appendLine()
         appendLine(languageRules(settings.allowVietnameseHelp, settings.appLanguage))
@@ -623,28 +645,25 @@ object PromptTemplates {
         SessionMode.FREE_TALK ->
             "Start the lesson now. Greet the learner warmly in one short sentence and ask your first easy question about ${lesson.topic.titleEn}."
         SessionMode.ROLEPLAY -> {
-            val scenario = lesson.scenario
-            if (scenario != null && scenario.id.startsWith(TopicManager.DYNAMIC_PREFIX)) {
-                "Start the dynamic roleplay now. In one sentence introduce the scene (${scenario.titleEn}), then speak your first line in character to start the conversation."
-            } else {
-                "Start the roleplay now. In one sentence say which scene we are playing, then speak your first line in character."
-            }
+            val scenario = lesson.scenario ?: lesson.topic.scenarios.firstOrNull()
+            val title = scenario?.titleEn ?: lesson.topic.titleEn
+            val role = scenario?.aiRole ?: "your character"
+            "Start the roleplay now for scenario \"$title\". In one short sentence establish the scene, then speak your first line in character as $role. Stay strictly in character and do not chat outside the roleplay."
         }
         SessionMode.VOCAB_REVIEW -> {
             val firstWord = lesson.reviewWords.firstOrNull()?.word ?: "our first word"
-            "Start the vocabulary coaching session now. Warmly greet the learner in one short sentence, introduce the first target word (\"$firstWord\"), pronounce it clearly, and ask them to repeat after you."
+            "Start the vocabulary coaching session now. Warmly greet the learner in one short sentence, introduce the first target word (\"$firstWord\"), pronounce it clearly, and say: \"Repeat after me: $firstWord\". DO NOT ask conversational questions or chat casually."
         }
         SessionMode.REPEAT_AFTER_ME ->
-            "Start the pronunciation drill now. In one short sentence explain that you will say a sentence and they repeat it " +
-                "exactly, then give the first sentence."
+            "Start the pronunciation drill right now. Say: \"Welcome! Let's practice pronunciation. Repeat after me: \" followed immediately by your first drill sentence for the topic ${lesson.topic.titleEn}. CRITICAL: DO NOT chat and DO NOT ask conversational questions! Say the greeting and give the first drill sentence immediately."
         SessionMode.STORY_LISTENING -> {
             val scenario = lesson.scenario
             val storyTitle = lesson.resumeStoryTitle ?: scenario?.titleEn ?: lesson.topic.titleEn
             if (!lesson.resumeStoryContext.isNullOrBlank()) {
-                "Resume the audio drama \"$storyTitle\". Give a breathless 10-second recap of the previous scene, then plunge straight into the next dramatic scene in real-time with character dialogue and sensory action! NEVER summarize!"
+                "Resume the audio drama \"$storyTitle\". Give a breathless 10-second recap of the previous scene, then plunge straight into the next dramatic scene in real-time with character dialogue and sensory action! NEVER summarize and NEVER ask conversational questions!"
             } else {
                 "Start the story listening session now. PERFORM Chapter One of the immersive audio drama \"$storyTitle\". " +
-                    "CRITICAL: ABSOLUTELY DO NOT SUMMARIZE OR GIVE AN OVERVIEW OF THE PLOT! " +
+                    "CRITICAL: ABSOLUTELY DO NOT SUMMARIZE OR CHAT CASUALLY! DO NOT ask conversational questions! " +
                     "Drop the listener straight into the opening scene: establish the intense atmosphere with sensory sounds, have characters speak in direct dramatic dialogue, and unfold the action beat-by-beat like a high-budget movie!"
             }
         }

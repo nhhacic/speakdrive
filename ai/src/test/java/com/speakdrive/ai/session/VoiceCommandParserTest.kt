@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.DrillCategory
 import com.speakdrive.ai.model.DrillSentenceLength
+import com.speakdrive.ai.model.SessionMode
 import org.junit.Test
 
 class VoiceCommandParserTest {
@@ -999,4 +1000,80 @@ class VoiceCommandParserTest {
         assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("hôm nay bạn thế nào")).isNull()
         assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("good morning teacher")).isNull()
     }
+
+    @Test
+    fun `parseSessionModeCommand recognizes Vietnamese and English intents`() {
+        // Vietnamese Shadowing / Repeat after me / Pronunciation
+        assertThat(VoiceCommandParser.parseSessionModeCommand("luyện phát âm"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyển sang luyện phát âm"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyen sang phat am"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("tập phát âm"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("luyện shadowing"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyển sang shadowing"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyen qua shadowing"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("nhắc lại theo bạn"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("doc theo ban"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("luyện nói theo"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+
+        // English Shadowing
+        assertThat(VoiceCommandParser.parseSessionModeCommand("switch to shadowing"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("practice pronunciation"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("repeat after me mode"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("shadowing mode"))
+            .isEqualTo(SessionMode.REPEAT_AFTER_ME)
+
+        // Story Listening
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyển sang kể chuyện"))
+            .isEqualTo(SessionMode.STORY_LISTENING)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("kể chuyện đi"))
+            .isEqualTo(SessionMode.STORY_LISTENING)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("tell me a story"))
+            .isEqualTo(SessionMode.STORY_LISTENING)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("story listening"))
+            .isEqualTo(SessionMode.STORY_LISTENING)
+
+        // Roleplay
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyển sang nhập vai"))
+            .isEqualTo(SessionMode.ROLEPLAY)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("đóng vai tình huống"))
+            .isEqualTo(SessionMode.ROLEPLAY)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("switch to roleplay"))
+            .isEqualTo(SessionMode.ROLEPLAY)
+
+        // Vocab Review
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyển sang ôn từ vựng"))
+            .isEqualTo(SessionMode.VOCAB_REVIEW)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("ôn tập từ vựng"))
+            .isEqualTo(SessionMode.VOCAB_REVIEW)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("switch to vocabulary"))
+            .isEqualTo(SessionMode.VOCAB_REVIEW)
+
+        // Free talk / Conversation
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyển sang hội thoại"))
+            .isEqualTo(SessionMode.FREE_TALK)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("hội thoại tự do"))
+            .isEqualTo(SessionMode.FREE_TALK)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("switch to conversation"))
+            .isEqualTo(SessionMode.FREE_TALK)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("free talk"))
+            .isEqualTo(SessionMode.FREE_TALK)
+
+        // Non-matching
+        assertThat(VoiceCommandParser.parseSessionModeCommand("hôm nay thời tiết đẹp quá")).isNull()
+        assertThat(VoiceCommandParser.parseSessionModeCommand("can you speak louder")).isNull()
+    }
 }
+

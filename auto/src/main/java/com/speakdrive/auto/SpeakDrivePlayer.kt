@@ -56,12 +56,38 @@ class SpeakDrivePlayer(
         }
     }
 
+    private fun isSameAsCurrentLesson(item: MediaItem?): Boolean {
+        if (item == null) return false
+        val lesson = engine.lesson.value ?: return false
+        val target = MediaIds.parse(item.mediaId)
+        return when (target) {
+            MediaTarget.Resume -> true
+            is MediaTarget.Pronunciation ->
+                lesson.mode == SessionMode.REPEAT_AFTER_ME && (target.topicId == null || target.topicId == lesson.topic.id)
+            is MediaTarget.Topic ->
+                lesson.topic.id == target.topicId
+            is MediaTarget.Scenario ->
+                lesson.mode == SessionMode.ROLEPLAY && lesson.scenario?.id == target.scenarioId
+            is MediaTarget.Story ->
+                lesson.mode == SessionMode.STORY_LISTENING && (target.topicId == null || target.topicId == lesson.topic.id)
+            MediaTarget.StoryRecommended, MediaTarget.StoryResume ->
+                lesson.mode == SessionMode.STORY_LISTENING
+            MediaTarget.Review ->
+                lesson.mode == SessionMode.VOCAB_REVIEW
+            else -> false
+        }
+    }
+
     override fun getState(): State {
         val engineState = engine.state.value
-        if (!engineState.isInLesson) {
+        val lesson = engine.lesson.value
+        if (lesson != null && isSameAsCurrentLesson(selectedItem)) {
             selectedItem = null
         }
-        val lesson = engine.lesson.value
+        val isSwitching = selectedItem != null && !isSameAsCurrentLesson(selectedItem)
+        if (!engineState.isInLesson && !isSwitching) {
+            selectedItem = null
+        }
         val item = lesson?.let {
             val transcript = engine.transcript.value
             val lastAiText = transcript.lastOrNull { turn -> turn.speaker == Speaker.AI }?.text
@@ -73,7 +99,7 @@ class SpeakDrivePlayer(
 
         val builder = State.Builder()
             .setAvailableCommands(AVAILABLE_COMMANDS)
-            .setPlayWhenReady(engineState.wantsToPlay(), Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+            .setPlayWhenReady(if (isSwitching) true else engineState.wantsToPlay(), Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
 
         builder.setPlaylist(
             listOf(
@@ -92,6 +118,8 @@ class SpeakDrivePlayer(
         if (engineState == ConversationState.ERROR && error != null) {
             builder.setPlaybackState(Player.STATE_IDLE)
             builder.setPlayerError(PlaybackException(error.messageVi, null, PlaybackException.ERROR_CODE_UNSPECIFIED))
+        } else if (isSwitching && engineState == ConversationState.ENDED) {
+            builder.setPlaybackState(Player.STATE_BUFFERING)
         } else {
             builder.setPlaybackState(engineState.toPlaybackState())
         }
@@ -102,7 +130,7 @@ class SpeakDrivePlayer(
         val item = mediaItems.getOrNull(startIndex.coerceAtLeast(0)) ?: mediaItems.firstOrNull()
             ?: return Futures.immediateVoidFuture()
         selectedItem = item
-        // While a lesson is running, Android Auto does not send "play" again after a new pick, so switch now.
+        // While a lesson is running, switch now so Android Auto hands-free transition occurs immediately.
         if (!engine.state.value.isInLesson) return Futures.immediateVoidFuture()
         return scope.future { startFromItem(item) }
     }
@@ -112,11 +140,13 @@ class SpeakDrivePlayer(
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> = scope.future {
         engine.clearError()
         val state = engine.state.value
+        val itemToStart = selectedItem
         when {
             !playWhenReady -> engine.pause()
+            itemToStart != null && !isSameAsCurrentLesson(itemToStart) -> startFromItem(itemToStart)
             state == ConversationState.PAUSED -> engine.resume()
             state.isInLesson -> Unit
-            else -> startFromItem(selectedItem)
+            else -> startFromItem(itemToStart)
         }
     }
 
@@ -149,14 +179,24 @@ class SpeakDrivePlayer(
 
     override fun handleRelease(): ListenableFuture<*> = Futures.immediateVoidFuture()
 
+    private var startingMediaId: String? = null
+
     private suspend fun startFromItem(item: MediaItem?) {
         val mediaId = item?.mediaId ?: MediaIds.RESUME
-        if (mediaId == MediaIds.STORY_RESUME || MediaIds.parse(mediaId) is MediaTarget.StoryResume) {
-            engine.resumeStory()
+        if (startingMediaId == mediaId && engine.state.value.isInLesson) {
             return
         }
-        val request = requestFor(mediaId) ?: return
-        engine.start(request)
+        startingMediaId = mediaId
+        try {
+            if (mediaId == MediaIds.STORY_RESUME || MediaIds.parse(mediaId) is MediaTarget.StoryResume) {
+                engine.resumeStory()
+                return
+            }
+            val request = requestFor(mediaId) ?: return
+            engine.start(request)
+        } finally {
+            startingMediaId = null
+        }
     }
 
     /** Turns a media id from the browse tree or voice search into a lesson request. */
@@ -193,7 +233,12 @@ class SpeakDrivePlayer(
             LessonRequest(mode = SessionMode.REPEAT_AFTER_ME, topicId = target.topicId ?: settings.snapshot().lastTopicId)
         is MediaTarget.Topic -> {
             target.level?.let { settings.setLevel(it) }
-            LessonRequest(topicId = target.topicId, level = target.level)
+            val preferredMode = if (settings.snapshot().lastSessionMode == SessionMode.REPEAT_AFTER_ME) {
+                SessionMode.REPEAT_AFTER_ME
+            } else {
+                SessionMode.FREE_TALK
+            }
+            LessonRequest(topicId = target.topicId, level = target.level, mode = preferredMode)
         }
         is MediaTarget.Scenario -> LessonRequest(mode = SessionMode.ROLEPLAY, scenarioId = target.scenarioId)
         is MediaTarget.Level -> {

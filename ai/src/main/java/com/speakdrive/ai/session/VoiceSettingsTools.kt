@@ -8,6 +8,7 @@ import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.DrillCategory
 import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.PronunciationStrictness
+import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.StoryDuration
 import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.ai.TopicManager
@@ -16,6 +17,7 @@ import com.speakdrive.ai.TopicManager
  * Declares the Gemini Live tools that let learners adjust settings hands-free during a lesson.
  */
 object VoiceSettingsTools {
+    const val SWITCH_SESSION_MODE_FUNCTION = "switch_session_mode"
     const val SET_DIFFICULTY_LEVEL_FUNCTION = "set_difficulty_level"
     const val SET_VIETNAMESE_HELP_FUNCTION = "set_vietnamese_help"
     const val SET_APP_LANGUAGE_FUNCTION = "set_app_language"
@@ -38,6 +40,20 @@ object VoiceSettingsTools {
     const val SET_AI_VOLUME_FUNCTION = "set_ai_volume"
     const val SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION = "set_auto_pause_when_unfocused"
     const val SET_TRANSLATION_SUBTITLES_FUNCTION = "set_translation_subtitles"
+
+    val switchSessionModeTool = LiveTool(
+        name = SWITCH_SESSION_MODE_FUNCTION,
+        description = "Switches the current learning mode hands-free when requested by the learner in Vietnamese or English " +
+            "(e.g. \"luyện phát âm\", \"chuyển sang luyện phát âm\", \"tập phát âm\", \"luyện shadowing\", \"chuyển sang shadowing\", \"nhắc lại theo bạn\", \"luyện nói theo\", \"nói theo\", \"nhắc lại từng câu\", \"chuyển sang hội thoại\", \"nói chuyện tự do\", \"kể chuyện đi\", \"chuyển sang nghe kể chuyện\", \"nhập vai\", \"ôn từ vựng\", " +
+            "\"switch to shadowing\", \"practice pronunciation\", \"repeat after me\", \"shadowing mode\", \"switch to conversation\", \"free talk\", \"tell me a story\", \"story listening\", \"roleplay mode\", \"review vocabulary\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "mode",
+                type = LiveToolParam.Type.STRING,
+                description = "Target learning mode: REPEAT_AFTER_ME (Shadowing / Pronunciation drill), FREE_TALK (Open conversational English), STORY_LISTENING (Audio story listening), ROLEPLAY (Scenario roleplay), or VOCAB_REVIEW (Vocabulary flashcard drill)."
+            )
+        )
+    )
 
     val setTranslationSubtitlesTool = LiveTool(
         name = SET_TRANSLATION_SUBTITLES_FUNCTION,
@@ -355,7 +371,8 @@ object VoiceSettingsTools {
         setDrillCategoryTool,
         setAiVolumeTool,
         setAutoPauseWhenUnfocusedTool,
-        setTranslationSubtitlesTool
+        setTranslationSubtitlesTool,
+        switchSessionModeTool
     )
 
     /**
@@ -791,5 +808,42 @@ object VoiceSettingsTools {
             else -> null
         }
     }
+
+    /**
+     * Resolves session mode preference from tool args or transcript phrases.
+     */
+    fun parseSessionMode(value: String?): SessionMode? {
+        if (value.isNullOrBlank()) return null
+        val trimmed = value.trim()
+        SessionMode.entries.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }?.let { return it }
+
+        val normalized = TopicManager.normalize(trimmed)
+        return when {
+            normalized.contains("shadowing") || normalized.contains("phat am") ||
+                normalized.contains("nhac lai") || normalized.contains("doc theo") ||
+                normalized.contains("noi theo") || normalized.contains("cau ngan") ||
+                normalized.contains("drill") || normalized.contains("pronunciation") ||
+                normalized.contains("repeat") -> SessionMode.REPEAT_AFTER_ME
+
+            normalized.contains("hoi thoai") || normalized.contains("tro chuyen") ||
+                normalized.contains("noi chuyen") || normalized.contains("free talk") ||
+                normalized.contains("conversation") || normalized.contains("talk") -> SessionMode.FREE_TALK
+
+            normalized.contains("ke chuyen") || normalized.contains("nghe chuyen") ||
+                normalized.contains("truyen") || normalized.contains("story") ||
+                normalized.contains("podcast") -> SessionMode.STORY_LISTENING
+
+            normalized.contains("nhap vai") || normalized.contains("dong vai") ||
+                normalized.contains("roleplay") || normalized.contains("role play") ||
+                normalized.contains("tinh huong") || normalized.contains("scenario") -> SessionMode.ROLEPLAY
+
+            normalized.contains("on tu") || normalized.contains("tu vung") ||
+                normalized.contains("vocab") || normalized.contains("word") ||
+                normalized.contains("tu moi") -> SessionMode.VOCAB_REVIEW
+
+            else -> null
+        }
+    }
 }
+
 

@@ -1433,5 +1433,42 @@ class ConversationEngineTest {
         runCurrent()
         assertThat(announcer.announcements.last()).contains("Đã bật tự động tạm dừng")
     }
+
+    @Test
+    fun `tool call switches session mode to REPEAT_AFTER_ME and announces confirmation`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.FREE_TALK))
+        val handler = live.connects.single().toolHandler!!
+
+        val result = handler.handle(
+            LiveToolCall(
+                VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION,
+                mapOf("mode" to "REPEAT_AFTER_ME"),
+                learnerUtterance = ""
+            )
+        )
+        assertThat(result["status"]).isEqualTo("switched")
+        assertThat(result["new_mode"]).isEqualTo(SessionMode.REPEAT_AFTER_ME.name)
+        assertThat(announcer.announcements.last()).contains("chế độ luyện phát âm shadowing")
+
+        runCurrent()
+        advanceTimeBy(500)
+        assertThat(engine.lesson.value?.mode).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+    }
+
+    @Test
+    fun `fallback voice command switches session mode from FREE_TALK to REPEAT_AFTER_ME`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.FREE_TALK))
+
+        say(Speaker.USER, "chuyển sang luyện phát âm")
+        runCurrent()
+        assertThat(announcer.announcements.last()).contains("chế độ luyện phát âm shadowing")
+
+        advanceTimeBy(500)
+        runCurrent()
+        assertThat(engine.lesson.value?.mode).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+    }
 }
+
 
