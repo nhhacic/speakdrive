@@ -26,11 +26,14 @@ Khi bất kỳ AI agent nào thêm hoặc cập nhật một mục cài đặt (
 6. **Viết Unit Test đầy đủ**:
    - Luôn bổ sung test case trong `VoiceSettingsToolsTest.kt`, `VoiceCommandParserTest.kt` và `VoiceCommandHandlerTest.kt` để kiểm tra cả trường hợp tiếng Việt lẫn tiếng Anh.
 
-## 3. Bắt buộc: Tự động tải file APK lên GitHub Releases sau mỗi khi build xong
-Mỗi khi hoàn thành phiên làm việc có tạo hoặc build file APK (`:app:assembleDebug` hoặc `:app:assembleRelease`), AI agent **BẮT BUỘC PHẢI TỰ ĐỘNG UPLOAD FILE APK LÊN GITHUB RELEASES** của repo `nhhacic/speakdrive` để người dùng có thể tải về điện thoại trực tiếp:
-- Sử dụng lệnh `gh release upload <tag> <path_to_apk> --clobber` hoặc `gh release create <tag> <path_to_apk> --repo nhhacic/speakdrive --title <title> --notes <notes>`.
-- Luôn gửi đường link direct download định dạng:  
+## 3. Bắt buộc: Tự động cập nhật số phiên bản và tải file APK lên GitHub Releases sau mỗi khi build xong
+Mỗi khi hoàn thành phiên làm việc có tạo hoặc build file APK (`:app:assembleDebug` hoặc `:app:assembleRelease`), AI agent **BẮT BUỘC PHẢI THỰC HIỆN**:
+- **Đồng bộ số phiên bản**: Trước khi chạy lệnh build APK, **bắt buộc phải cập nhật và tăng số phiên bản** (`versionName` và `versionCode`) trong file `version.properties` ở thư mục gốc để thông tin hiển thị trong ứng dụng và mã phiên bản Android khớp chính xác với tag phát hành mới.
+- **Tải APK lên GitHub Releases**: Tự động upload file APK lên GitHub Releases của repo `nhhacic/speakdrive` bằng lệnh:
+  `gh release upload <tag> <path_to_apk> --clobber` hoặc `gh release create <tag> <path_to_apk> --repo nhhacic/speakdrive --title <title> --notes <notes>`.
+- **Gửi link tải trực tiếp**: Luôn gửi đường link direct download định dạng:  
   `https://github.com/nhhacic/speakdrive/releases/download/<tag>/<filename>`  
   để người dùng bấm vào là tải file APK về điện thoại ngay lập tức (không có quảng cáo, tốc độ cao qua CDN GitHub, không bị chặn bởi nhà mạng Việt Nam).
 - Tuyệt đối không dùng các dịch vụ chia sẻ file có quảng cáo, đếm ngược hoặc dễ bị nhà mạng Việt Nam chặn.
+
 

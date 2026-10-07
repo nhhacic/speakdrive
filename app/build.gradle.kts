@@ -19,6 +19,42 @@ val defaultAzureKey = localProperties.getProperty("azure.speechKey")?.takeIf { i
 val defaultAzureRegion = localProperties.getProperty("azure.speechRegion")?.takeIf { it.isNotBlank() }
     ?: "southeastasia"
 
+// Versioning configuration: Single source of truth from version.properties with Git fallback
+val versionProperties = Properties().apply {
+    val file = rootProject.file("version.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun getGitVersionCode(): Int {
+    return try {
+        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+            .redirectErrorStream(true)
+            .start()
+        val text = process.inputStream.bufferedReader().readText().trim()
+        process.waitFor()
+        text.toIntOrNull()?.takeIf { it > 0 } ?: 20
+    } catch (_: Exception) {
+        20
+    }
+}
+
+fun getGitVersionName(): String {
+    return try {
+        val process = ProcessBuilder("git", "describe", "--tags", "--abbrev=0")
+            .redirectErrorStream(true)
+            .start()
+        val tag = process.inputStream.bufferedReader().readText().trim()
+        process.waitFor()
+        val clean = tag.removePrefix("v").replace("-debug", "").replace("-release", "")
+        if (clean.matches(Regex("^\\d+\\.\\d+\\.\\d+.*"))) clean else "1.2.12"
+    } catch (_: Exception) {
+        "1.2.12"
+    }
+}
+
+val appVersionCode = versionProperties.getProperty("versionCode")?.toIntOrNull() ?: getGitVersionCode()
+val appVersionName = versionProperties.getProperty("versionName")?.trim()?.takeIf { it.isNotEmpty() } ?: getGitVersionName()
+
 // Release signing is read from keystore.properties (git-ignored). See docs/RELEASE.md.
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("keystore.properties")
@@ -32,8 +68,8 @@ android {
         applicationId = "com.speakdrive.ai"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "AZURE_SPEECH_KEY", "\"$defaultAzureKey\"")
