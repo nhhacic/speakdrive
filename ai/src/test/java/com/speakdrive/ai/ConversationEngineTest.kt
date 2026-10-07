@@ -1330,9 +1330,77 @@ class ConversationEngineTest {
         engine.start(LessonRequest(topicId = "travel"))
         assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
 
+        advanceTimeBy(6000)
         engine.setAppFocused(false)
         runCurrent()
 
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+    }
+
+    @Test
+    fun `when app loses focus during startup grace period, lesson does not pause`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+
+        // Lose focus within grace period (less than 5000ms)
+        advanceTimeBy(1000)
+        engine.setAppFocused(false)
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `when lesson was auto-paused by losing focus, regaining focus auto-resumes lesson`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+
+        advanceTimeBy(6000)
+        engine.setAppFocused(false)
+        runCurrent()
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+
+        // Regain focus
+        engine.setAppFocused(true)
+        runCurrent()
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `when lesson was auto-paused by screen off, turning screen on auto-resumes lesson`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+
+        advanceTimeBy(6000)
+        engine.setScreenOn(false)
+        runCurrent()
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+
+        // Turn screen on
+        engine.setScreenOn(true)
+        runCurrent()
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `when user manually pauses lesson, gaining focus does not auto-resume`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+
+        // User explicitly pauses
+        engine.pause()
+        runCurrent()
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+
+        // Gaining focus should NOT resume manual pause
+        engine.setAppFocused(false)
+        runCurrent()
+        engine.setAppFocused(true)
+        runCurrent()
         assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
     }
 
@@ -1342,6 +1410,7 @@ class ConversationEngineTest {
         engine.start(LessonRequest(topicId = "travel"))
         assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
 
+        advanceTimeBy(6000)
         engine.setScreenOn(false)
         runCurrent()
 
@@ -1355,6 +1424,7 @@ class ConversationEngineTest {
         engine.start(LessonRequest(topicId = "travel"))
         assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
 
+        advanceTimeBy(6000)
         engine.setAppFocused(false)
         engine.setScreenOn(false)
         runCurrent()
@@ -1369,6 +1439,7 @@ class ConversationEngineTest {
         engine.start(LessonRequest(topicId = "travel"))
         assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
 
+        advanceTimeBy(6000)
         engine.setAppFocused(false)
         engine.setScreenOn(false)
         runCurrent()
@@ -1385,6 +1456,7 @@ class ConversationEngineTest {
         engine.start(LessonRequest(topicId = "travel"))
         assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
 
+        advanceTimeBy(6000)
         engine.setCarConnected(false)
         runCurrent()
 

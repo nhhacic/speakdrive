@@ -26,13 +26,13 @@ object PronunciationDrill {
             LiveToolParam(
                 "problem_words",
                 LiveToolParam.Type.STRING_LIST,
-                "Words that were mispronounced, missing, changed or unclear. Empty only if the verdict is correct.",
+                "List of exact target words from target_sentence that were mispronounced, missing, changed or unclear. Always list the target words as spelled in target_sentence. Empty only if the verdict is correct.",
                 optional = true
             ),
             LiveToolParam(
                 "problem_notes",
                 LiveToolParam.Type.STRING,
-                "Short note on what was wrong, e.g. \"dropped the final t in 'want'; 'th' in 'three' sounded like 't'\".",
+                "Short note on what was wrong, e.g. \"The learner said 'project' instead of 'budget'\". If a word was replaced or mispronounced, use format: said '<heard>' instead of '<target>'.",
                 optional = true
             )
         )
@@ -208,25 +208,28 @@ object PronunciationDrill {
         "(?iu)(?:" +
             "repeat after me|" +
             "repeat with me|" +
-            "repeat this(?: sentence)?|" +
+            "repeat this(?: sentence| phrase)?|" +
             "please repeat(?: after me)?|" +
             "now repeat(?: after me)?|" +
             "say after me|" +
+            "say with me|" +
             "say this|" +
             "now say|" +
             "please say|" +
             "listen and repeat|" +
-            "(?:the |our |your |here is |here's )?next sentence(?: is)?|" +
+            "(?:the |our |your |here is |here's )?next (?:sentence|phrase)(?: is)?|" +
             "(?:the |here is |here's )?next one(?: is)?|" +
+            "next up(?: is)?|" +
             "another sentence(?: is)?|" +
             "another one(?: is)?|" +
-            "let's (?:try|do|practice)(?: the next sentence| this sentence| another one| the whole sentence(?: again)?| the full sentence(?: again)?)?|" +
-            "(?:now )?try (?:this sentence|this one|this|saying|repeating|the whole sentence(?: again)?|the full sentence(?: again)?)|" +
+            "let's (?:try|do|practice)(?: the next sentence| this sentence| this phrase| another one| the whole sentence(?: again)?| the full sentence(?: again)?)?|" +
+            "(?:now )?try (?:this sentence|this phrase|this one|this|saying|repeating|the whole sentence(?: again)?|the full sentence(?: again)?)|" +
+            "(?:now )?(?:it'?s )?your turn(?: to say)?|" +
             "(?:now )?(?:the )?(?:whole|full) sentence(?: again)?|" +
             "once more(?: time)?|" +
             "one more time|" +
             "now try|" +
-            "how about(?: this)?|" +
+            "how about (?:this|this one|this sentence|this phrase)?|" +
             "(?:can|could) you (?:say|repeat)(?!\\s+(?:that|it|again)\\b)|" +
             "(?:nhắc|nhac) lại(?: theo tôi| theo toi)?|" +
             "(?:lặp|lap) lại(?: theo tôi| theo toi)?|" +
@@ -243,7 +246,7 @@ object PronunciationDrill {
     private val QUOTE_REGEX = Regex("[\"“]([^\"”\\n]{6,150})[\"”]")
 
     private val ACK_THEN_SENTENCE_REGEX = Regex(
-        "(?i)^(?:clear and accurate|correct|great(?: job)?|good(?: job)?|well done|that's right|perfect|nice job|excellent)[.!:,\\s]+" +
+        "(?i)^(?:clear and accurate|correct|great(?: job)?|good(?: job)?|well done|that's right|perfect|nice job|excellent|awesome|nice|fantastic|spot on)[.!:,\\s]+" +
             "[\"“]?([A-Z][^\"”\\n]+)[\"”]?"
     )
 

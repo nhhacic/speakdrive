@@ -24,11 +24,13 @@ data class WordResult(
     /** Azure error type (Mispronunciation, Omission…) when Azure flagged the word. */
     val azureError: String? = null,
     /** Azure judged this word as needing work (bad word score, error type or a weak sound). */
-    val azureFlagged: Boolean = false
+    val azureFlagged: Boolean = false,
+    /** The AI model judged this word as having pronunciation or replacement issues from live audio. */
+    val modelFlagged: Boolean = false
 ) {
     /** True if any judge found a problem with this word. */
     val isProblem: Boolean
-        get() = status != WordStatus.OK || azureFlagged
+        get() = status != WordStatus.OK || azureFlagged || modelFlagged
 }
 
 /** One "repeat after me" attempt, judged by both the AI (from the audio) and the transcript. */
@@ -36,7 +38,7 @@ data class PronunciationAttempt(
     val target: String,
     val heard: String,
     val words: List<WordResult>,
-    /** Share of target words the speech recogniser heard correctly, 0–100. */
+    /** Share of target words pronounced correctly without problems, 0–100. */
     val accuracyPercent: Int,
     /** What the AI judged from the audio before seeing the transcript comparison. */
     val modelSaidCorrect: Boolean,
@@ -89,9 +91,11 @@ object PronunciationGrader {
         level: DifficultyLevel = DifficultyLevel.INTERMEDIATE
     ): PronunciationAttempt {
         val effectiveStrictness = strictness.resolveForLevel(level)
-        val words = attachAzureScores(compare(target, heard), azure, effectiveStrictness)
-        val mismatches = words.count { it.status != WordStatus.OK }
-        val accuracy = if (words.isEmpty()) 0 else (100 * words.count { it.status == WordStatus.OK } / words.size)
+        val comparedWords = compare(target, heard)
+        val withAzure = attachAzureScores(comparedWords, azure, effectiveStrictness)
+        val words = attachModelProblems(withAzure, modelProblemWords, modelNotes)
+        val mismatches = words.count { it.isProblem }
+        val accuracy = if (words.isEmpty()) 0 else (100 * words.count { !it.isProblem } / words.size)
         val allowedMismatches = when (effectiveStrictness) {
             PronunciationStrictness.BEGINNER -> maxOf(2, words.size / 2)
             PronunciationStrictness.ELEMENTARY -> maxOf(1, words.size / 3)
@@ -166,6 +170,121 @@ object PronunciationGrader {
                     azureError = match.errorType.takeIf { it != "None" },
                     azureFlagged = match.needsWork(strictness)
                 )
+            }
+        }
+    }
+
+    /**
+     * Tags words that the AI model identified as having issues (mispronounced, replaced, dropped)
+     * either in [modelProblemWords] or described in [modelNotes].
+     */
+    private fun attachModelProblems(
+        words: List<WordResult>,
+        modelProblemWords: List<String>,
+        modelNotes: String
+    ): List<WordResult> {
+        if (words.isEmpty()) return words
+
+        val targetHeardPairs = mutableMapOf<String, String>() // targetKey -> heardWord
+        val targetProblems = mutableSetOf<String>() // targetKey
+
+        // 1. Parse modelNotes
+        if (modelNotes.isNotBlank()) {
+            // Pattern: said 'project' instead of 'budget'
+            val saidInsteadRegex = Regex(
+                """(?:said|pronounced|spoke|used)\s+['"“]([^'"”]+)['"”]\s+instead\s+of\s+['"“]([^'"”]+)['"”]""",
+                RegexOption.IGNORE_CASE
+            )
+            saidInsteadRegex.findAll(modelNotes).forEach { match ->
+                val heard = match.groupValues[1].trim()
+                val target = match.groupValues[2].trim()
+                val key = simplify(target)
+                if (key.isNotEmpty()) {
+                    targetProblems += key
+                    if (heard.isNotEmpty()) targetHeardPairs[key] = heard
+                }
+            }
+
+            // Pattern: 'budget' sounded like 'project' / was pronounced as 'project'
+            val soundedLikeRegex = Regex(
+                """['"“]([^'"”]+)['"”]\s+(?:sounded\s+like|was\s+pronounced\s+as)\s+['"“]([^'"”]+)['"”]""",
+                RegexOption.IGNORE_CASE
+            )
+            soundedLikeRegex.findAll(modelNotes).forEach { match ->
+                val target = match.groupValues[1].trim()
+                val heard = match.groupValues[2].trim()
+                val key = simplify(target)
+                if (key.isNotEmpty()) {
+                    targetProblems += key
+                    if (heard.isNotEmpty()) targetHeardPairs[key] = heard
+                }
+            }
+
+            // Pattern: instead of 'budget'
+            val insteadOfRegex = Regex("""instead\s+of\s+['"“]([^'"”]+)['"”]""", RegexOption.IGNORE_CASE)
+            insteadOfRegex.findAll(modelNotes).forEach { match ->
+                val target = match.groupValues[1].trim()
+                val key = simplify(target)
+                if (key.isNotEmpty()) targetProblems += key
+            }
+
+            // Pattern: mispronounced 'budget', trouble with 'budget', dropped the final 't' in 'budget'
+            val mispronouncedRegex = Regex(
+                """(?:mispronounced|unclear|trouble\s+with|problem\s+with|dropped.*in)\s+['"“]([^'"”]+)['"”]""",
+                RegexOption.IGNORE_CASE
+            )
+            mispronouncedRegex.findAll(modelNotes).forEach { match ->
+                val target = match.groupValues[1].trim()
+                val key = simplify(target)
+                if (key.isNotEmpty()) targetProblems += key
+            }
+        }
+
+        // 2. Parse modelProblemWords
+        val targetKeys = words.map { simplify(it.word) }.toSet()
+        val problemTokens = modelProblemWords
+            .flatMap { it.split(Regex("[\\s,;]+")) }
+            .map { simplify(it) }
+            .filter { it.isNotEmpty() }
+            .toSet()
+
+        problemTokens.forEach { token ->
+            if (token in targetKeys) {
+                targetProblems += token
+            }
+        }
+
+        // If modelProblemWords has an outside word (e.g. "project") and we know the target problem word
+        val outsideWords = problemTokens.filter { it !in targetKeys }
+        if (outsideWords.isNotEmpty() && targetProblems.size == 1) {
+            val targetKey = targetProblems.first()
+            if (!targetHeardPairs.containsKey(targetKey)) {
+                targetHeardPairs[targetKey] = outsideWords.first()
+            }
+        }
+
+        // Fallback: if targetProblems is still empty, look for any quoted target words in modelNotes
+        if (targetProblems.isEmpty() && modelNotes.isNotBlank()) {
+            val quotedWordsRegex = Regex("""['"“]([^'"”]+)['"”]""")
+            quotedWordsRegex.findAll(modelNotes).forEach { match ->
+                val quoted = simplify(match.groupValues[1].trim())
+                if (quoted in targetKeys) {
+                    targetProblems += quoted
+                }
+            }
+        }
+
+        if (targetProblems.isEmpty()) return words
+
+        return words.map { word ->
+            val key = simplify(word.word)
+            if (key in targetProblems) {
+                word.copy(
+                    modelFlagged = true,
+                    heardAs = word.heardAs ?: targetHeardPairs[key]
+                )
+            } else {
+                word
             }
         }
     }

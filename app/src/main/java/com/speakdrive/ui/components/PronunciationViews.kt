@@ -52,6 +52,9 @@ fun markedSentence(words: List<WordResult>, missingColor: Color): AnnotatedStrin
         when (word.status) {
             WordStatus.OK -> if (word.isProblem) {
                 withStyle(SpanStyle(color = WrongColor, fontWeight = FontWeight.Bold)) { append(word.word) }
+                if (!word.heardAs.isNullOrBlank()) {
+                    withStyle(SpanStyle(color = WrongColor, fontSize = 13.sp)) { append(" («${word.heardAs}»)") }
+                }
                 word.azureScore?.let { withStyle(SpanStyle(color = WrongColor, fontSize = 12.sp)) { append(" ($it)") } }
             } else {
                 withStyle(SpanStyle(color = CorrectColor, fontWeight = FontWeight.SemiBold)) { append(word.word) }
@@ -186,6 +189,8 @@ fun DrillCard(
                         Text(
                             text = if (attemptPassed) {
                                 androidx.compose.ui.res.stringResource(com.speakdrive.R.string.convo_attempt_passed, attemptNumber ?: 1)
+                            } else if ((accuracyPercent ?: 0) >= 100) {
+                                androidx.compose.ui.res.stringResource(com.speakdrive.R.string.convo_attempt_failed_clarity, attemptNumber ?: 1)
                             } else {
                                 androidx.compose.ui.res.stringResource(com.speakdrive.R.string.convo_attempt_failed, attemptNumber ?: 1, accuracyPercent ?: 0)
                             },

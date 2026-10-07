@@ -210,9 +210,47 @@ class ScreensTest {
             }
         }
 
-        compose.onNodeWithText("✗ Lần 1: CHƯA ĐẠT (nghe đúng 100% từ)").assertIsDisplayed()
+        compose.onNodeWithText("✗ Lần 1: CHƯA ĐẠT (nghe đúng 75% từ)").assertIsDisplayed()
         compose.onNodeWithText("Azure: 62/100 • chính xác 58 • trôi chảy 90 • đầy đủ 100").assertIsDisplayed()
         compose.onNodeWithText("Âm cần sửa: three (th 15)").assertIsDisplayed()
+    }
+
+    @Test
+    fun `drill card shows clarity hint when attempt failed but all words recognized`() {
+        val attempt = PronunciationAttempt(
+            target = "Can you provide an update on the budget status?",
+            heard = "Can you provide an update on the budget status",
+            words = emptyList(),
+            accuracyPercent = 100,
+            modelSaidCorrect = false,
+            modelProblemWords = emptyList(),
+            modelNotes = "Mumbled slightly",
+            attemptNumber = 1,
+            passed = false,
+            timestamp = 0
+        )
+        val lesson = ActiveLesson("s", topics.getTopicById("travel")!!, null, DifficultyLevel.BEGINNER, SessionMode.REPEAT_AFTER_ME, 0, emptyList())
+        compose.setContent {
+            SpeakDriveTheme {
+                ConversationContent(
+                    state = ConversationUiState(
+                        lesson = lesson,
+                        state = ConversationState.ACTIVE,
+                        micState = MicState.LISTENING,
+                        drill = DrillUiState(target = "Can you provide an update on the budget status?", lastAttempt = attempt, passedSentences = 0, sentences = 1)
+                    ),
+                    permissionDenied = false,
+                    onBack = {},
+                    onEnd = {},
+                    onToggle = {},
+                    onRetry = {},
+                    onRequestPermission = {},
+                    onOpenAppSettings = {}
+                )
+            }
+        }
+
+        compose.onNodeWithText("✗ Lần 1: CHƯA ĐẠT (cần phát âm rõ hơn)").assertIsDisplayed()
     }
 
     @Test

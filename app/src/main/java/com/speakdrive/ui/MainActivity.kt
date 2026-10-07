@@ -173,16 +173,16 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) {}
     }
 
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
+    override fun onStart() {
+        super.onStart()
         if (!isChangingConfigurations) {
-            runCatching { engine.setAppFocused(hasFocus) }
+            runCatching { engine.setAppFocused(true) }
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        if (!isChangingConfigurations && hasWindowFocus()) {
+    override fun onResume() {
+        super.onResume()
+        if (!isChangingConfigurations) {
             runCatching { engine.setAppFocused(true) }
         }
     }

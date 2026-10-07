@@ -40,8 +40,30 @@ class PronunciationGraderTest {
             problems = listOf("think")
         )
         assertThat(attempt.passed).isFalse()
-        assertThat(attempt.accuracyPercent).isEqualTo(100)
+        assertThat(attempt.accuracyPercent).isEqualTo(85) // 6 out of 7 words correct
+        assertThat(attempt.words.first { it.word == "think" }.isProblem).isTrue()
+        assertThat(attempt.words.first { it.word == "think" }.modelFlagged).isTrue()
         assertThat(attempt.problemWords).containsExactly("think")
+    }
+
+    @Test
+    fun `model notes identifying replaced word flags target word and extracts heardAs`() {
+        val attempt = PronunciationGrader.grade(
+            target = "Can you provide an update on the budget status?",
+            heard = "Can you provide an update on the budget status",
+            modelSaidCorrect = false,
+            modelProblemWords = emptyList(),
+            modelNotes = "The learner said 'project' instead of 'budget'. The rest of the sentence was correct.",
+            attemptNumber = 1,
+            timestamp = 0
+        )
+        assertThat(attempt.passed).isFalse()
+        assertThat(attempt.accuracyPercent).isEqualTo(88) // 8 out of 9 words correct
+        val budgetWord = attempt.words.first { it.word.startsWith("budget") }
+        assertThat(budgetWord.isProblem).isTrue()
+        assertThat(budgetWord.modelFlagged).isTrue()
+        assertThat(budgetWord.heardAs).isEqualTo("project")
+        assertThat(attempt.problemWords).contains("budget")
     }
 
     @Test

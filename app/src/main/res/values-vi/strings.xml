@@ -179,6 +179,7 @@
     <string name="convo_passed_sentences">Đạt %1$d/%2$d câu</string>
     <string name="convo_attempt_passed">✓ Lần %1$d: ĐẠT CHUẨN</string>
     <string name="convo_attempt_failed">✗ Lần %1$d: CHƯA ĐẠT (nghe đúng %2$d%% từ)</string>
+    <string name="convo_attempt_failed_clarity">✗ Lần %1$d: CHƯA ĐẠT (cần phát âm rõ hơn)</string>
     <string name="convo_ai_first_sentence_hint">AI sắp đọc câu đầu tiên…</string>
     <string name="convo_weak_sounds">Âm cần sửa: %1$s</string>
     <string name="convo_error_ai_not_configured">Cấu hình AI chưa hoàn tất</string>

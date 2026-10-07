@@ -93,33 +93,33 @@ class SentenceTranslator @Inject constructor(
         val instant = getInstantTranslation(trimmed, appLanguage)
         if (instant != null) return@withContext instant
 
-        // 2. Call Gemini Flash Text model
-        return@withContext try {
-            val model = Firebase.ai(backend = GenerativeBackend.googleAI())
-                .generativeModel(modelName = BuildConfig.TEXT_MODEL)
+        // 2. Call Gemini Flash Text model with automatic fallback
+        val prompt = """
+            You are a concise, accurate translator for an English language learning app.
+            Translate the following short English practice sentence into natural $langName.
+            Requirements:
+            - Output ONLY the raw translated sentence.
+            - Do NOT include quotes, explanations, pronunciation hints, or alternative meanings.
+            
+            English: $trimmed
+        """.trimIndent()
 
-            val prompt = """
-                You are a concise, accurate translator for an English language learning app.
-                Translate the following short English practice sentence into natural $langName.
-                Requirements:
-                - Output ONLY the raw translated sentence.
-                - Do NOT include quotes, explanations, pronunciation hints, or alternative meanings.
-                
-                English: $trimmed
-            """.trimIndent()
-
-            val response = model.generateContent(prompt)
-            val translated = response.text?.trim()?.trim('"', '\'', '“', '”', '`', '\n')
-            if (!translated.isNullOrBlank()) {
-                cache.put(cacheKey, translated)
-                translated
-            } else {
-                null
+        val candidateModels = listOf(BuildConfig.TEXT_MODEL, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash").distinct()
+        for (modelName in candidateModels) {
+            try {
+                val model = Firebase.ai(backend = GenerativeBackend.googleAI())
+                    .generativeModel(modelName = modelName)
+                val response = model.generateContent(prompt)
+                val translated = response.text?.trim()?.trim('"', '\'', '“', '”', '`', '\n')
+                if (!translated.isNullOrBlank()) {
+                    cache.put(cacheKey, translated)
+                    return@withContext translated
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "Translation attempt with $modelName failed for '$trimmed': ${e.message}")
             }
-        } catch (e: Throwable) {
-            Log.w(TAG, "Failed to translate drill target '$trimmed' to $langName: ${e.message}")
-            null
         }
+        return@withContext null
     }
 
     companion object {

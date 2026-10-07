@@ -24,7 +24,7 @@ Model mặc định (có thể đổi trong `gradle.properties` mà không cần
 | Mục đích | Thuộc tính | Mặc định |
 |---|---|---|
 | Hội thoại giọng nói (Live API) | `speakdrive.liveModel` | `gemini-3.1-flash-live-preview` |
-| Tóm tắt & chấm điểm cuối buổi | `speakdrive.textModel` | `gemini-3.8-flash` |
+| Tóm tắt & chấm điểm cuối buổi | `speakdrive.textModel` | `gemini-2.5-flash` |
 
 Nếu model Live dạng preview bị thay hoặc ngừng hỗ trợ, đổi sang model khác trong
 [danh sách model Live API](https://firebase.google.com/docs/ai-logic/live-api), ví dụ:

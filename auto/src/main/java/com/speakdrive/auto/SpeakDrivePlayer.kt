@@ -142,7 +142,11 @@ class SpeakDrivePlayer(
         val state = engine.state.value
         val itemToStart = selectedItem
         when {
-            !playWhenReady -> engine.pause()
+            !playWhenReady -> {
+                if (startingMediaId == null && !engine.isWithinStartupGrace()) {
+                    engine.pause()
+                }
+            }
             itemToStart != null && !isSameAsCurrentLesson(itemToStart) -> startFromItem(itemToStart)
             state == ConversationState.PAUSED -> engine.resume()
             state.isInLesson -> Unit

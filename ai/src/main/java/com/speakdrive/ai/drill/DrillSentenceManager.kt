@@ -320,6 +320,33 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("td_b2_01", "I'm reporting a lost passport to embassy officials.", "Tôi đang trình báo việc mất hộ chiếu cho nhân viên đại sứ quán.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
         add(DrillSentence("td_b2_02", "I need to file an insurance claim for luggage.", "Tôi cần nộp hồ sơ yêu cầu bảo hiểm cho hành lý.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
         add(DrillSentence("td_b2_03", "Could you arrange a doctor visit to the hotel?", "Khách sạn có thể sắp xếp bác sĩ tới phòng khám được không?", DifficultyLevel.ADVANCED, DrillCategory.TRAVEL_DAILY, topicId = "health", isShortForDriving = true))
+
+        // High-frequency situational and driving sentences
+        add(DrillSentence("hf_01", "We need a better plan.", "Chúng ta cần một kế hoạch tốt hơn.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("hf_02", "I'd like to check in, please.", "Làm ơn cho tôi làm thủ tục nhận phòng.", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("hf_03", "Can you show me the way?", "Bạn có thể chỉ đường giúp tôi được không?", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "directions", isShortForDriving = true))
+        add(DrillSentence("hf_04", "Turn left at the next corner.", "Rẽ trái ở góc đường tiếp theo.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "directions", isShortForDriving = true))
+        add(DrillSentence("hf_05", "Turn right at the traffic lights.", "Rẽ phải ở chỗ đèn giao thông.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "directions", isShortForDriving = true))
+        add(DrillSentence("hf_06", "Where is the nearest gas station?", "Cây xăng gần nhất ở đâu vậy?", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "directions", isShortForDriving = true))
+        add(DrillSentence("hf_07", "Where can I park my car?", "Tôi có thể đỗ xe ở đâu?", DifficultyLevel.BEGINNER, DrillCategory.DRIVING_PHRASES, topicId = "directions", isShortForDriving = true))
+        add(DrillSentence("hf_08", "Is there any traffic ahead?", "Phía trước có bị kẹt xe không?", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "directions", isShortForDriving = true))
+        add(DrillSentence("hf_09", "Please fasten your seatbelt.", "Xin vui lòng thắt dây an toàn.", DifficultyLevel.BEGINNER, DrillCategory.DRIVING_PHRASES, topicId = "directions", isShortForDriving = true))
+        add(DrillSentence("hf_10", "Keep your eyes on the road.", "Hãy tập trung chú ý quan sát đường.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "directions", isShortForDriving = true))
+        add(DrillSentence("hf_11", "How much does this cost?", "Cái này giá bao nhiêu tiền?", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "shopping", isShortForDriving = true))
+        add(DrillSentence("hf_12", "Could you speak a little slower?", "Bạn có thể nói chậm lại một chút được không?", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "daily", isShortForDriving = true))
+        add(DrillSentence("hf_13", "I have a meeting at nine.", "Tôi có một cuộc họp lúc chín giờ.", DifficultyLevel.ELEMENTARY, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("hf_14", "Let's take a short break.", "Chúng ta hãy nghỉ giải lao một lát.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("hf_15", "Everything is under control.", "Mọi thứ đều đang trong tầm kiểm soát.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("hf_16", "I need to make a phone call.", "Tôi cần gọi một cuộc điện thoại.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "daily", isShortForDriving = true))
+        add(DrillSentence("hf_17", "Could I have a glass of water?", "Làm ơn cho tôi xin một ly nước.", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "food", isShortForDriving = true))
+        add(DrillSentence("hf_18", "The weather is very nice today.", "Hôm nay thời tiết rất đẹp.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "daily", isShortForDriving = true))
+        add(DrillSentence("hf_19", "See you again tomorrow.", "Hẹn gặp lại bạn vào ngày mai nhé.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "daily", isShortForDriving = true))
+        add(DrillSentence("hf_20", "Have a safe trip.", "Chúc bạn có một chuyến đi an toàn.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("hf_21", "I completely agree with you.", "Tôi hoàn toàn đồng ý với ý kiến của bạn.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("hf_22", "Let me check my schedule.", "Để tôi kiểm tra lại lịch làm việc của mình.", DifficultyLevel.ELEMENTARY, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("hf_23", "I'm running a little bit late.", "Tôi đang bị trễ một chút.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "daily", isShortForDriving = true))
+        add(DrillSentence("hf_24", "Could you please give me a hand?", "Bạn có thể giúp tôi một tay được không?", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "daily", isShortForDriving = true))
+        add(DrillSentence("hf_25", "Nice talking to you today.", "Rất vui được trò chuyện cùng bạn hôm nay.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "daily", isShortForDriving = true))
     }
 
     /** Returns all available curated drill sentences. */

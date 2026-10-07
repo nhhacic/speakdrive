@@ -1,12 +1,18 @@
 package com.speakdrive.ai.summary
 
 import com.speakdrive.ai.evaluation.LevelEvaluator
+import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.Correction
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.LevelAdjustmentDirection
 import com.speakdrive.ai.model.LevelRecommendation
 import com.speakdrive.ai.model.NewWord
+import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.SessionSummary
+import com.speakdrive.ai.model.Speaker
+import com.speakdrive.ai.model.TranscriptTurn
+import com.speakdrive.ai.pronunciation.PronunciationAttempt
+import com.speakdrive.ai.pronunciation.PronunciationDrill
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -95,6 +101,124 @@ object SummaryParser {
             reasonEn = "Complete more sessions to evaluate level adjustment."
         )
     )
+
+    /**
+     * Generates a pedagogical, high-quality fallback summary locally when cloud generative AI fails.
+     * Uses actual practice sentences, pronunciation attempts, and speech turns instead of empty error cards.
+     */
+    fun createLocalFallbackSummary(
+        lesson: ActiveLesson,
+        transcript: List<TranscriptTurn>,
+        attempts: List<PronunciationAttempt>
+    ): SessionSummary {
+        val currentLevel = lesson.level
+        if (lesson.mode == SessionMode.REPEAT_AFTER_ME && attempts.isNotEmpty()) {
+            val bySentence = attempts.groupBy { PronunciationDrill.key(it.target) }
+            val totalSentences = bySentence.size
+            val passedSentences = bySentence.values.count { tries -> tries.any { it.passed } }
+            val pronScore = PronunciationDrill.score(attempts) ?: 0
+
+            // Extract failed sentences for corrections
+            val failedGroups = bySentence.values.filter { tries -> tries.none { it.passed } }
+            val corrections = failedGroups.take(5).map { tries ->
+                val lastAttempt = tries.last()
+                val problemNote = when {
+                    lastAttempt.problemWords.isNotEmpty() ->
+                        "Lưu ý phát âm từ: ${lastAttempt.problemWords.joinToString()}"
+                    lastAttempt.modelNotes.isNotBlank() ->
+                        lastAttempt.modelNotes
+                    else ->
+                        "Cần phát âm rõ ràng và liền mạch cả câu."
+                }
+                Correction(
+                    original = lastAttempt.heard.ifBlank { "(chưa nghe rõ)" },
+                    corrected = lastAttempt.target,
+                    explanation = problemNote
+                )
+            }
+
+            val fluency = ((pronScore + 5) / 10).coerceIn(1, 10)
+            val grammar = 9 // Pre-scripted drill targets
+            val vocabulary = 8
+
+            val encouragement = when {
+                pronScore >= 85 -> "Bạn đã hoàn thành xuất sắc bài luyện phát âm với $passedSentences/$totalSentences câu chuẩn xác ($pronScore%). Phản xạ ngữ âm rất tốt!"
+                pronScore >= 60 -> "Bạn đã nỗ lực hoàn thành $passedSentences/$totalSentences câu đạt chuẩn ($pronScore%). Hãy chú ý luyện thêm các câu chưa đạt để ngữ điệu tự nhiên hơn nhé!"
+                else -> "Bạn đã kiên trì hoàn thành $totalSentences câu luyện nói. Hãy tiếp tục luyện tập từng câu để cải thiện âm đuôi và sự lưu loát!"
+            }
+
+            val nextSuggestion = if (corrections.isNotEmpty()) {
+                "Luyện tập lại câu: \"${corrections.first().corrected}\" để phát âm chuẩn xác hơn."
+            } else {
+                "Thử sức với các câu dài hơn hoặc chuyển sang chủ đề tiếp theo để mở rộng vốn từ."
+            }
+
+            val recommendation = LevelEvaluator.evaluateSession(
+                currentLevel = currentLevel,
+                fluencyScore = fluency,
+                grammarScore = grammar,
+                vocabularyScore = vocabulary,
+                pronunciationScore = pronScore,
+                correctionsCount = corrections.size,
+                learnerTurns = attempts.size
+            )
+
+            return SessionSummary(
+                fluencyScore = fluency,
+                grammarScore = grammar,
+                vocabularyScore = vocabulary,
+                newWords = emptyList(),
+                corrections = corrections,
+                encouragement = encouragement,
+                nextSuggestion = nextSuggestion,
+                pronunciationScore = pronScore,
+                levelRecommendation = recommendation
+            )
+        }
+
+        val learnerTurns = transcript.filter { it.speaker == Speaker.USER && it.text.trim().isNotBlank() }
+        if (learnerTurns.size >= 2) {
+            val totalWords = learnerTurns.sumOf { it.text.split(Regex("\\s+")).filter(String::isNotBlank).size }
+            val avgWordsPerTurn = totalWords / learnerTurns.size
+            val fluency = when {
+                avgWordsPerTurn >= 8 -> 8
+                avgWordsPerTurn >= 4 -> 7
+                else -> 6
+            }
+            val grammar = 7
+            val vocabulary = 7
+
+            val encouragement = "Bạn đã hoàn thành buổi học với ${learnerTurns.size} lượt đối thoại về chủ đề ${lesson.topic.titleVi}. Nội dung buổi học đã được lưu lại đầy đủ!"
+            val nextSuggestion = "Hãy thử mở rộng câu trả lời bằng cách bổ sung thêm lý do hoặc ví dụ cụ thể ở buổi học tới."
+
+            val recommendation = LevelEvaluator.evaluateSession(
+                currentLevel = currentLevel,
+                fluencyScore = fluency,
+                grammarScore = grammar,
+                vocabularyScore = vocabulary,
+                pronunciationScore = null,
+                correctionsCount = 0,
+                learnerTurns = learnerTurns.size
+            )
+
+            return SessionSummary(
+                fluencyScore = fluency,
+                grammarScore = grammar,
+                vocabularyScore = vocabulary,
+                newWords = emptyList(),
+                corrections = emptyList(),
+                encouragement = encouragement,
+                nextSuggestion = nextSuggestion,
+                pronunciationScore = null,
+                levelRecommendation = recommendation
+            )
+        }
+
+        return fallback(
+            reasonVi = "Buổi học hơi ngắn nên chưa đủ dữ liệu để chấm điểm. Bạn đã bắt đầu rất tốt!",
+            currentLevel = currentLevel
+        )
+    }
 
     private fun extractJsonObject(raw: String): String? {
         val start = raw.indexOf('{')

@@ -179,6 +179,7 @@
     <string name="convo_passed_sentences">Passed %1$d/%2$d sentences</string>
     <string name="convo_attempt_passed">✓ Attempt %1$d: PASSED</string>
     <string name="convo_attempt_failed">✗ Attempt %1$d: NOT PASSED (%2$d%% accurate)</string>
+    <string name="convo_attempt_failed_clarity">✗ Attempt %1$d: NOT PASSED (needs clearer pronunciation)</string>
     <string name="convo_ai_first_sentence_hint">AI will read the first sentence…</string>
     <string name="convo_weak_sounds">Sounds to improve: %1$s</string>
     <string name="convo_error_ai_not_configured">AI Not Configured</string>

@@ -88,7 +88,7 @@ Ký hiệu:
   thông báo bằng giọng nói.
 - **Đường điều khiển chung**: điện thoại cũng bắt đầu bài học qua Media3 service giống Android Auto,
   nhờ vậy bài học không bị dừng khi tắt màn hình.
-- **Model**: `gemini-3.1-flash-live-preview` cho hội thoại, `gemini-3.8-flash` cho tóm tắt
+- **Model**: `gemini-3.1-flash-live-preview` cho hội thoại, `gemini-2.5-flash` cho tóm tắt
   (đổi được trong `gradle.properties`).
 - **Mô hình kinh doanh** (gói Free/Plus/Pro): chưa làm. Cần sản phẩm trên Play Console và Play Billing.
 

@@ -201,8 +201,14 @@ open class ConversationEngine @Inject constructor(
             return
         }
 
+        // Clear stale subtitle from previous sentence while async translation is in flight
+        _drillTargetTranslation.value = null
+
         translationJob = scope.launch {
             try {
+                // Short debounce to wait for streaming sentence boundary
+                delay(120)
+                if (_drillTarget.value != target || !isActive) return@launch
                 val translated = sentenceTranslator.translate(target, targetLang)
                 if (_drillTarget.value == target && isActive) {
                     _drillTargetTranslation.value = translated
@@ -233,6 +239,8 @@ open class ConversationEngine @Inject constructor(
             _isAppFocused.value = focused
             if (!focused) {
                 checkAutoPause()
+            } else {
+                checkAutoResume()
             }
         }
     }
@@ -243,6 +251,8 @@ open class ConversationEngine @Inject constructor(
             _isScreenOn.value = screenOn
             if (!screenOn) {
                 checkAutoPause()
+            } else {
+                checkAutoResume()
             }
         }
     }
@@ -251,10 +261,35 @@ open class ConversationEngine @Inject constructor(
         if (!learnerSettings.autoPauseWhenUnfocused) return
         if (_isCarConnected.value) return
         if (_state.value != ConversationState.ACTIVE) return
+        if (isWithinStartupGrace()) {
+            Log.d(TAG, "Ignoring auto-pause during startup grace period (${clock() - lessonStartedAt}ms)")
+            return
+        }
 
         if (!_isAppFocused.value || !_isScreenOn.value) {
             Log.i(TAG, "Auto-pausing lesson: appFocused=${_isAppFocused.value}, screenOn=${_isScreenOn.value}, carConnected=${_isCarConnected.value}")
-            pauseAsync()
+            pauseByUnfocusedAsync()
+        }
+    }
+
+    internal fun pauseByUnfocusedAsync() {
+        scope.launch {
+            mutex.withLock {
+                if (_state.value == ConversationState.ACTIVE) {
+                    pausedByAppUnfocused = true
+                    pauseLocked(byFocus = true)
+                }
+            }
+        }
+    }
+
+    internal fun checkAutoResume() {
+        if (_state.value == ConversationState.PAUSED && pausedByAppUnfocused) {
+            if (_isAppFocused.value && _isScreenOn.value) {
+                Log.i(TAG, "App regained focus and screen is on; auto-resuming lesson")
+                pausedByAppUnfocused = false
+                scope.launch { resume() }
+            }
         }
     }
 
@@ -299,7 +334,11 @@ open class ConversationEngine @Inject constructor(
     private var lastActivityAt = 0L
     private var unansweredNudges = 0
     private var pausedByFocus = false
+    private var pausedByAppUnfocused = false
+    private var lessonStartedAt = 0L
     private var pausedAt = 0L
+
+    open fun isWithinStartupGrace(): Boolean = clock() - lessonStartedAt < STARTUP_GRACE_PERIOD_MS
     private var learnerSettings = LearnerSettings()
     private var cachedStorySessions = listOf<CompletedSession>()
 
@@ -404,6 +443,8 @@ open class ConversationEngine @Inject constructor(
         unansweredNudges = 0
         resetStoryProgress()
         pausedByFocus = false
+        pausedByAppUnfocused = false
+        _isAppFocused.value = true
         _lesson.value = lesson
         _state.value = ConversationState.CONNECTING
 
@@ -434,7 +475,10 @@ open class ConversationEngine @Inject constructor(
     }
 
     /** User-initiated pause (play/pause button, steering-wheel button). */
-    open suspend fun pause() = mutex.withLock { pauseLocked(byFocus = false) }
+    open suspend fun pause() = mutex.withLock {
+        pausedByAppUnfocused = false
+        pauseLocked(byFocus = false)
+    }
 
     open suspend fun resume(): Boolean = mutex.withLock { resumeLocked() }
 
@@ -1399,6 +1443,7 @@ open class ConversationEngine @Inject constructor(
     private fun markActive() {
         activeSince = clock()
         lastActivityAt = clock()
+        lessonStartedAt = clock()
         _state.value = ConversationState.ACTIVE
     }
 
@@ -1440,6 +1485,7 @@ open class ConversationEngine @Inject constructor(
             return false
         }
         pausedByFocus = false
+        pausedByAppUnfocused = false
         unansweredNudges = 0
         return try {
             if (liveClient.isConnected) {
@@ -1556,7 +1602,7 @@ open class ConversationEngine @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Summary generation failed", e)
-                SummaryParser.fallback("Chưa tạo được nhận xét do lỗi kết nối. Nội dung buổi học vẫn được lưu lại.")
+                SummaryParser.createLocalFallbackSummary(lesson, draft.transcript, draft.pronunciationAttempts)
             }
             val graded = if (lesson.mode == SessionMode.REPEAT_AFTER_ME) {
                 summary.copy(pronunciationScore = PronunciationDrill.score(draft.pronunciationAttempts))
@@ -1661,14 +1707,15 @@ open class ConversationEngine @Inject constructor(
                     val current = _drillTarget.value
                     val newTarget = PronunciationDrill.extractTarget(turn.text)
                     if (newTarget != null) {
+                        val norm = { s: String -> PronunciationDrill.key(s) }
+                        val isDifferentSentence = current == null || norm(newTarget) != norm(current)
                         val isExtension = current != null &&
                             newTarget.length > current.length &&
                             newTarget.contains(current.trimEnd('.', '!', '?', ',', ' ', '"', '”'), ignoreCase = true)
-                        val norm = { s: String -> PronunciationDrill.key(s) }
                         val isPartialOfCurrent = current != null &&
                             norm(current).startsWith(norm(newTarget)) && norm(newTarget) != norm(current)
                         val explicitCue = turn.text.contains("repeat after me", ignoreCase = true)
-                        if (awaitingNewDrillTarget || current == null || isExtension || (explicitCue && !isPartialOfCurrent)) {
+                        if (awaitingNewDrillTarget || current == null || isExtension || (isDifferentSentence && !isPartialOfCurrent) || explicitCue) {
                             setDrillTarget(newTarget)
                         }
                     }
@@ -2128,6 +2175,7 @@ open class ConversationEngine @Inject constructor(
         const val RECONNECT_BACKOFF_MS = 1_500L
         const val GO_AWAY_WAIT_MS = 40_000L
         const val GOODBYE_GRACE_MS = 4_000L
+        const val STARTUP_GRACE_PERIOD_MS = 5_000L
         const val SPEAKER_IDLE_MS = 1_200L
         const val AI_THINKING_TIMEOUT_MS = 10_000L
         const val SILENCE_CHECK_INTERVAL_MS = 5_000L
