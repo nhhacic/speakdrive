@@ -8,7 +8,7 @@ plugins {
 // Model names can be overridden in gradle.properties without touching code,
 // e.g. speakdrive.liveModel=gemini-2.5-flash-native-audio-preview-12-2025
 val liveModel = providers.gradleProperty("speakdrive.liveModel").getOrElse("gemini-3.1-flash-live-preview")
-val textModel = providers.gradleProperty("speakdrive.textModel").getOrElse("gemini-2.5-flash")
+val textModel = providers.gradleProperty("speakdrive.textModel").getOrElse("gemini-3.8-flash")
 
 android {
     namespace = "com.speakdrive.ai"

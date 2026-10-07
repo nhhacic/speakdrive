@@ -90,4 +90,16 @@ class DrillSentenceManagerTest {
             }
         }
     }
+
+    @Test
+    fun `findTranslationVi returns accurate Vietnamese translation for curated and survival sentences`() {
+        val climberTranslation = manager.findTranslationVi("The climber survived against all odds.")
+        assertThat(climberTranslation).isEqualTo("Người leo núi đã sống sót bất chấp mọi khó khăn.")
+
+        val oddsTranslation = manager.findTranslationVi("Against all odds, he found his way back.")
+        assertThat(oddsTranslation).isEqualTo("Vượt qua mọi nghịch cảnh, anh ấy đã tìm được đường trở về.")
+
+        val carTranslation = manager.findTranslationVi("Stop the car here.")
+        assertThat(carTranslation).isEqualTo("Dừng xe ở đây.")
+    }
 }

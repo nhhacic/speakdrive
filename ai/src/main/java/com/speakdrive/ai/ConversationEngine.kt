@@ -196,21 +196,22 @@ open class ConversationEngine @Inject constructor(
 
         val targetLang = learnerSettings.appLanguage
         val instant = sentenceTranslator.getInstantTranslation(target, targetLang)
+            ?: sentenceTranslator.generateInstantFallbackTranslation(target, targetLang)
+
         if (instant != null) {
             _drillTargetTranslation.value = instant
-            return
+        } else {
+            // Clear stale subtitle from previous sentence while async translation is in flight
+            _drillTargetTranslation.value = null
         }
-
-        // Clear stale subtitle from previous sentence while async translation is in flight
-        _drillTargetTranslation.value = null
 
         translationJob = scope.launch {
             try {
                 // Short debounce to wait for streaming sentence boundary
-                delay(120)
+                delay(80)
                 if (_drillTarget.value != target || !isActive) return@launch
                 val translated = sentenceTranslator.translate(target, targetLang)
-                if (_drillTarget.value == target && isActive) {
+                if (_drillTarget.value == target && isActive && !translated.isNullOrBlank()) {
                     _drillTargetTranslation.value = translated
                 }
             } catch (e: Exception) {
