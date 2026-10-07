@@ -61,6 +61,19 @@ class MediaContentProviderTest {
     }
 
     @Test
+    fun `home tab resume subtitle reflects shadowing mode when lastSessionMode is REPEAT_AFTER_ME`() = runTest {
+        settings.current = settings.current.copy(
+            lastTopicId = "travel",
+            lastSessionMode = SessionMode.REPEAT_AFTER_ME
+        )
+
+        val home = provider.children(MediaIds.HOME)
+        val resumeItem = home.first { it.mediaId == MediaIds.RESUME }
+        assertThat(resumeItem.mediaMetadata.subtitle.toString()).contains("Luyện phát âm (Shadowing)")
+        assertThat(resumeItem.mediaMetadata.subtitle.toString()).contains("Du lịch")
+    }
+
+    @Test
     fun `stories tab offers recommended, random, and story topics`() = runTest {
         val stories = provider.children(MediaIds.STORIES)
 
@@ -144,6 +157,24 @@ class MediaContentProviderTest {
         assertThat(item.mediaMetadata.artist.toString()).contains("Intermediate")
         assertThat(item.mediaMetadata.artworkData).isNotNull()
         assertThat(item.mediaMetadata.artworkData!!.isNotEmpty()).isTrue()
+    }
+
+    @Test
+    fun `lesson item displays translation subtitle when provided`() {
+        val lesson = ActiveLesson("id", topics.getTopicById("travel")!!, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0, emptyList())
+
+        val item = provider.lessonItem(
+            lesson = lesson,
+            state = ConversationState.ACTIVE,
+            lastAiText = "Repeat after me: I'd like a window seat, please.",
+            drillTarget = "I'd like a window seat, please.",
+            drillTargetTranslation = "Tôi muốn một chỗ ngồi cạnh cửa sổ, làm ơn."
+        )
+
+        assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
+        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 Lặp lại theo AI")
+        assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("🇻🇳 Dịch: Tôi muốn một chỗ ngồi cạnh cửa sổ, làm ơn.")
+        assertThat(item.mediaMetadata.artworkData).isNotNull()
     }
 
     @Test

@@ -390,6 +390,7 @@ fun ConversationContent(
                 val attempt = drill.lastAttempt
                 DrillCard(
                     target = drill.target,
+                    translation = drill.translation,
                     attemptWords = attempt?.words,
                     attemptPassed = attempt?.passed,
                     attemptNumber = attempt?.attemptNumber,

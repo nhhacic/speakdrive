@@ -34,14 +34,18 @@ class CarConnectionAutoStarter @Inject constructor(
                 .collect { isConnected ->
                 engine.setCarConnected(isConnected)
                 if (isConnected && !wasConnected) {
-                    Log.d(TAG, "Android Auto connected, automatically starting lesson")
+                    Log.d(TAG, "Android Auto connected, checking auto-start/resume")
                     try {
-                        if (!engine.state.value.isInLesson) {
+                        val state = engine.state.value
+                        if (state == com.speakdrive.ai.model.ConversationState.PAUSED) {
+                            Log.i(TAG, "Auto-resuming paused lesson on Android Auto connection")
+                            engine.resume()
+                        } else if (!state.isInLesson) {
                             Log.i(TAG, "Auto-starting lesson on Android Auto connection")
                             playbackConnection.play(MediaIds.RESUME)
                         }
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to auto-start lesson on car connect", e)
+                        Log.w(TAG, "Failed to auto-start/resume lesson on car connect", e)
                     }
                 }
                 wasConnected = isConnected

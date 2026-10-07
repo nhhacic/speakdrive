@@ -47,6 +47,7 @@ interface LearningSettings {
     fun observeLearnerSettings(): Flow<LearnerSettings> = emptyFlow()
     suspend fun setLevel(level: DifficultyLevel)
     suspend fun setLastTopicId(topicId: String)
+    suspend fun setLastSession(topicId: String, mode: com.speakdrive.ai.model.SessionMode, scenarioId: String? = null) {}
     suspend fun setAllowVietnameseHelp(allowed: Boolean)
     suspend fun setPronunciationStrictness(strictness: PronunciationStrictness) {}
     suspend fun setStorytellingStyle(style: StorytellingStyle) {}

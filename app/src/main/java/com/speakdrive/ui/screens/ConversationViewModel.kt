@@ -49,7 +49,8 @@ data class DrillUiState(
     val target: String?,
     val lastAttempt: PronunciationAttempt?,
     val passedSentences: Int,
-    val sentences: Int
+    val sentences: Int,
+    val translation: String? = null
 )
 
 sealed interface ConversationEvent {
@@ -83,16 +84,22 @@ class ConversationViewModel @Inject constructor(
     val uiState: StateFlow<ConversationUiState> = combine(
         combine(engine.lesson, engine.state, engine.transcript, ::Triple),
         combine(engine.activeSpeaker, engine.error, engine.isAiThinking, ::Triple),
-        combine(engine.drillTarget, engine.pronunciationAttempts, ::Pair),
+        combine(
+            combine(engine.drillTarget, engine.drillTargetTranslation, ::Pair),
+            engine.pronunciationAttempts,
+            ::Pair
+        ),
         combine(engine.isCarConnected, preferencesRepository.observeLearnerSettings().map { Pair(it.allowBargeIn, it.aiVolume) }, ::Pair),
         ticker
-    ) { (lesson, state, transcript), (speaker, error, isThinking), (target, attempts), (isCarConnected, settingsPair), _ ->
+    ) { (lesson, state, transcript), (speaker, error, isThinking), (drillData, attempts), (isCarConnected, settingsPair), _ ->
+        val (target, translation) = drillData
         val bySentence = attempts.groupBy { PronunciationDrill.key(it.target) }
         val currentTarget = target ?: attempts.lastOrNull()?.target
         ConversationUiState(
             drill = if (lesson?.mode == SessionMode.REPEAT_AFTER_ME) {
                 DrillUiState(
                     target = currentTarget,
+                    translation = translation,
                     // Only show the grade while it still refers to the sentence on screen.
                     lastAttempt = attempts.lastOrNull()?.takeIf { currentTarget == null || PronunciationDrill.key(it.target) == PronunciationDrill.key(currentTarget) },
                     passedSentences = bySentence.values.count { tries -> tries.any { it.passed } },

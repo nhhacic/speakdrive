@@ -44,12 +44,15 @@ class SpeakDrivePlayer(
     init {
         scope.launch {
             combine(
-                engine.state,
-                engine.lesson,
-                engine.error,
-                engine.transcript,
-                engine.drillTarget
-            ) { _, _, _, _, _ -> Unit }.collect { invalidateState() }
+                listOf(
+                    engine.state,
+                    engine.lesson,
+                    engine.error,
+                    engine.transcript,
+                    engine.drillTarget,
+                    engine.drillTargetTranslation
+                )
+            ) { }.collect { invalidateState() }
         }
     }
 
@@ -63,7 +66,8 @@ class SpeakDrivePlayer(
             val transcript = engine.transcript.value
             val lastAiText = transcript.lastOrNull { turn -> turn.speaker == Speaker.AI }?.text
             val drillTarget = engine.drillTarget.value
-            contentProvider.lessonItem(it, engineState, lastAiText, drillTarget)
+            val drillTargetTranslation = engine.drillTargetTranslation.value
+            contentProvider.lessonItem(it, engineState, lastAiText, drillTarget, drillTargetTranslation)
         } ?: selectedItem ?: contentProvider.standbyItem(justEnded = engineState == ConversationState.ENDED)
         val error = engine.error.value
 
@@ -157,7 +161,17 @@ class SpeakDrivePlayer(
 
     /** Turns a media id from the browse tree or voice search into a lesson request. */
     private suspend fun requestFor(mediaId: String): LessonRequest? = when (val target = MediaIds.parse(mediaId)) {
-        MediaTarget.Resume, MediaTarget.Unknown -> LessonRequest(topicId = settings.snapshot().lastTopicId)
+        MediaTarget.Resume, MediaTarget.Unknown -> {
+            val snapshot = settings.snapshot()
+            val topicId = snapshot.lastTopicId
+            when (snapshot.lastSessionMode) {
+                SessionMode.REPEAT_AFTER_ME -> LessonRequest(topicId = topicId, mode = SessionMode.REPEAT_AFTER_ME)
+                SessionMode.ROLEPLAY -> LessonRequest(topicId = topicId, scenarioId = snapshot.lastScenarioId, mode = SessionMode.ROLEPLAY)
+                SessionMode.VOCAB_REVIEW -> LessonRequest(topicId = topicId, mode = SessionMode.VOCAB_REVIEW)
+                SessionMode.STORY_LISTENING -> LessonRequest(topicId = topicId, scenarioId = snapshot.lastScenarioId, mode = SessionMode.STORY_LISTENING)
+                SessionMode.FREE_TALK -> LessonRequest(topicId = topicId, mode = SessionMode.FREE_TALK)
+            }
+        }
         MediaTarget.Random -> LessonRequest(topicId = null)
         MediaTarget.Review -> LessonRequest(mode = SessionMode.VOCAB_REVIEW, topicId = settings.snapshot().lastTopicId)
         is MediaTarget.Vocab -> {

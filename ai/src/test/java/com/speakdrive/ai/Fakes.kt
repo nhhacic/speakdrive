@@ -10,6 +10,7 @@ import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.ReviewWord
+import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.SessionSummary
 import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.ai.model.TranscriptTurn
@@ -133,6 +134,10 @@ class FakeSettings(settings: LearnerSettings = LearnerSettings()) : LearningSett
 
     override suspend fun setLastTopicId(topicId: String) {
         settings = settings.copy(lastTopicId = topicId)
+    }
+
+    override suspend fun setLastSession(topicId: String, mode: SessionMode, scenarioId: String?) {
+        settings = settings.copy(lastTopicId = topicId, lastSessionMode = mode, lastScenarioId = scenarioId)
     }
 
     override suspend fun setAllowVietnameseHelp(allowed: Boolean) {

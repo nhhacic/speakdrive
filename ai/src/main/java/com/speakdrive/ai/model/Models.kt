@@ -537,6 +537,8 @@ data class LearnerSettings(
      */
     val allowBargeIn: Boolean = false,
     val lastTopicId: String? = null,
+    val lastSessionMode: SessionMode = SessionMode.FREE_TALK,
+    val lastScenarioId: String? = null,
     /** Grade "repeat after me" attempts with Azure Pronunciation Assessment as well. */
     val azureEnabled: Boolean = false,
     val azureRegion: String = "",

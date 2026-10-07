@@ -35,7 +35,8 @@ class VoiceSettingsToolsTest {
             VoiceSettingsTools.SET_DRILL_SENTENCE_LENGTH_FUNCTION,
             VoiceSettingsTools.SET_DRILL_CATEGORY_FUNCTION,
             VoiceSettingsTools.SET_AI_VOLUME_FUNCTION,
-            VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION
+            VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION,
+            VoiceSettingsTools.SET_TRANSLATION_SUBTITLES_FUNCTION
         )
     }
 
@@ -385,5 +386,34 @@ class VoiceSettingsToolsTest {
 
         assertThat(VoiceSettingsTools.parseDrillCategory(null)).isNull()
         assertThat(VoiceSettingsTools.parseDrillCategory("không liên quan")).isNull()
+    }
+
+    @Test
+    fun `parseTranslationSubtitles resolves boolean and string inputs`() {
+        // Boolean inputs
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles(true)).isTrue()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles(false)).isFalse()
+
+        // String inputs - True (Vietnamese & English)
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("true")).isTrue()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("enable")).isTrue()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("bật")).isTrue()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("on")).isTrue()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("hiện")).isTrue()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("show")).isTrue()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("bật phụ đề")).isTrue()
+
+        // String inputs - False (Vietnamese & English)
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("false")).isFalse()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("disable")).isFalse()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("tắt")).isFalse()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("off")).isFalse()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("ẩn")).isFalse()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("hide")).isFalse()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("tắt phụ đề")).isFalse()
+
+        // Null / Unknown
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles(null)).isNull()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("xyz")).isNull()
     }
 }

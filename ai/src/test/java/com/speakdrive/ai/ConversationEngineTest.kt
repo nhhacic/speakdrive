@@ -424,6 +424,34 @@ class ConversationEngineTest {
     }
 
     @Test
+    fun `resume during REPEAT_AFTER_ME sends drill-mode resume message and preserves mode in settings`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+
+        assertThat(settings.settings.lastTopicId).isEqualTo("travel")
+        assertThat(settings.settings.lastSessionMode).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+
+        // Set a target sentence
+        say(Speaker.AI, "Please repeat: I would like to check in.")
+        runCurrent()
+
+        // Pause lesson
+        engine.pause()
+        advanceTimeBy(2 * 60_000L + 1)
+        runCurrent()
+        assertThat(live.isConnected).isFalse()
+
+        // Resume lesson
+        assertThat(engine.resume()).isTrue()
+
+        val lastResumeText = live.sentTexts.last()
+        assertThat(lastResumeText).contains("Repeat-After-Me / Pronunciation Shadowing drill mode")
+        assertThat(lastResumeText).contains("Do NOT switch to open conversation")
+        assertThat(lastResumeText).doesNotContain(PromptTemplates.RESUME_MESSAGE)
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
     fun `go away from the server swaps the connection once the AI is quiet`(): TestResult = engineTest {
         val engine = createEngine()
         engine.start(LessonRequest())

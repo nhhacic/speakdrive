@@ -121,6 +121,10 @@ class UserPreferencesRepository @Inject constructor(
                 azureRegion = prefs[AZURE_REGION]?.takeIf { it.isNotBlank() } ?: BuildConfig.AZURE_SPEECH_REGION,
                 azureKey = prefs[AZURE_KEY]?.takeIf { it.isNotBlank() } ?: BuildConfig.AZURE_SPEECH_KEY,
                 lastTopicId = prefs[LAST_TOPIC_ID],
+                lastSessionMode = prefs[LAST_SESSION_MODE]?.let { modeStr ->
+                    runCatching { com.speakdrive.ai.model.SessionMode.valueOf(modeStr) }.getOrNull()
+                } ?: com.speakdrive.ai.model.SessionMode.FREE_TALK,
+                lastScenarioId = prefs[LAST_SCENARIO_ID],
                 pronunciationStrictness = PronunciationStrictness.fromStored(prefs[PRONUNCIATION_STRICTNESS]),
                 storytellingStyle = StorytellingStyle.fromStored(prefs[STORYTELLING_STYLE]),
                 randomVoice = prefs[RANDOM_VOICE] ?: false,
@@ -153,6 +157,18 @@ class UserPreferencesRepository @Inject constructor(
 
     override suspend fun setLastTopicId(topicId: String) {
         dataStore.edit { it[LAST_TOPIC_ID] = topicId }
+    }
+
+    override suspend fun setLastSession(topicId: String, mode: com.speakdrive.ai.model.SessionMode, scenarioId: String?) {
+        dataStore.edit {
+            it[LAST_TOPIC_ID] = topicId
+            it[LAST_SESSION_MODE] = mode.name
+            if (scenarioId != null) {
+                it[LAST_SCENARIO_ID] = scenarioId
+            } else {
+                it.remove(LAST_SCENARIO_ID)
+            }
+        }
     }
 
     override suspend fun setVoice(voice: AiVoice) {
@@ -261,6 +277,8 @@ class UserPreferencesRepository @Inject constructor(
         val AZURE_REGION = stringPreferencesKey("azure_region")
         val AZURE_KEY = stringPreferencesKey("azure_key")
         val LAST_TOPIC_ID = stringPreferencesKey("last_topic_id")
+        val LAST_SESSION_MODE = stringPreferencesKey("last_session_mode")
+        val LAST_SCENARIO_ID = stringPreferencesKey("last_scenario_id")
         val DAILY_GOAL_MINUTES = intPreferencesKey("daily_goal_minutes")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val AUTO_START_ON_CAR_CONNECT = booleanPreferencesKey("auto_start_on_car_connect")

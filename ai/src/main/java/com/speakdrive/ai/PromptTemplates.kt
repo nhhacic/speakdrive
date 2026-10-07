@@ -653,6 +653,38 @@ object PromptTemplates {
     const val RESUME_MESSAGE =
         "We are back after a short interruption. Say something like \"Okay, where were we?\" in a few words and continue the conversation."
 
+    fun resumeMessage(lesson: ActiveLesson, currentDrillTarget: String? = null): String = when (lesson.mode) {
+        SessionMode.REPEAT_AFTER_ME -> {
+            if (!currentDrillTarget.isNullOrBlank()) {
+                "We are back after a short interruption. You are in Repeat-After-Me / Pronunciation Shadowing drill mode. " +
+                    "Welcome the learner back in one very short friendly phrase (e.g. \"Welcome back! Let's continue.\") " +
+                    "and say the current drill sentence clearly for them to repeat: \"$currentDrillTarget\". " +
+                    "CRITICAL: Stay strictly in repeat-after-me drill mode. Do NOT switch to open conversation or ask conversational questions."
+            } else {
+                "We are back after a short interruption. You are in Repeat-After-Me / Pronunciation Shadowing drill mode. " +
+                    "Welcome the learner back in one very short friendly phrase and say the next drill sentence clearly for them to repeat. " +
+                    "CRITICAL: Stay strictly in repeat-after-me drill mode. Do NOT switch to open conversation or ask conversational questions."
+            }
+        }
+        SessionMode.ROLEPLAY -> {
+            val role = lesson.scenario?.aiRole ?: "your character"
+            val title = lesson.scenario?.titleEn ?: lesson.topic.titleEn
+            "We are back after a short interruption. Resume your roleplay as $role in the scenario \"$title\". " +
+                "Welcome the learner back in character in one short sentence and continue the roleplay. " +
+                "CRITICAL: Stay in character and do NOT break the scenario."
+        }
+        SessionMode.VOCAB_REVIEW -> {
+            "We are back after a short interruption. You are in Vocabulary Review mode. " +
+                "Welcome the learner back in one short friendly phrase and continue quizzing the learner on review words. " +
+                "CRITICAL: Do NOT switch to open conversation."
+        }
+        SessionMode.STORY_LISTENING -> {
+            "We are back after a short interruption. Welcome the learner back in one short sentence " +
+                "and smoothly continue narrating the story right where you left off."
+        }
+        SessionMode.FREE_TALK -> RESUME_MESSAGE
+    }
+
     const val SILENCE_NUDGE =
         "The learner has been quiet for a while (they may be concentrating on the road). Gently re-engage them with one short, easy question."
 

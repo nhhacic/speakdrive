@@ -161,13 +161,30 @@ class MediaContentProvider @Inject constructor(
     }
 
     private suspend fun homeItems(): List<MediaItem> {
-        val lastTopic = topicManager.getTopicById(settings.snapshot().lastTopicId)
+        val snapshot = settings.snapshot()
+        val lastTopic = topicManager.getTopicById(snapshot.lastTopicId)
         val dueCount = sessionStore.wordsDueForReview(limit = 50).size
+        val resumeSubtitle = when (snapshot.lastSessionMode) {
+            SessionMode.REPEAT_AFTER_ME ->
+                "🗣️ Luyện phát âm (Shadowing)" + (lastTopic?.let { " • ${it.titleVi}" } ?: "")
+            SessionMode.ROLEPLAY -> {
+                val scenario = snapshot.lastScenarioId?.let { sId ->
+                    topicManager.getScenario(sId)?.second
+                }
+                "🎭 Nhập vai" + (scenario?.let { " • ${it.titleVi}" } ?: lastTopic?.let { " • ${it.titleVi}" } ?: "")
+            }
+            SessionMode.VOCAB_REVIEW ->
+                "📚 Ôn tập từ vựng" + (lastTopic?.let { " • ${it.titleVi}" } ?: "")
+            SessionMode.STORY_LISTENING ->
+                "🎧 Luyện nghe kể chuyện" + (lastTopic?.let { " • ${it.titleVi}" } ?: "")
+            SessionMode.FREE_TALK ->
+                lastTopic?.let { "${it.emoji} ${it.titleVi}" } ?: "AI chọn chủ đề cho bạn"
+        }
         return listOf(
             playable(
                 MediaIds.RESUME,
                 "Tiếp tục bài học",
-                lastTopic?.let { "${it.emoji} ${it.titleVi}" } ?: "AI chọn chủ đề cho bạn"
+                resumeSubtitle
             ),
             playable(
                 MediaIds.STORY_RECOMMENDED,

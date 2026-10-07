@@ -280,6 +280,27 @@ class PromptTemplatesTest {
         assertThat(rules).contains("NEVER repeat a sentence")
     }
 
+    @Test
+    fun `resumeMessage formats mode-aware resume prompt correctly`() {
+        val drillLesson = lesson(SessionMode.REPEAT_AFTER_ME, level = DifficultyLevel.INTERMEDIATE)
+        val drillWithTarget = PromptTemplates.resumeMessage(drillLesson, "I would like to check in.")
+        assertThat(drillWithTarget).contains("Repeat-After-Me / Pronunciation Shadowing drill mode")
+        assertThat(drillWithTarget).contains("I would like to check in.")
+        assertThat(drillWithTarget).contains("Do NOT switch to open conversation")
+
+        val drillWithoutTarget = PromptTemplates.resumeMessage(drillLesson, null)
+        assertThat(drillWithoutTarget).contains("say the next drill sentence clearly")
+        assertThat(drillWithoutTarget).contains("Do NOT switch to open conversation")
+
+        val roleplayLesson = lesson(SessionMode.ROLEPLAY, level = DifficultyLevel.INTERMEDIATE, scenarioId = "check_in")
+        val roleplayMsg = PromptTemplates.resumeMessage(roleplayLesson)
+        assertThat(roleplayMsg).contains("Resume your roleplay")
+        assertThat(roleplayMsg).contains("Stay in character")
+
+        val freeTalkLesson = lesson(SessionMode.FREE_TALK, level = DifficultyLevel.INTERMEDIATE)
+        val freeTalkMsg = PromptTemplates.resumeMessage(freeTalkLesson)
+        assertThat(freeTalkMsg).isEqualTo(PromptTemplates.RESUME_MESSAGE)
+    }
 }
 
 

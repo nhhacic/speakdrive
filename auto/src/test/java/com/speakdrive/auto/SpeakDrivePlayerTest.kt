@@ -16,6 +16,7 @@ import com.speakdrive.ai.model.CompletedSession
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.LearnerSettings
+import com.speakdrive.ai.model.LessonRequest
 import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.ReviewWord
 import com.speakdrive.ai.model.SessionMode
@@ -88,6 +89,9 @@ class SpeakDrivePlayerTest {
         override suspend fun setMultiVoiceStorytelling(enabled: Boolean) = Unit
         override suspend fun setAppLanguage(language: AppLanguage) = Unit
         override suspend fun setLastTopicId(topicId: String) = Unit
+        override suspend fun setLastSession(topicId: String, mode: SessionMode, scenarioId: String?) {
+            current = current.copy(lastTopicId = topicId, lastSessionMode = mode, lastScenarioId = scenarioId)
+        }
         override suspend fun setAdaptiveLevelRecommendation(enabled: Boolean) = Unit
     }
     private val contentProvider = MediaContentProvider(topics, store, settings)
@@ -147,6 +151,12 @@ class SpeakDrivePlayerTest {
         },
         dispatcher = Dispatchers.Unconfined
     ) {
+        var lastStartRequest: LessonRequest? = null
+        override suspend fun start(request: LessonRequest): Boolean {
+            lastStartRequest = request
+            return true
+        }
+
         override val state: StateFlow<ConversationState> get() = stateOverride
         override val lesson: StateFlow<ActiveLesson?> get() = lessonOverride
         override val transcript: StateFlow<List<TranscriptTurn>> get() = transcriptOverride
@@ -255,5 +265,45 @@ class SpeakDrivePlayerTest {
         assertThat(currentTitle).doesNotContain("Luyện phát âm")
         assertThat(player.playbackState).isEqualTo(Player.STATE_ENDED)
         assertThat(player.playWhenReady).isFalse()
+    }
+
+    @Test
+    fun `resuming playback with MediaIds RESUME preserves lastSessionMode REPEAT_AFTER_ME`() = runTest(testDispatcher) {
+        settings.current = settings.current.copy(
+            lastTopicId = "travel",
+            lastSessionMode = SessionMode.REPEAT_AFTER_ME
+        )
+
+        // Set resume media item (e.g. from CarConnectionAutoStarter or Android Auto resume)
+        val resumeItem = MediaItem.Builder().setMediaId(MediaIds.RESUME).build()
+        player.setMediaItem(resumeItem)
+        player.prepare()
+        player.play()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.lastStartRequest).isNotNull()
+        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(testEngine.lastStartRequest?.topicId).isEqualTo("travel")
+    }
+
+    @Test
+    fun `resuming playback with MediaIds RESUME preserves lastSessionMode ROLEPLAY and scenarioId`() = runTest(testDispatcher) {
+        settings.current = settings.current.copy(
+            lastTopicId = "work",
+            lastSessionMode = SessionMode.ROLEPLAY,
+            lastScenarioId = "interview"
+        )
+
+        val resumeItem = MediaItem.Builder().setMediaId(MediaIds.RESUME).build()
+        player.setMediaItem(resumeItem)
+        player.prepare()
+        player.play()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.lastStartRequest).isNotNull()
+        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.ROLEPLAY)
+        assertThat(testEngine.lastStartRequest?.scenarioId).isEqualTo("interview")
     }
 }

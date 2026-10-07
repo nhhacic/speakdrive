@@ -181,7 +181,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
             canvas.restore()
         } else {
             // Both English target sentence and Translation subtitle
-            val translation = translationText!!
+            val translation = translationText
             val spacing = 10f
 
             // Candidate font size pairs: (English size, Translation size)

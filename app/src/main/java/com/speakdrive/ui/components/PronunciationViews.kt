@@ -71,6 +71,7 @@ fun markedSentence(words: List<WordResult>, missingColor: Color): AnnotatedStrin
 @Composable
 fun DrillCard(
     target: String?,
+    translation: String? = null,
     attemptWords: List<WordResult>?,
     attemptPassed: Boolean?,
     attemptNumber: Int?,
@@ -154,6 +155,16 @@ fun DrillCard(
                 color = MaterialTheme.colorScheme.onSurface,
                 lineHeight = 22.sp
             )
+
+            if (!translation.isNullOrBlank()) {
+                Text(
+                    text = translation,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
+                    lineHeight = 20.sp
+                )
+            }
 
             // Attempt evaluation feedback
             if (attemptWords != null && attemptPassed != null) {

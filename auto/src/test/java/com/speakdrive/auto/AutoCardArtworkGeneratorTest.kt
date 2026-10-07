@@ -141,4 +141,21 @@ class AutoCardArtworkGeneratorTest {
         )
         assertThat(reconnectingBytes).isNotNull()
     }
+
+    @Test
+    fun `generates card with high-contrast target text and translation subtitle`() {
+        val topic = topics.getTopicById("work") ?: topics.getAllTopics().first()
+        val lesson = ActiveLesson("session_sub", topic, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
+
+        val bytes = generator.generateCard(
+            lesson = lesson,
+            state = ConversationState.ACTIVE,
+            lastAiText = "Repeat after me: We need a better plan.",
+            drillTarget = "We need a better plan.",
+            drillTargetTranslation = "Chúng ta cần một kế hoạch tốt hơn."
+        )
+
+        assertThat(bytes).isNotNull()
+        assertThat(bytes!!.size).isGreaterThan(100)
+    }
 }

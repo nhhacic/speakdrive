@@ -818,11 +818,11 @@ object VoiceCommandParser {
 
         // Enable / Show phrases
         val enablePhrases = listOf(
-            "bat phu de dich", "bat phu de", "hien phu de", "hien ban dich", "bat ban dich",
-            "dich cau noi", "dich nghia", "bat dich nghia", "hien dich nghia", "bat phu de tieng viet",
+            "bat phu de dich", "bat phu de", "mo phu de", "mo phu de tieng viet", "hien phu de", "hien ban dich", "bat ban dich",
+            "dich cau noi", "dich cau nay", "dich nghia", "bat dich nghia", "hien dich nghia", "bat phu de tieng viet",
             "hien phu de tieng viet", "cho xem phu de", "cho xem ban dich", "hien phu de dich",
             "bat phu de dich nghia", "hien dong dich", "bat dong dich", "hien thi phu de",
-            "hien thi ban dich", "dich sang tieng viet", "phu de tieng viet",
+            "hien thi ban dich", "dich sang tieng viet", "dich ra tieng viet", "phu de tieng viet",
             "turn on subtitles", "turn on subtitle", "enable subtitles", "show subtitles",
             "show subtitle", "turn on translation", "show translation", "enable translation",
             "with subtitles", "display subtitles", "display translation", "show subtitle translation"

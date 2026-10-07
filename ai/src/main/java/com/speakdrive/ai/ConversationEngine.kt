@@ -91,11 +91,41 @@ open class ConversationEngine @Inject constructor(
     private val announcer: VoiceAnnouncer,
     private val micPermission: MicPermissionChecker,
     private val pronunciationAssessor: PronunciationAssessor,
-    private val storyRecommender: StoryRecommender = StoryRecommender(topicManager),
-    private val drillSentenceManager: DrillSentenceManager = DrillSentenceManager(),
-    private val sentenceTranslator: com.speakdrive.ai.translation.SentenceTranslator = com.speakdrive.ai.translation.SentenceTranslator(drillSentenceManager),
+    private val storyRecommender: StoryRecommender,
+    private val drillSentenceManager: DrillSentenceManager,
+    private val sentenceTranslator: com.speakdrive.ai.translation.SentenceTranslator,
     @EngineDispatcher dispatcher: CoroutineDispatcher
 ) {
+    /** Secondary constructor for tests without optional managers. */
+    constructor(
+        liveClient: LiveConversationClient,
+        summaryGenerator: SummaryGenerator,
+        topicManager: TopicManager,
+        sessionStore: SessionStore,
+        settings: LearningSettings,
+        audioFocus: AudioFocus,
+        connectivity: ConnectivityObserver,
+        announcer: VoiceAnnouncer,
+        micPermission: MicPermissionChecker,
+        pronunciationAssessor: PronunciationAssessor,
+        dispatcher: CoroutineDispatcher
+    ) : this(
+        liveClient = liveClient,
+        summaryGenerator = summaryGenerator,
+        topicManager = topicManager,
+        sessionStore = sessionStore,
+        settings = settings,
+        audioFocus = audioFocus,
+        connectivity = connectivity,
+        announcer = announcer,
+        micPermission = micPermission,
+        pronunciationAssessor = pronunciationAssessor,
+        storyRecommender = StoryRecommender(topicManager),
+        drillSentenceManager = DrillSentenceManager(),
+        sentenceTranslator = com.speakdrive.ai.translation.SentenceTranslator(DrillSentenceManager()),
+        dispatcher = dispatcher
+    )
+
     /** Replaceable in tests. */
     internal var clock: () -> Long = System::currentTimeMillis
 
@@ -155,6 +185,33 @@ open class ConversationEngine @Inject constructor(
     private val _drillTargetTranslation = MutableStateFlow<String?>(null)
     open val drillTargetTranslation: StateFlow<String?> = _drillTargetTranslation.asStateFlow()
     private var translationJob: Job? = null
+
+    internal fun setDrillTarget(target: String?) {
+        _drillTarget.value = target
+        translationJob?.cancel()
+        if (target.isNullOrBlank() || !learnerSettings.showTranslationSubtitle) {
+            _drillTargetTranslation.value = null
+            return
+        }
+
+        val targetLang = learnerSettings.appLanguage
+        val instant = sentenceTranslator.getInstantTranslation(target, targetLang)
+        if (instant != null) {
+            _drillTargetTranslation.value = instant
+            return
+        }
+
+        translationJob = scope.launch {
+            try {
+                val translated = sentenceTranslator.translate(target, targetLang)
+                if (_drillTarget.value == target && isActive) {
+                    _drillTargetTranslation.value = translated
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to translate drill target '$target': ${e.message}")
+            }
+        }
+    }
 
     private val attemptCounts = mutableMapOf<String, Int>()
 
@@ -321,7 +378,7 @@ open class ConversationEngine @Inject constructor(
      * Starts a lesson. A lesson that is already running is ended (and saved) first.
      * @return true if the conversation is now running.
      */
-    suspend fun start(request: LessonRequest): Boolean = mutex.withLock {
+    open suspend fun start(request: LessonRequest): Boolean = mutex.withLock {
         if (_state.value.isInLesson) endLocked()
         _error.value = null
 
@@ -340,7 +397,7 @@ open class ConversationEngine @Inject constructor(
         accumulator.clear()
         _transcript.value = emptyList()
         _pronunciationAttempts.value = emptyList()
-        _drillTarget.value = null
+        setDrillTarget(null)
         awaitingNewDrillTarget = true
         synchronized(attemptCounts) { attemptCounts.clear() }
         accumulatedActiveMs = 0L
@@ -370,21 +427,22 @@ open class ConversationEngine @Inject constructor(
         }
 
         settings.setLastTopicId(lesson.topic.id)
+        settings.setLastSession(lesson.topic.id, lesson.mode, lesson.scenario?.id)
         markActive()
         startDraftSaver()
         true
     }
 
     /** User-initiated pause (play/pause button, steering-wheel button). */
-    suspend fun pause() = mutex.withLock { pauseLocked(byFocus = false) }
+    open suspend fun pause() = mutex.withLock { pauseLocked(byFocus = false) }
 
-    suspend fun resume(): Boolean = mutex.withLock { resumeLocked() }
+    open suspend fun resume(): Boolean = mutex.withLock { resumeLocked() }
 
     /**
      * Ends the lesson, generates the summary and saves the session.
      * @return the saved session id, or null if nothing worth saving happened.
      */
-    suspend fun end(): String? = mutex.withLock { endLocked() }
+    open suspend fun end(): String? = mutex.withLock { endLocked() }
 
     // region Lesson lifecycle (call with mutex held)
 
@@ -691,6 +749,44 @@ open class ConversationEngine @Inject constructor(
         )
     }
 
+    private fun handleSetTranslationSubtitles(call: LiveToolCall): Map<String, Any> {
+        val enabledArg = call.args["enabled"]
+        val parsed = VoiceSettingsTools.parseTranslationSubtitles(enabledArg) ?: true
+        return applyTranslationSubtitlesChange(parsed)
+    }
+
+    internal fun applyTranslationSubtitlesChange(enabled: Boolean): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(showTranslationSubtitle = enabled)
+        scope.launch { settings.setShowTranslationSubtitle(enabled) }
+        Log.i(TAG, "Switched showTranslationSubtitle to $enabled")
+
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val confirmation = if (isVi) {
+            if (enabled) "Đã bật phụ đề dịch nghĩa câu nói."
+            else "Đã tắt phụ đề dịch nghĩa câu nói."
+        } else {
+            if (enabled) "Translation subtitles enabled."
+            else "Translation subtitles disabled."
+        }
+        announcer.announce(confirmation)
+
+        if (!enabled) {
+            translationJob?.cancel()
+            _drillTargetTranslation.value = null
+        } else {
+            _drillTarget.value?.let { currentTarget ->
+                setDrillTarget(currentTarget)
+            }
+        }
+
+        return mapOf(
+            "status" to "success",
+            "translation_subtitles" to enabled,
+            "instruction" to "Translation subtitles have been ${if (enabled) "enabled" else "disabled"}. " +
+                "Confirm warmly in one short sentence (e.g. \"${if (enabled) "Translation subtitles enabled!" else "Subtitles hidden, challenge mode on!"}\") and continue."
+        )
+    }
+
     private fun handleSetAppLanguage(call: LiveToolCall): Map<String, Any> {
         val langArg = call.args["language"] as? String
         val parsed = VoiceSettingsTools.parseAppLanguage(langArg)
@@ -922,6 +1018,11 @@ open class ConversationEngine @Inject constructor(
         learnerSettings = learnerSettings.copy(appLanguage = newLanguage)
         scope.launch { settings.setAppLanguage(newLanguage) }
         Log.i(TAG, "Switched appLanguage to ${newLanguage.name} (${newLanguage.code})")
+        if (learnerSettings.showTranslationSubtitle) {
+            _drillTarget.value?.let { currentTarget ->
+                setDrillTarget(currentTarget)
+            }
+        }
     }
 
     private fun applyStorytellingStyleChange(newStyle: StorytellingStyle) {
@@ -1184,7 +1285,7 @@ open class ConversationEngine @Inject constructor(
      */
     fun skipDrillSentence(): Boolean {
         if (_lesson.value?.mode != SessionMode.REPEAT_AFTER_ME) return false
-        _drillTarget.value = null
+        setDrillTarget(null)
         awaitingNewDrillTarget = true
         announcer.announce("Chuyển câu tiếp theo")
         return true
@@ -1223,7 +1324,7 @@ open class ConversationEngine @Inject constructor(
         awaitingNewDrillTarget = isDoneWithSentence
         val shown = _drillTarget.value
         if (shown.isNullOrBlank() || PronunciationDrill.key(shown) == PronunciationDrill.key(target)) {
-            _drillTarget.value = target
+            setDrillTarget(target)
         }
         Log.d(
             TAG,
@@ -1301,13 +1402,15 @@ open class ConversationEngine @Inject constructor(
             if (liveClient.isConnected) {
                 liveClient.resumeAudio()
                 if (clock() - pausedAt > SAY_WELCOME_BACK_AFTER_MS) {
-                    liveClient.sendText(PromptTemplates.RESUME_MESSAGE)
+                    val msg = PromptTemplates.resumeMessage(lesson, _drillTarget.value)
+                    liveClient.sendText(msg)
                     setAiThinking(true)
                 }
             } else {
                 learnerSettings = settings.snapshot()
                 connectLive(lesson, recap = true)
-                liveClient.sendText(PromptTemplates.RESUME_MESSAGE)
+                val msg = PromptTemplates.resumeMessage(lesson, _drillTarget.value)
+                liveClient.sendText(msg)
                 setAiThinking(true)
             }
             markActive()
@@ -1335,7 +1438,8 @@ open class ConversationEngine @Inject constructor(
             }
             try {
                 connectLive(lesson, recap = true)
-                liveClient.sendText(PromptTemplates.RESUME_MESSAGE)
+                val msg = PromptTemplates.resumeMessage(lesson, _drillTarget.value)
+                liveClient.sendText(msg)
                 setAiThinking(true)
                 markActive()
                 return
@@ -1522,7 +1626,7 @@ open class ConversationEngine @Inject constructor(
                             norm(current).startsWith(norm(newTarget)) && norm(newTarget) != norm(current)
                         val explicitCue = turn.text.contains("repeat after me", ignoreCase = true)
                         if (awaitingNewDrillTarget || current == null || isExtension || (explicitCue && !isPartialOfCurrent)) {
-                            _drillTarget.value = newTarget
+                            setDrillTarget(newTarget)
                         }
                     }
                 }
@@ -1859,6 +1963,24 @@ open class ConversationEngine @Inject constructor(
         if (autoPauseCmd != null && learnerSettings.autoPauseWhenUnfocused != autoPauseCmd) {
             Log.i(TAG, "Fallback voice command parser detected auto pause toggle: $autoPauseCmd")
             applyAutoPauseWhenUnfocusedChange(autoPauseCmd)
+            return
+        }
+
+        val translationSubtitlesCmd = VoiceCommandParser.parseTranslationSubtitlesCommand(text)
+        if (translationSubtitlesCmd != null && learnerSettings.showTranslationSubtitle != translationSubtitlesCmd) {
+            Log.i(TAG, "Fallback voice command parser detected translation subtitles toggle: $translationSubtitlesCmd")
+            applyTranslationSubtitlesChange(translationSubtitlesCmd)
+            scope.launch {
+                val sent = runCatching {
+                    liveClient.sendText(
+                        "System: The learner requested to ${if (translationSubtitlesCmd) "enable" else "disable"} translation subtitles. " +
+                            "Confirm warmly in one short sentence (e.g. \"${if (translationSubtitlesCmd) "Translation subtitles enabled!" else "Subtitles hidden, challenge mode on!"}\") and continue."
+                    )
+                }
+                if (sent.isFailure) {
+                    Log.w(TAG, "Could not send fallback translation subtitles update to Live client", sent.exceptionOrNull())
+                }
+            }
             return
         }
     }

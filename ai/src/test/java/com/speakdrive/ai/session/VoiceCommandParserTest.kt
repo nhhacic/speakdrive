@@ -965,4 +965,38 @@ class VoiceCommandParserTest {
         assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("hôm nay thời tiết đẹp quá")).isNull()
         assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("tell me about your day")).isNull()
     }
+
+    @Test
+    fun `parseTranslationSubtitlesCommand recognizes Vietnamese and English intents`() {
+        // Vietnamese enable
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("bật phụ đề")).isTrue()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("bật phụ đề dịch")).isTrue()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("hiện bản dịch")).isTrue()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("mở phụ đề tiếng việt")).isTrue()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("dịch câu này")).isTrue()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("hien phu de")).isTrue()
+
+        // Vietnamese disable
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("tắt phụ đề")).isFalse()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("tắt phụ đề dịch")).isFalse()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("ẩn bản dịch")).isFalse()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("tat phu de")).isFalse()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("đừng hiện bản dịch")).isFalse()
+
+        // English enable
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("enable subtitles")).isTrue()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("turn on translation")).isTrue()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("show subtitle")).isTrue()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("show translation subtitles")).isTrue()
+
+        // English disable
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("disable subtitles")).isFalse()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("turn off translation")).isFalse()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("hide subtitle")).isFalse()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("no subtitles")).isFalse()
+
+        // Non-matching
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("hôm nay bạn thế nào")).isNull()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("good morning teacher")).isNull()
+    }
 }

@@ -146,9 +146,14 @@ class CarConnectionAutoStarterTest {
         pronunciationAssessor = DummyPronunciationAssessor(),
         dispatcher = testDispatcher
     ) {
+        var resumeCalled: Boolean = false
         override val state: StateFlow<ConversationState> = engineStateFlow
         override fun setCarConnected(connected: Boolean) {
             engineCarConnected = connected
+        }
+        override suspend fun resume(): Boolean {
+            resumeCalled = true
+            return true
         }
     }
 
@@ -224,5 +229,29 @@ class CarConnectionAutoStarterTest {
         testScheduler.advanceUntilIdle()
         assertThat(engineCarConnected).isFalse()
         assertThat(playedMediaId).isNull()
+    }
+
+    @Test
+    fun `when car connects and lesson is PAUSED, automatically resumes paused lesson`() = testScope.runTest {
+        val starter = CarConnectionAutoStarter(
+            carConnection = fakeCarConnection,
+            playbackConnection = fakePlaybackConnection,
+            engine = fakeEngine
+        )
+        starter.start()
+        testScheduler.advanceUntilIdle()
+
+        // Lesson is paused (e.g. user stepped out of the car)
+        engineStateFlow.value = ConversationState.PAUSED
+        fakeEngine.resumeCalled = false
+        playedMediaId = null
+
+        // User gets back in car -> car connects
+        carFlow.emit(true)
+        testScheduler.advanceUntilIdle()
+
+        assertThat(engineCarConnected).isTrue()
+        assertThat(fakeEngine.resumeCalled).isTrue()
+        assertThat(playedMediaId).isNull() // Should resume directly, not start fresh from MediaIds.RESUME
     }
 }
