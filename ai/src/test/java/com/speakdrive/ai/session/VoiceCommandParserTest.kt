@@ -510,6 +510,10 @@ class VoiceCommandParserTest {
         assertThat(VoiceCommandParser.parseSkipDrillSentenceCommand("next sentence")).isTrue()
         assertThat(VoiceCommandParser.parseSkipDrillSentenceCommand("another sentence")).isTrue()
         assertThat(VoiceCommandParser.parseSkipDrillSentenceCommand("change sentence")).isTrue()
+        assertThat(VoiceCommandParser.parseSkipDrillSentenceCommand("more diverse sentences")).isTrue()
+        assertThat(VoiceCommandParser.parseSkipDrillSentenceCommand("give me a different sentence")).isTrue()
+        assertThat(VoiceCommandParser.parseSkipDrillSentenceCommand("câu khác phong phú hơn")).isTrue()
+        assertThat(VoiceCommandParser.parseSkipDrillSentenceCommand("câu mới")).isTrue()
 
         // Irrelevant phrases
         assertThat(VoiceCommandParser.parseSkipDrillSentenceCommand("I want to repeat after you")).isFalse()
@@ -831,6 +835,12 @@ class VoiceCommandParserTest {
         assertThat(VoiceCommandParser.parseDrillCategoryCommand("all drill topics"))
             .isEqualTo(DrillCategory.ALL)
         assertThat(VoiceCommandParser.parseDrillCategoryCommand("all categories"))
+            .isEqualTo(DrillCategory.ALL)
+        assertThat(VoiceCommandParser.parseDrillCategoryCommand("luyện phong phú hơn"))
+            .isEqualTo(DrillCategory.ALL)
+        assertThat(VoiceCommandParser.parseDrillCategoryCommand("đa dạng hơn"))
+            .isEqualTo(DrillCategory.ALL)
+        assertThat(VoiceCommandParser.parseDrillCategoryCommand("more variety"))
             .isEqualTo(DrillCategory.ALL)
 
         // Non-matching phrases

@@ -37,6 +37,21 @@ object VoiceSettingsTools {
     const val SET_DRILL_CATEGORY_FUNCTION = "set_drill_category"
     const val SET_AI_VOLUME_FUNCTION = "set_ai_volume"
     const val SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION = "set_auto_pause_when_unfocused"
+    const val SET_TRANSLATION_SUBTITLES_FUNCTION = "set_translation_subtitles"
+
+    val setTranslationSubtitlesTool = LiveTool(
+        name = SET_TRANSLATION_SUBTITLES_FUNCTION,
+        description = "Enables or disables translation subtitles under the repeat drill sentence on the car and phone screen when requested by the learner in Vietnamese or English " +
+            "(e.g. \"bật phụ đề dịch\", \"hiện phụ đề\", \"hiện bản dịch\", \"dịch câu nói\", \"bật dịch nghĩa\", \"hiển thị phụ đề\", \"tắt phụ đề dịch\", \"ẩn phụ đề\", \"tắt bản dịch\", \"ẩn bản dịch\", \"không cần dịch\", " +
+            "\"turn on translation subtitles\", \"show subtitles\", \"show translation\", \"enable subtitles\", \"turn off subtitles\", \"hide subtitles\", \"hide translation\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "enabled",
+                type = LiveToolParam.Type.BOOLEAN,
+                description = "True to show translation subtitles below the drill sentence; false to hide them."
+            )
+        )
+    )
 
     val setAutoPauseWhenUnfocusedTool = LiveTool(
         name = SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION,
@@ -339,8 +354,29 @@ object VoiceSettingsTools {
         setDrillSentenceLengthTool,
         setDrillCategoryTool,
         setAiVolumeTool,
-        setAutoPauseWhenUnfocusedTool
+        setAutoPauseWhenUnfocusedTool,
+        setTranslationSubtitlesTool
     )
+
+    /**
+     * Resolves a translation subtitles toggle argument from Gemini Live tool calls or transcripts.
+     */
+    fun parseTranslationSubtitles(value: Any?): Boolean? = when (value) {
+        is Boolean -> value
+        is String -> {
+            val normalized = TopicManager.normalize(value.trim())
+            when {
+                normalized.contains("false") || normalized.contains("tat") || normalized.contains("disable") ||
+                    normalized.contains("off") || normalized.contains("an") || normalized.contains("hide") ||
+                    normalized.contains("khong") || normalized.contains("dung") -> false
+                normalized.contains("true") || normalized.contains("bat") || normalized.contains("enable") ||
+                    normalized.contains("on") || normalized.contains("hien") || normalized.contains("show") ||
+                    normalized.contains("co") -> true
+                else -> null
+            }
+        }
+        else -> null
+    }
 
     /**
      * Resolves an auto-pause when unfocused/screen off toggle argument from Gemini Live tool calls or transcripts.
@@ -749,7 +785,8 @@ object VoiceSettingsTools {
                 normalized.contains("doi song") || normalized.contains("nha hang") -> DrillCategory.TRAVEL_DAILY
 
             normalized.contains("tat ca") || normalized.contains("all") || normalized.contains("tong hop") ||
-                normalized.contains("ngau nhien") || normalized.contains("da dang") -> DrillCategory.ALL
+                normalized.contains("ngau nhien") || normalized.contains("da dang") ||
+                normalized.contains("phong phu") || normalized.contains("variety") -> DrillCategory.ALL
 
             else -> null
         }

@@ -36,15 +36,16 @@ class AutoCardArtworkGenerator @Inject constructor() {
         lesson: ActiveLesson,
         state: ConversationState,
         lastAiText: String?,
-        drillTarget: String?
+        drillTarget: String?,
+        drillTargetTranslation: String? = null
     ): ByteArray? {
-        val cacheKey = "${lesson.sessionId}:$state:${lastAiText.orEmpty()}:${drillTarget.orEmpty()}"
+        val cacheKey = "${lesson.sessionId}:$state:${lastAiText.orEmpty()}:${drillTarget.orEmpty()}:${drillTargetTranslation.orEmpty()}"
         if (cacheKey == lastKey && lastArtwork != null) {
             return lastArtwork
         }
 
         return try {
-            val bytes = renderBitmapBytes(lesson, state, lastAiText, drillTarget)
+            val bytes = renderBitmapBytes(lesson, state, lastAiText, drillTarget, drillTargetTranslation)
             lastKey = cacheKey
             lastArtwork = bytes
             bytes
@@ -58,7 +59,8 @@ class AutoCardArtworkGenerator @Inject constructor() {
         lesson: ActiveLesson,
         state: ConversationState,
         lastAiText: String?,
-        drillTarget: String?
+        drillTarget: String?,
+        drillTargetTranslation: String? = null
     ): ByteArray {
         val width = CARD_SIZE
         val height = CARD_SIZE
@@ -75,11 +77,11 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val hasTarget = !drillTarget.isNullOrBlank()
         val isStory = lesson.mode == SessionMode.STORY_LISTENING
 
-        // Content is intentionally constrained to the top safe zone (y: 20f -> 295f).
+        // Content is intentionally constrained to the top safe zone (y: 16f -> 295f).
         // The bottom half (y: 300f -> 600f) is left clean and uncluttered so Android Auto's
         // native Title, Subtitle and Media Playback Controls render without text overlap.
         if (hasTarget) {
-            renderRepeatFocusScreen(canvas, width, lesson, drillTarget)
+            renderRepeatFocusScreen(canvas, width, lesson, drillTarget, drillTargetTranslation)
         } else {
             renderGeneralConversationScreen(canvas, width, lesson, lastAiText, isStory)
         }
@@ -93,19 +95,21 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
     /**
      * Dedicated glanceable screen when a repeat drill target exists.
-     * Beautiful amber glowing hero card positioned in the top safe zone.
+     * High-contrast, ultra-clear hero card positioned in the top safe zone.
+     * Features pure white text for maximum daylight visibility and yellow subtitle for translated meaning.
      */
     private fun renderRepeatFocusScreen(
         canvas: Canvas,
         width: Int,
         lesson: ActiveLesson,
-        targetText: String
+        targetText: String,
+        translationText: String? = null
     ) {
-        val padX = 24f
+        val padX = 20f
         val boxWidth = width - 2 * padX
 
-        // Hero Box in Top Safe Zone (height ~275f)
-        val heroBoxTop = 20f
+        // Hero Box in Top Safe Zone (height 16f -> 295f = 279f)
+        val heroBoxTop = 16f
         val heroBoxBottom = 295f
         val heroBoxHeight = heroBoxBottom - heroBoxTop
         val heroBoxRect = RectF(padX, heroBoxTop, width - padX, heroBoxBottom)
@@ -123,42 +127,126 @@ class AutoCardArtworkGenerator @Inject constructor() {
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBgPaint)
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBorderPaint)
 
-        // Inner layout width with comfortable margin
-        val innerPadX = 22f
-        val textLayoutWidth = (boxWidth - 2 * innerPadX).toInt().coerceAtLeast(100)
-        val maxAvailableTextHeight = heroBoxHeight - 36f
-
-        // Adaptive Font Size: pick the largest font size that fits without truncation
-        val candidateFontSizes = floatArrayOf(36f, 32f, 28f, 25f, 22f, 20f)
-        var chosenLayout: StaticLayout? = null
-
-        for (fontSize in candidateFontSizes) {
-            val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = COLOR_TARGET_TEXT
-                textSize = fontSize
-                typeface = Typeface.DEFAULT_BOLD
-            }
-            val layout = StaticLayout.Builder.obtain(targetText, 0, targetText.length, paint, textLayoutWidth)
-                .setAlignment(Layout.Alignment.ALIGN_CENTER)
-                .setIncludePad(false)
-                .setLineSpacing(5f, 1.15f)
-                .setMaxLines(7)
-                .build()
-
-            if (layout.height <= maxAvailableTextHeight || fontSize == candidateFontSizes.last()) {
-                chosenLayout = layout
-                break
-            }
+        // 1. Tag / Badge at top of Hero Box
+        val badgeText = "🎯 LẶP LẠI THEO AI"
+        val badgePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_TARGET_LABEL
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            textAlign = Paint.Align.CENTER
         }
+        val badgeY = heroBoxTop + 26f
+        canvas.drawText(badgeText, width / 2f, badgeY, badgePaint)
 
-        // Vertically center the text inside the hero card
-        val layout = chosenLayout!!
-        val textY = heroBoxTop + ((heroBoxHeight - layout.height) / 2f).coerceAtLeast(12f)
+        // Inner layout width with comfortable margin
+        val innerPadX = 18f
+        val textLayoutWidth = (boxWidth - 2 * innerPadX).toInt().coerceAtLeast(100)
+        val contentTopY = heroBoxTop + 36f
+        val contentBottomY = heroBoxBottom - 12f
+        val maxAvailableHeight = contentBottomY - contentTopY
 
-        canvas.save()
-        canvas.translate(padX + innerPadX, textY)
-        layout.draw(canvas)
-        canvas.restore()
+        val hasTranslation = !translationText.isNullOrBlank()
+
+        if (!hasTranslation) {
+            // Adaptive Font Size: pick the largest font size that fits without truncation
+            val candidateFontSizes = floatArrayOf(36f, 32f, 28f, 25f, 22f, 20f)
+            var chosenLayout: StaticLayout? = null
+
+            for (fontSize in candidateFontSizes) {
+                val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = COLOR_TARGET_TEXT
+                    textSize = fontSize
+                    typeface = Typeface.DEFAULT_BOLD
+                }
+                val layout = StaticLayout.Builder.obtain(targetText, 0, targetText.length, paint, textLayoutWidth)
+                    .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                    .setIncludePad(false)
+                    .setLineSpacing(5f, 1.15f)
+                    .setMaxLines(7)
+                    .build()
+
+                if (layout.height <= maxAvailableHeight || fontSize == candidateFontSizes.last()) {
+                    chosenLayout = layout
+                    break
+                }
+            }
+
+            // Vertically center the text inside the hero card content area
+            val layout = chosenLayout!!
+            val textY = contentTopY + ((maxAvailableHeight - layout.height) / 2f).coerceAtLeast(0f)
+
+            canvas.save()
+            canvas.translate(padX + innerPadX, textY)
+            layout.draw(canvas)
+            canvas.restore()
+        } else {
+            // Both English target sentence and Translation subtitle
+            val translation = translationText!!
+            val spacing = 10f
+
+            // Candidate font size pairs: (English size, Translation size)
+            val sizePairs = listOf(
+                30f to 20f,
+                27f to 19f,
+                24f to 18f,
+                22f to 16f,
+                20f to 15f
+            )
+
+            var chosenEnglishLayout: StaticLayout? = null
+            var chosenTransLayout: StaticLayout? = null
+
+            for ((enSize, trSize) in sizePairs) {
+                val enPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = COLOR_TARGET_TEXT
+                    textSize = enSize
+                    typeface = Typeface.DEFAULT_BOLD
+                }
+                val enLayout = StaticLayout.Builder.obtain(targetText, 0, targetText.length, enPaint, textLayoutWidth)
+                    .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                    .setIncludePad(false)
+                    .setLineSpacing(4f, 1.15f)
+                    .setMaxLines(4)
+                    .build()
+
+                val trPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = COLOR_TARGET_SUBTITLE
+                    textSize = trSize
+                    typeface = Typeface.DEFAULT
+                }
+                val trLayout = StaticLayout.Builder.obtain(translation, 0, translation.length, trPaint, textLayoutWidth)
+                    .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                    .setIncludePad(false)
+                    .setLineSpacing(3f, 1.15f)
+                    .setMaxLines(3)
+                    .build()
+
+                val totalH = enLayout.height + spacing + trLayout.height
+                if (totalH <= maxAvailableHeight || enSize == sizePairs.last().first) {
+                    chosenEnglishLayout = enLayout
+                    chosenTransLayout = trLayout
+                    break
+                }
+            }
+
+            val enLayout = chosenEnglishLayout!!
+            val trLayout = chosenTransLayout!!
+            val totalHeight = enLayout.height + spacing + trLayout.height
+            val startY = contentTopY + ((maxAvailableHeight - totalHeight) / 2f).coerceAtLeast(0f)
+
+            // Draw English Target
+            canvas.save()
+            canvas.translate(padX + innerPadX, startY)
+            enLayout.draw(canvas)
+            canvas.restore()
+
+            // Draw Translation Subtitle
+            val transY = startY + enLayout.height + spacing
+            canvas.save()
+            canvas.translate(padX + innerPadX, transY)
+            trLayout.draw(canvas)
+            canvas.restore()
+        }
     }
 
     /**
@@ -249,11 +337,12 @@ class AutoCardArtworkGenerator @Inject constructor() {
         const val COLOR_AI_LABEL = 0xFF38BDF8.toInt()      // Sky 400
         const val COLOR_FREE_LABEL = 0xFFA78BFA.toInt()    // Purple 400
 
-        // Highlight colors for repeat target hero section
-        const val COLOR_TARGET_HERO_BG = 0xFF1C170E.toInt() // Deep Warm Amber Dark
-        const val COLOR_TARGET_BORDER = 0xFFF59E0B.toInt()  // Amber 500
-        const val COLOR_TARGET_LABEL = 0xFFFBBF24.toInt()   // Amber 400
-        const val COLOR_TARGET_TEXT = 0xFFFEF08A.toInt()    // Yellow 200 (Highly visible & readable)
+        // High contrast automotive palette for repeat target hero section (glanceable in daylight)
+        const val COLOR_TARGET_HERO_BG = 0xFF0D1527.toInt() // Deep Slate / Midnight Navy (replaces muddy dark amber)
+        const val COLOR_TARGET_BORDER = 0xFF38BDF8.toInt()  // Vibrant Sky Cyan 400
+        const val COLOR_TARGET_LABEL = 0xFF38BDF8.toInt()   // Sky 400
+        const val COLOR_TARGET_TEXT = 0xFFFFFFFF.toInt()    // Pure Crisp White (maximum contrast > 18:1)
+        const val COLOR_TARGET_SUBTITLE = 0xFFFDE047.toInt() // Vibrant Yellow 300 for translated meaning subtitle
 
         // Status dot colors
         const val COLOR_STATUS_ACTIVE = 0xFF22C55E.toInt()     // Green 500

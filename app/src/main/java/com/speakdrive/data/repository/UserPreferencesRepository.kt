@@ -92,7 +92,8 @@ data class UserPreferences(
     val onboardingCompleted: Boolean = false,
     val autoStartOnCarConnect: Boolean = true,
     val screenAwakeMode: ScreenAwakeMode = ScreenAwakeMode.ALWAYS_ON,
-    val appLanguage: AppLanguage = AppLanguage.SYSTEM
+    val appLanguage: AppLanguage = AppLanguage.SYSTEM,
+    val showTranslationSubtitle: Boolean = true
 ) {
     companion object {
         const val DEFAULT_DAILY_GOAL = 15
@@ -108,6 +109,7 @@ class UserPreferencesRepository @Inject constructor(
 
     val preferences: Flow<UserPreferences> = dataStore.data.map { prefs ->
         val appLang = AppLanguage.fromCode(prefs[APP_LANGUAGE])
+        val showSubs = prefs[SHOW_TRANSLATION_SUBTITLE] ?: true
         UserPreferences(
             learner = LearnerSettings(
                 level = DifficultyLevel.fromStored(prefs[DIFFICULTY_LEVEL]),
@@ -129,13 +131,15 @@ class UserPreferencesRepository @Inject constructor(
                 drillSentenceLength = DrillSentenceLength.fromStored(prefs[DRILL_SENTENCE_LENGTH]),
                 drillCategory = DrillCategory.fromStored(prefs[DRILL_CATEGORY]),
                 aiVolume = (prefs[AI_VOLUME] ?: 80).coerceIn(10, 100),
-                autoPauseWhenUnfocused = prefs[AUTO_PAUSE_WHEN_UNFOCUSED] ?: true
+                autoPauseWhenUnfocused = prefs[AUTO_PAUSE_WHEN_UNFOCUSED] ?: true,
+                showTranslationSubtitle = showSubs
             ),
             dailyGoalMinutes = prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL,
             onboardingCompleted = prefs[ONBOARDING_COMPLETED] ?: false,
             autoStartOnCarConnect = prefs[AUTO_START_ON_CAR_CONNECT] ?: true,
             screenAwakeMode = ScreenAwakeMode.fromStored(prefs[SCREEN_AWAKE_MODE]),
-            appLanguage = appLang
+            appLanguage = appLang,
+            showTranslationSubtitle = showSubs
         )
     }
 
@@ -244,6 +248,10 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[AUTO_PAUSE_WHEN_UNFOCUSED] = enabled }
     }
 
+    override suspend fun setShowTranslationSubtitle(enabled: Boolean) {
+        dataStore.edit { it[SHOW_TRANSLATION_SUBTITLE] = enabled }
+    }
+
     private companion object {
         val DIFFICULTY_LEVEL = stringPreferencesKey("difficulty_level")
         val VOICE_ID = stringPreferencesKey("voice_id")
@@ -268,5 +276,6 @@ class UserPreferencesRepository @Inject constructor(
         val DRILL_CATEGORY = stringPreferencesKey("drill_category")
         val AI_VOLUME = intPreferencesKey("ai_volume")
         val AUTO_PAUSE_WHEN_UNFOCUSED = booleanPreferencesKey("auto_pause_when_unfocused")
+        val SHOW_TRANSLATION_SUBTITLE = booleanPreferencesKey("show_translation_subtitle")
     }
 }

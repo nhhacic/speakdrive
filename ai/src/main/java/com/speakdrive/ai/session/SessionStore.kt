@@ -37,6 +37,9 @@ interface SessionStore {
 
     /** Latest story session that was paused or ended unfinished, with full transcript so far. */
     suspend fun latestUnfinishedStorySession(): CompletedSession? = null
+
+    /** Recent drill target sentences practiced by the learner, newest first. */
+    suspend fun recentDrillTargets(limit: Int = 30): List<String> = emptyList()
 }
 
 interface LearningSettings {
@@ -58,5 +61,6 @@ interface LearningSettings {
     suspend fun setDrillCategory(category: com.speakdrive.ai.model.DrillCategory) {}
     suspend fun setAiVolume(volume: Int) {}
     suspend fun setAutoPauseWhenUnfocused(enabled: Boolean) {}
+    suspend fun setShowTranslationSubtitle(enabled: Boolean) {}
 }
 

@@ -45,6 +45,12 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("vp_a1_10", "Pick it up now.", "Nhặt nó lên ngay.", DifficultyLevel.BEGINNER, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Linking pick-it-up", isShortForDriving = true))
         add(DrillSentence("vp_a1_11", "I need three eggs.", "Tôi cần ba quả trứng.", DifficultyLevel.BEGINNER, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "/θ/ & ending /gz/", isShortForDriving = true))
         add(DrillSentence("vp_a1_12", "She showed me this.", "Cô ấy cho tôi xem cái này.", DifficultyLevel.BEGINNER, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "/ʃ/ vs /ð/", isShortForDriving = true))
+        add(DrillSentence("vp_a1_13", "He drank cold milk.", "Anh ấy uống sữa lạnh.", DifficultyLevel.BEGINNER, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Final /lk/ & /ld/", isShortForDriving = true))
+        add(DrillSentence("vp_a1_14", "Take a deep breath.", "Hít một hơi thật sâu.", DifficultyLevel.BEGINNER, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Final /θ/ & /p/", isShortForDriving = true))
+        add(DrillSentence("vp_a1_15", "Put on your warm coat.", "Mặc áo khoác ấm vào.", DifficultyLevel.BEGINNER, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Final /t/ & linking put-on", isShortForDriving = true))
+        add(DrillSentence("vp_a1_16", "She walked in the park.", "Cô ấy đi dạo trong công viên.", DifficultyLevel.BEGINNER, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past -ed /kt/ & /rk/", isShortForDriving = true))
+        add(DrillSentence("vp_a1_17", "Give me five minutes.", "Cho tôi năm phút.", DifficultyLevel.BEGINNER, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Ending /v/ & /ts/", isShortForDriving = true))
+        add(DrillSentence("vp_a1_18", "Close both of your eyes.", "Nhắm cả hai mắt lại.", DifficultyLevel.BEGINNER, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Ending /z/ & /ð/", isShortForDriving = true))
 
         // --- Elementary (A2) ---
         add(DrillSentence("vp_a2_01", "She noticed the lost keys.", "Cô ấy nhận ra chùm chìa khóa bị mất.", DifficultyLevel.ELEMENTARY, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past -ed /st/ and plural -s", isShortForDriving = true))
@@ -59,6 +65,12 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("vp_a2_10", "Could you take it out?", "Bạn có thể mang nó ra ngoài không?", DifficultyLevel.ELEMENTARY, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Linking take-it-out", isShortForDriving = true))
         add(DrillSentence("vp_a2_11", "He loves fast sports cars.", "Anh ấy yêu thích những chiếc xe thể thao tốc độ.", DifficultyLevel.ELEMENTARY, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Ending /vz/, /st/, /ts/, /rz/", isShortForDriving = true))
         add(DrillSentence("vp_a2_12", "Clean the glasses with soap.", "Rửa sạch những chiếc ly bằng xà phòng.", DifficultyLevel.ELEMENTARY, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Plural /sɪz/ & final /p/", isShortForDriving = true))
+        add(DrillSentence("vp_a2_13", "He helped us with bags.", "Anh ấy giúp chúng tôi mang túi.", DifficultyLevel.ELEMENTARY, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /pt/ & plural /gz/", isShortForDriving = true))
+        add(DrillSentence("vp_a2_14", "Check the exact birth date.", "Kiểm tra chính xác ngày sinh.", DifficultyLevel.ELEMENTARY, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Final /kt/, /θ/, /t/", isShortForDriving = true))
+        add(DrillSentence("vp_a2_15", "Wash both white shirts today.", "Hôm nay hãy giặt cả hai chiếc áo sơ mi trắng.", DifficultyLevel.ELEMENTARY, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Final /ʃ/, /θ/, /ts/", isShortForDriving = true))
+        add(DrillSentence("vp_a2_16", "They reached the next stop.", "Họ đã đến trạm dừng tiếp theo.", DifficultyLevel.ELEMENTARY, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /tʃt/ & /kst/", isShortForDriving = true))
+        add(DrillSentence("vp_a2_17", "He fixed three broken watches.", "Anh ấy đã sửa ba chiếc đồng hồ bị hỏng.", DifficultyLevel.ELEMENTARY, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /kst/, /θ/, /ɪz/", isShortForDriving = true))
+        add(DrillSentence("vp_a2_18", "The dog jumped very high.", "Chú chó nhảy lên rất cao.", DifficultyLevel.ELEMENTARY, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /mpt/ & /v/", isShortForDriving = true))
 
         // --- Pre-Intermediate (A2–B1) ---
         add(DrillSentence("vp_b1_01", "She expects us to fix it.", "Cô ấy mong đợi chúng tôi sửa nó.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Cluster /kspɛkts/ & final /ks/", isShortForDriving = true))
@@ -71,6 +83,11 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("vp_b1_08", "She sells special shoes on sale.", "Cô ấy bán những đôi giày đặc biệt đang giảm giá.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Contrast /s/ and /ʃ/", isShortForDriving = true))
         add(DrillSentence("vp_b1_09", "They risked everything to save friends.", "Họ mạo hiểm mọi thứ để cứu bạn bè.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /skt/ & plural /ndz/", isShortForDriving = true))
         add(DrillSentence("vp_b1_10", "Hold on a second, please.", "Làm ơn giữ máy một chút.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Connected speech hold-on-a", isShortForDriving = true))
+        add(DrillSentence("vp_b1_11", "We solved twelve distinct problems.", "Chúng tôi giải quyết mười hai vấn đề khác nhau.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /lvd/, /lv/, /kts/", isShortForDriving = true))
+        add(DrillSentence("vp_b1_12", "She baked six fresh loaves of bread.", "Cô ấy nướng sáu ổ bánh mì tươi ngon.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /kt/, /ks/, /vz/", isShortForDriving = true))
+        add(DrillSentence("vp_b1_13", "He gasped when he touched the cold glass.", "Anh ấy thở dốc khi chạm vào cốc thủy tinh lạnh.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /spt/, /tʃt/, /st/", isShortForDriving = true))
+        add(DrillSentence("vp_b1_14", "Don't push yourself so hard today.", "Hôm nay đừng ép bản thân quá sức.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Contrast /ʃ/ vs /s/", isShortForDriving = true))
+        add(DrillSentence("vp_b1_15", "She wants to live in peace.", "Cô ấy muốn sống trong yên bình.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Ending /nts/, /v/, /s/", isShortForDriving = true))
 
         // --- Intermediate (B1) ---
         add(DrillSentence("vp_int_01", "The company launched six new products.", "Công ty đã ra mắt sáu sản phẩm mới.", DifficultyLevel.INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /ntʃt/, /ks/, /kts/", isShortForDriving = true))
@@ -81,12 +98,21 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("vp_int_06", "She thoroughly checked all the facts.", "Cô ấy đã kiểm tra kỹ lưỡng mọi sự thật.", DifficultyLevel.INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Voiceless /θ/, past /kt/, /kts/", isShortForDriving = true))
         add(DrillSentence("vp_int_07", "Turn off the engine and relax.", "Tắt động cơ xe và thư giãn đi.", DifficultyLevel.INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Linking turn-off-the", isShortForDriving = true))
         add(DrillSentence("vp_int_08", "The flight was delayed for hours.", "Chuyến bay đã bị hoãn nhiều giờ.", DifficultyLevel.INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /eɪd/, /rz/", isShortForDriving = true))
+        add(DrillSentence("vp_int_09", "The software detected several critical risks.", "Phần mềm đã phát hiện một vài rủi ro nghiêm trọng.", DifficultyLevel.INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /ktɪd/, /sks/", isShortForDriving = true))
+        add(DrillSentence("vp_int_10", "She described the project's broad scope.", "Cô ấy đã mô tả phạm vi rộng lớn của dự án.", DifficultyLevel.INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /bd/, /kts/, /sk/", isShortForDriving = true))
+        add(DrillSentence("vp_int_11", "They grasped the basic concepts quickly.", "Họ đã nắm bắt các khái niệm cơ bản rất nhanh.", DifficultyLevel.INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /spt/, /pts/", isShortForDriving = true))
+        add(DrillSentence("vp_int_12", "All candidates passed the difficult tests.", "Tất cả ứng viên đều đã vượt qua các bài kiểm tra khó.", DifficultyLevel.INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /st/, /sts/", isShortForDriving = true))
+        add(DrillSentence("vp_int_13", "He stretched his arms and laughed.", "Anh ấy vươn vai và bật cười thoải mái.", DifficultyLevel.INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /tʃt/, /ft/", isShortForDriving = true))
 
         // --- Upper-Intermediate & Advanced (B2–C2) ---
         add(DrillSentence("vp_b2_01", "The scientists established strict testing standards.", "Các nhà khoa học đã thiết lập những tiêu chuẩn thử nghiệm nghiêm ngặt.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Plural /sts/, past /ʃt/, /kts/", isShortForDriving = true))
         add(DrillSentence("vp_b2_02", "He successfully managed multiple stressful risks.", "Anh ấy đã quản lý thành công nhiều rủi ro căng thẳng.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Adverb /li/, past /dʒd/, /sks/", isShortForDriving = true))
         add(DrillSentence("vp_b2_03", "Let's synthesize all three theoretical viewpoints.", "Hãy tổng hợp cả ba quan điểm lý thuyết.", DifficultyLevel.ADVANCED, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Repeated /θ/ in academic vocabulary", isShortForDriving = true))
         add(DrillSentence("vp_b2_04", "The legislation protects consumers against fraudulent schemes.", "Luật pháp bảo vệ người tiêu dùng chống lại các chiêu trò lừa đảo.", DifficultyLevel.ADVANCED, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Final /kts/, /mz/, /dʒənt/", isShortForDriving = true))
+        add(DrillSentence("vp_b2_05", "The analyst glimpsed the hidden market trends.", "Nhà phân tích đã thoáng thấy các xu hướng thị trường tiềm ẩn.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Cluster /mpst/, /kts/", isShortForDriving = true))
+        add(DrillSentence("vp_b2_06", "They accomplished significant scientific breakthroughs.", "Họ đã đạt được những đột phá khoa học đáng kể.", DifficultyLevel.ADVANCED, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /ʃt/, /kts/, /θ/", isShortForDriving = true))
+        add(DrillSentence("vp_b2_07", "The committee approved six strategic investments.", "Ủy ban đã phê duyệt sáu khoản đầu tư chiến lược.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /vd/, /ks/, /ts/", isShortForDriving = true))
+        add(DrillSentence("vp_b2_08", "Technological disruptions affected global markets.", "Sự xáo trộn công nghệ đã tác động mạnh đến thị trường toàn cầu.", DifficultyLevel.ADVANCED, DrillCategory.VIETNAMESE_PITFALLS, phoneticFocus = "Past /tɪd/, /kts/", isShortForDriving = true))
 
         // =========================================================================
         // CATEGORY 2: CONVERSATIONAL REFLEX & CHUNKS (Spoken Idioms & Native Collocations)
@@ -101,6 +127,12 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("cr_a1_06", "I don't understand that.", "Tôi không hiểu điều đó.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_a1_07", "How much is this?", "Cái này giá bao nhiêu?", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_a1_08", "I would like water.", "Tôi muốn một cốc nước.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a1_09", "I am so happy today.", "Hôm nay tôi rất vui.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a1_10", "How is it going?", "Mọi chuyện thế nào rồi?", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a1_11", "That sounds very good.", "Nghe có vẻ rất tốt.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a1_12", "I really appreciate it.", "Tôi thực sự rất trân trọng.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a1_13", "Never mind about that.", "Đừng bận tâm về điều đó.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a1_14", "Are you ready now?", "Bây giờ bạn đã sẵn sàng chưa?", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
 
         // --- Elementary (A2) ---
         add(DrillSentence("cr_a2_01", "Take your time, no rush.", "Cứ thong thả, không phải vội.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
@@ -113,6 +145,12 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("cr_a2_08", "Could you say that again?", "Bạn có thể nói lại lần nữa không?", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_a2_09", "Long time no see!", "Lâu quá rồi không gặp bạn!", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_a2_10", "I'm heading out right now.", "Tôi chuẩn bị ra ngoài ngay bây giờ.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a2_11", "Better safe than sorry.", "Cẩn tắc vô áy náy.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a2_12", "So far, so good.", "Đến nay mọi chuyện vẫn ổn.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a2_13", "I am on my way.", "Tôi đang trên đường tới.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a2_14", "Make yourself at home.", "Cứ tự nhiên như ở nhà nhé.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a2_15", "It is not a big deal.", "Không có gì to tát đâu.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_a2_16", "I didn't mean to do that.", "Tôi không cố ý làm vậy đâu.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
 
         // --- Pre-Intermediate (A2–B1) ---
         add(DrillSentence("cr_b1_01", "I was wondering if you could help.", "Tôi tự hỏi liệu bạn có thể giúp tôi được không.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
@@ -125,6 +163,13 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("cr_b1_08", "Let's touch base tomorrow morning.", "Sáng mai chúng ta trao đổi nhanh nhé.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_b1_09", "I couldn't agree with you more.", "Tôi hoàn toàn đồng ý với bạn.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_b1_10", "Long story short, everything worked out.", "Nói ngắn gọn là mọi chuyện đều êm đẹp.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b1_11", "Off the top of my head.", "Theo những gì tôi nhớ ra ngay lúc này.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b1_12", "Let's call it even.", "Thế là chúng ta hòa nhau nhé.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b1_13", "I'm having second thoughts.", "Tôi đang đắn đo suy nghĩ lại.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b1_14", "Don't jump the gun.", "Đừng vội vàng hấp tấp.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b1_15", "Cut straight to the chase.", "Hãy đi thẳng vào trọng tâm vấn đề.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b1_16", "I have no clue about that.", "Tôi hoàn toàn không biết gì về việc đó.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b1_17", "It is easier said than done.", "Nói thì dễ hơn làm.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
 
         // --- Intermediate (B1) ---
         add(DrillSentence("cr_int_01", "As far as I'm concerned, it's great.", "Theo góc nhìn của tôi thì điều đó rất tuyệt.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
@@ -135,12 +180,21 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("cr_int_06", "Could you elaborate a bit more?", "Bạn có thể nói rõ hơn một chút được không?", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_int_07", "Fair enough, let's move forward together.", "Hợp lý đấy, chúng ta cùng tiến hành thôi.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_int_08", "It is definitely worth a shot.", "Điều đó rất đáng để thử một lần.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_int_09", "Take it with a grain of salt.", "Đừng vội tin hoàn toàn vào điều đó.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_int_10", "We are on the exact same page.", "Chúng ta hoàn toàn cùng chung quan điểm.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_int_11", "That is water under the bridge.", "Chuyện cũ đã qua rồi, bỏ qua đi.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_int_12", "Let's give them the benefit of doubt.", "Hãy cho họ cơ hội giải thích trước.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_int_13", "You took the words right out of my mouth.", "Bạn nói đúng ngay ý nghĩ của tôi.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
 
         // --- Upper-Intermediate & Advanced (B2–C2) ---
         add(DrillSentence("cr_b2_01", "At the end of the day, results matter.", "Sau tất cả, kết quả cuối cùng mới là điều quan trọng.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_b2_02", "We should weigh the pros and cons.", "Chúng ta nên cân nhắc kỹ mặt lợi và hại.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_b2_03", "Let's not jump to premature conclusions.", "Chúng ta đừng vội đưa ra kết luận hấp tấp.", DifficultyLevel.ADVANCED, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
         add(DrillSentence("cr_b2_04", "That speaks volumes about their integrity.", "Điều đó nói lên rất nhiều về sự chính trực của họ.", DifficultyLevel.ADVANCED, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b2_05", "He hit the nail right on the head.", "Anh ấy đã nói trúng tim đen trọng tâm.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b2_06", "Let's play devil's advocate for a moment.", "Hãy thử đứng ở góc nhìn phản biện một chút.", DifficultyLevel.ADVANCED, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b2_07", "Actions always speak louder than words.", "Hành động luôn có sức nặng hơn lời nói.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
+        add(DrillSentence("cr_b2_08", "That proved to be a blessing in disguise.", "Hóa ra trong cái rủi lại có cái may.", DifficultyLevel.ADVANCED, DrillCategory.CONVERSATIONAL_REFLEX, isShortForDriving = true))
 
         // =========================================================================
         // CATEGORY 3: DRIVING & COMMUTE (Short, Punchy, Safety-Optimized for Car)
@@ -155,6 +209,11 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("dr_a1_06", "Fasten your seatbelt.", "Thắt dây an toàn vào.", DifficultyLevel.BEGINNER, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
         add(DrillSentence("dr_a1_07", "Turn on the radio.", "Bật đài phát thanh lên.", DifficultyLevel.BEGINNER, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
         add(DrillSentence("dr_a1_08", "Where is the gas?", "Trạm xăng ở đâu vậy?", DifficultyLevel.BEGINNER, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_a1_09", "Watch the speed limit.", "Chú ý giới hạn tốc độ.", DifficultyLevel.BEGINNER, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_a1_10", "Turn left at the corner.", "Rẽ trái ở góc đường.", DifficultyLevel.BEGINNER, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_a1_11", "Stop before the crosswalk.", "Dừng lại trước vạch sang đường.", DifficultyLevel.BEGINNER, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_a1_12", "Turn off your headlights.", "Tắt đèn pha xe của bạn đi.", DifficultyLevel.BEGINNER, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_a1_13", "The traffic light is green.", "Đèn giao thông đang xanh rồi.", DifficultyLevel.BEGINNER, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
 
         // --- Elementary (A2) ---
         add(DrillSentence("dr_a2_01", "Take the second exit.", "Đi theo lối ra thứ hai.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
@@ -165,6 +224,11 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("dr_a2_06", "Check your rear mirror.", "Kiểm tra gương chiếu hậu của bạn.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
         add(DrillSentence("dr_a2_07", "Keep both hands ready.", "Luôn giữ cả hai tay sẵn sàng.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
         add(DrillSentence("dr_a2_08", "Slow down on turns.", "Giảm tốc độ khi vào khúc cua.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_a2_09", "Check the blind spot carefully.", "Kiểm tra điểm mù thật cẩn thận.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_a2_10", "Switch on hazard warning lights.", "Bật đèn cảnh báo nguy hiểm lên.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_a2_11", "Yield to pedestrians ahead.", "Nhường đường cho người đi bộ phía trước.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_a2_12", "Keep a safe following distance.", "Giữ khoảng cách an toàn với xe trước.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_a2_13", "Turn right at the roundabout.", "Rẽ phải ở vòng xuyến giao thông.", DifficultyLevel.ELEMENTARY, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
 
         // --- Pre-Intermediate & Intermediate (B1) ---
         add(DrillSentence("dr_b1_01", "Take the next highway exit.", "Rẽ vào lối ra cao tốc tiếp theo.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
@@ -175,6 +239,11 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("dr_b1_06", "Heavy rain reduces road visibility.", "Mưa lớn làm giảm tầm nhìn trên đường.", DifficultyLevel.INTERMEDIATE, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
         add(DrillSentence("dr_b1_07", "Avoid toll roads during rush hour.", "Tránh các tuyến đường có thu phí vào giờ cao điểm.", DifficultyLevel.INTERMEDIATE, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
         add(DrillSentence("dr_b1_08", "Road construction caused sudden delays.", "Công trình đường bộ gây ra ùn tắc bất ngờ.", DifficultyLevel.INTERMEDIATE, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_b1_09", "Merge smoothly onto the freeway.", "Nhập làn êm ái vào đường cao tốc.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_b1_10", "Find the nearest EV charging station.", "Tìm trạm sạc xe điện gần nhất.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_b1_11", "Avoid hard braking on wet roads.", "Tránh phanh gấp trên đường trơn ướt.", DifficultyLevel.INTERMEDIATE, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_b1_12", "The GPS route has been recalculated.", "Tuyến đường định vị vừa được tính toán lại.", DifficultyLevel.INTERMEDIATE, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
+        add(DrillSentence("dr_b1_13", "Watch out for sudden construction detours.", "Chú ý các đoạn chuyển hướng thi công.", DifficultyLevel.INTERMEDIATE, DrillCategory.DRIVING_PHRASES, topicId = "driving_emergency", isShortForDriving = true))
 
         // =========================================================================
         // CATEGORY 4: BUSINESS & WORKPLACE (Meetings, Negotiations, Tech & Career)
@@ -184,20 +253,35 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("bw_a2_01", "Let's schedule a meeting.", "Hãy lên lịch cho một cuộc họp.", DifficultyLevel.ELEMENTARY, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_a2_02", "Could you send the report?", "Bạn có thể gửi bản báo cáo được không?", DifficultyLevel.ELEMENTARY, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_a2_03", "We need to finish today.", "Chúng ta cần hoàn thành trong hôm nay.", DifficultyLevel.ELEMENTARY, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_a2_04", "Let's wrap up this meeting.", "Chúng ta hãy kết thúc cuộc họp này thôi.", DifficultyLevel.ELEMENTARY, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_a2_05", "Could you review my draft?", "Bạn có thể xem qua bản thảo của tôi không?", DifficultyLevel.ELEMENTARY, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_a2_06", "We have a tight deadline.", "Chúng ta có thời hạn rất gấp.", DifficultyLevel.ELEMENTARY, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_b1_01", "Let's align on our targets.", "Hãy thống nhất về các mục tiêu của chúng ta.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_b1_02", "Who is heading this project?", "Ai đang phụ trách dự án này vậy?", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_b1_03", "We hit our quarterly targets.", "Chúng ta đã đạt các mục tiêu của quý này.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_b1_04", "Can we reschedule our call?", "Chúng ta có thể dời lại cuộc gọi được không?", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_b1_05", "Can you send the agenda?", "Bạn có thể gửi lịch trình cuộc họp không?", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_b1_06", "Let's brainstorm some ideas together.", "Hãy cùng nhau động não tìm ý tưởng nhé.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_b1_07", "We need to prioritize tasks.", "Chúng ta cần sắp xếp mức độ ưu tiên công việc.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_b1_08", "I will follow up by email.", "Tôi sẽ gửi email trao đổi tiếp.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
 
         // --- Intermediate (B1) & Upper-Intermediate (B2) ---
         add(DrillSentence("bw_int_01", "Let's negotiate a win-win deal.", "Hãy đàm phán một thỏa thuận đôi bên cùng có lợi.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_int_02", "We must mitigate potential risks.", "Chúng ta phải giảm thiểu các rủi ro tiềm ẩn.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_int_03", "Our customer retention rate jumped.", "Tỷ lệ giữ chân khách hàng của chúng ta đã tăng vọt.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_int_04", "Let's circle back tomorrow morning.", "Hãy thảo luận lại điều này vào sáng mai.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_int_05", "Let's streamline our daily workflow.", "Hãy tinh gọn quy trình làm việc hàng ngày của chúng ta.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_int_06", "We need a feasible contingency plan.", "Chúng ta cần một kế hoạch dự phòng khả thi.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_int_07", "Can you walk us through the numbers?", "Bạn có thể giải thích chi tiết các con số được không?", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_int_08", "Let's pivot our current marketing strategy.", "Hãy chuyển hướng chiến lược tiếp thị hiện tại của chúng ta.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_b2_01", "What is our competitive advantage?", "Lợi thế cạnh tranh của chúng ta ở đây là gì?", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_b2_02", "We are scaling the engineering team.", "Chúng tôi đang mở rộng quy mô đội ngũ kỹ sư.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
         add(DrillSentence("bw_b2_03", "Let's automate the deployment pipeline.", "Hãy tự động hóa quy trình triển khai phần mềm.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "tech_it", isShortForDriving = true))
         add(DrillSentence("bw_b2_04", "Security compliance remains our top priority.", "Tuân thủ an ninh bảo mật vẫn là ưu tiên hàng đầu của chúng tôi.", DifficultyLevel.ADVANCED, DrillCategory.BUSINESS_WORK, topicId = "tech_it", isShortForDriving = true))
+        add(DrillSentence("bw_b2_05", "I'd like to touch on key deliverables.", "Tôi muốn điểm qua các sản phẩm bàn giao chính.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_b2_06", "What is the projected return on investment?", "Tỷ suất sinh lời dự kiến từ khoản đầu tư là bao nhiêu?", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_b2_07", "We managed to stay ahead of schedule.", "Chúng tôi đã hoàn thành vượt tiến độ đề ra.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
+        add(DrillSentence("bw_b2_08", "Cross-functional alignment is essential for success.", "Sự đồng thuận liên phòng ban là yếu tố quyết định thành công.", DifficultyLevel.ADVANCED, DrillCategory.BUSINESS_WORK, topicId = "work", isShortForDriving = true))
 
         // =========================================================================
         // CATEGORY 5: TRAVEL & DAILY LIFE (Hotels, Airports, Dining, Emergencies)
@@ -208,35 +292,51 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("td_a1_02", "Could we have the bill?", "Làm ơn cho chúng tôi xin hóa đơn.", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "food", isShortForDriving = true))
         add(DrillSentence("td_a1_03", "Where is the boarding gate?", "Cổng lên máy bay ở đâu vậy?", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
         add(DrillSentence("td_a1_04", "I have a hotel booking.", "Tôi có đặt phòng khách sạn trước.", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("td_a1_05", "Can I see the dessert menu?", "Cho tôi xem thực đơn món tráng miệng được không?", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "food", isShortForDriving = true))
+        add(DrillSentence("td_a1_06", "Where is the subway entrance?", "Lối vào ga tàu điện ngầm ở đâu?", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
         add(DrillSentence("td_a2_01", "Can I pay by credit card?", "Tôi có thể thanh toán bằng thẻ tín dụng không?", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "shopping", isShortForDriving = true))
         add(DrillSentence("td_a2_02", "I would like a window seat.", "Tôi muốn một chỗ ngồi gần cửa sổ.", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
         add(DrillSentence("td_a2_03", "Do you have vegetarian food?", "Quán có món ăn chay không?", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "food", isShortForDriving = true))
         add(DrillSentence("td_a2_04", "I'd like to return this shirt.", "Tôi muốn đổi trả chiếc áo sơ mi này.", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "shopping", isShortForDriving = true))
+        add(DrillSentence("td_a2_05", "Could you call a taxi, please?", "Làm ơn gọi giúp tôi một chiếc taxi.", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("td_a2_06", "Is there free Wi-Fi here?", "Ở đây có mạng Wi-Fi miễn phí không?", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("td_a2_07", "I need a local SIM card.", "Tôi cần mua một chiếc thẻ SIM địa phương.", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "shopping", isShortForDriving = true))
 
         // --- Pre-Intermediate (A2–B1) & Intermediate (B1) ---
         add(DrillSentence("td_b1_01", "Could I request a late checkout?", "Tôi có thể xin trả phòng trễ được không?", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
         add(DrillSentence("td_b1_02", "Where is the baggage claim area?", "Khu vực lấy hành lý ở đâu vậy?", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
         add(DrillSentence("td_b1_03", "My connecting flight was severely delayed.", "Chuyến bay nối chuyến của tôi đã bị trễ nặng.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
         add(DrillSentence("td_b1_04", "Is there an all-night pharmacy nearby?", "Gần đây có hiệu thuốc nào mở thâu đêm không?", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "health", isShortForDriving = true))
+        add(DrillSentence("td_b1_05", "Is breakfast included in the room rate?", "Bữa sáng có bao gồm trong giá phòng không?", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("td_b1_06", "Where can I catch the airport shuttle?", "Tôi có thể đón xe đưa đón sân bay ở đâu?", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("td_b1_07", "Could we please split the bill?", "Chúng tôi có thể thanh toán chia tiền được không?", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "food", isShortForDriving = true))
+        add(DrillSentence("td_b1_08", "I have a severe peanut allergy.", "Tôi bị dị ứng đậu phộng rất nặng.", DifficultyLevel.PRE_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "food", isShortForDriving = true))
         add(DrillSentence("td_int_01", "The air conditioner in my room broke.", "Máy điều hòa trong phòng tôi bị hỏng rồi.", DifficultyLevel.INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
         add(DrillSentence("td_int_02", "I'd like to apply for tax refund.", "Tôi muốn làm thủ tục hoàn thuế mua sắm.", DifficultyLevel.INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "shopping", isShortForDriving = true))
         add(DrillSentence("td_int_03", "Could you recommend authentic local delicacies?", "Bạn có thể gợi ý những món ngon địa phương chính gốc không?", DifficultyLevel.INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "food", isShortForDriving = true))
+        add(DrillSentence("td_int_04", "Where is the lost and found office?", "Văn phòng tìm đồ thất lạc ở đâu vậy?", DifficultyLevel.INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("td_int_05", "Can I store my luggage after checkout?", "Tôi có thể gửi hành lý lại sau khi trả phòng không?", DifficultyLevel.INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("td_int_06", "Is this train bound for central station?", "Chuyến tàu này có đi về ga trung tâm không?", DifficultyLevel.INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
         add(DrillSentence("td_b2_01", "I'm reporting a lost passport to embassy officials.", "Tôi đang trình báo việc mất hộ chiếu cho nhân viên đại sứ quán.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("td_b2_02", "I need to file an insurance claim for luggage.", "Tôi cần nộp hồ sơ yêu cầu bảo hiểm cho hành lý.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "travel", isShortForDriving = true))
+        add(DrillSentence("td_b2_03", "Could you arrange a doctor visit to the hotel?", "Khách sạn có thể sắp xếp bác sĩ tới phòng khám được không?", DifficultyLevel.ADVANCED, DrillCategory.TRAVEL_DAILY, topicId = "health", isShortForDriving = true))
     }
 
     /** Returns all available curated drill sentences. */
     fun getAllSentences(): List<DrillSentence> = sentences
 
     /**
-     * Filters curated sentences by difficulty level, category filter, topic, and driving safety constraint.
+     * Filters curated sentences by difficulty level, category filter, topic, driving safety constraint,
+     * and excludes recently practiced sentence texts to ensure endless diversity.
      */
     fun getSentences(
         category: DrillCategory = DrillCategory.ALL,
         level: DifficultyLevel? = null,
         topicId: String? = null,
-        isShortOnly: Boolean = false
+        isShortOnly: Boolean = false,
+        excludeTexts: Set<String> = emptySet()
     ): List<DrillSentence> {
-        return sentences.filter { item ->
+        val matches = sentences.filter { item ->
             // Level compatibility: exact match or adjacent level within 1 tier (or all if level is null)
             val levelMatch = level == null || item.level == level || isCompatibleLevel(item.level, level)
             // Category match
@@ -253,23 +353,32 @@ class DrillSentenceManager @Inject constructor() {
                     (!isShortOnly || item.isShortForDriving)
             }
         }.ifEmpty { sentences }
+
+        if (excludeTexts.isNotEmpty()) {
+            val fresh = matches.filter { it.text !in excludeTexts }
+            if (fresh.isNotEmpty()) return fresh
+        }
+        return matches
     }
 
     /**
      * Picks a curated sample of sentences formatted for Gemini Live system instruction.
+     * Intelligently avoids sentences the user recently practiced.
      */
     fun getSampleSentencesForPrompt(
         category: DrillCategory = DrillCategory.ALL,
         level: DifficultyLevel = DifficultyLevel.INTERMEDIATE,
         topicId: String? = null,
         isCarConnected: Boolean = false,
-        limit: Int = 8
+        excludeTexts: Set<String> = emptySet(),
+        limit: Int = 10
     ): List<DrillSentence> {
         val candidates = getSentences(
             category = category,
             level = level,
             topicId = topicId,
-            isShortOnly = isCarConnected
+            isShortOnly = isCarConnected,
+            excludeTexts = excludeTexts
         )
         return candidates.shuffled().take(limit)
     }
@@ -312,5 +421,18 @@ class DrillSentenceManager @Inject constructor() {
     private fun isCompatibleLevel(itemLevel: DifficultyLevel, targetLevel: DifficultyLevel): Boolean {
         val diff = Math.abs(itemLevel.ordinal - targetLevel.ordinal)
         return diff <= 1
+    }
+
+    private val translationLookup by lazy {
+        sentences.associate { com.speakdrive.ai.pronunciation.PronunciationDrill.key(it.text) to it.translationVi }
+    }
+
+    /**
+     * Looks up curated Vietnamese translation for an English practice sentence.
+     * Normalized against punctuation and casing.
+     */
+    fun findTranslationVi(text: String): String? {
+        val key = com.speakdrive.ai.pronunciation.PronunciationDrill.key(text)
+        return translationLookup[key]
     }
 }

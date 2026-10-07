@@ -553,7 +553,9 @@ data class LearnerSettings(
     /** Output volume percentage for AI speech, from 10 to 100. Default is comfortable 80. */
     val aiVolume: Int = 80,
     /** Automatically pause practice when app loses focus or screen turns off (outside Android Auto). Default is true. */
-    val autoPauseWhenUnfocused: Boolean = true
+    val autoPauseWhenUnfocused: Boolean = true,
+    /** Show translation subtitles under drill sentences on car and phone screen. Default is true. */
+    val showTranslationSubtitle: Boolean = true
 )
 
 /** App interface language option for multilingual support. */

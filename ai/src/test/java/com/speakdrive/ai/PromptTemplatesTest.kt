@@ -246,4 +246,40 @@ class PromptTemplatesTest {
         val continueMsg = PromptTemplates.CONTINUE_STORY_MESSAGE
         assertThat(continueMsg).contains("DO NOT SUMMARIZE OR RUSH TO THE END")
     }
+
+    @Test
+    fun `repeatAfterMeRules includes diversity engine and anti-repetition instructions with seed sentences`() {
+        val drillLesson = lesson(SessionMode.REPEAT_AFTER_ME, level = DifficultyLevel.INTERMEDIATE)
+        val seedSentences = listOf("Could I have the check, please?", "I really enjoyed the meal.")
+        val rules = PromptTemplates.repeatAfterMeRules(
+            lesson = drillLesson,
+            drillSentenceLength = DrillSentenceLength.STANDARD,
+            isCarConnected = false,
+            sampleDrillSentences = seedSentences
+        )
+
+        assertThat(rules).contains("DIVERSITY & ENDLESS VARIETY ENGINE")
+        assertThat(rules).contains("SEED PRACTICE SENTENCES")
+        assertThat(rules).contains("Could I have the check, please?")
+        assertThat(rules).contains("NEVER repeat a sentence")
+        assertThat(rules).contains("CONTINUOUS DYNAMIC CREATION")
+    }
+
+    @Test
+    fun `repeatAfterMeRules instructs AI to dynamically create sentences when no seed sentences provided`() {
+        val drillLesson = lesson(SessionMode.REPEAT_AFTER_ME, level = DifficultyLevel.BEGINNER)
+        val rules = PromptTemplates.repeatAfterMeRules(
+            lesson = drillLesson,
+            drillSentenceLength = DrillSentenceLength.STANDARD,
+            isCarConnected = false,
+            sampleDrillSentences = emptyList()
+        )
+
+        assertThat(rules).contains("DIVERSITY & ENDLESS VARIETY ENGINE")
+        assertThat(rules).contains("Actively compose FRESH, ENGAGING, AUTHENTIC practice sentences")
+        assertThat(rules).contains("NEVER repeat a sentence")
+    }
+
 }
+
+

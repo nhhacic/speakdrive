@@ -148,6 +148,9 @@ class SessionRepository @Inject constructor(
         )
     }
 
+    override suspend fun recentDrillTargets(limit: Int): List<String> =
+        sessionDao.recentDrillTargets(limit)
+
     override suspend fun wordsDueForReview(limit: Int): List<ReviewWord> =
         wordDao.dueWords(clock(), limit).map { ReviewWord(it.word, it.meaning) }
 

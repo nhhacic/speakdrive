@@ -50,11 +50,11 @@ object PronunciationDrill {
                 "You could not hear the learner. Ask them to repeat the sentence a little louder. Do not grade it."
             attempt.passed ->
                 "The attempt is correct. Confirm it honestly in a few words (for example \"Correct.\" or \"Clear and accurate.\"), " +
-                    "no exaggerated praise, then introduce the next sentence. You MUST ALWAYS start the next sentence with: \"Repeat after me: <sentence>\"."
+                    "no exaggerated praise, then introduce the next sentence (provide a fresh, brand new sentence that has not been used yet in this session). You MUST ALWAYS start the next sentence with: \"Repeat after me: <sentence>\"."
             lastAttempt ->
                 "The attempt is NOT correct. Do not call it correct, good or close. Say honestly that it still needs practice, " +
                     "name the words to work on (${wordsToFix.joinToString()}), say each one slowly once, tell them it will come " +
-                    "back in a later review, then introduce the next sentence. You MUST ALWAYS start the next sentence with: \"Repeat after me: <sentence>\"."
+                    "back in a later review, then introduce the next sentence (provide a fresh, brand new sentence). You MUST ALWAYS start the next sentence with: \"Repeat after me: <sentence>\"."
             else ->
                 "The attempt is NOT correct. Do not call it correct, good, great or close. Name the exact words to fix " +
                     "(${wordsToFix.joinToString()}). For each, say the word slowly and clearly twice and describe the sound in " +

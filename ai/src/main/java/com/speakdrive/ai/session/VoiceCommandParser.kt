@@ -550,7 +550,12 @@ object VoiceCommandParser {
         "another sentence", "change sentence", "skip question", "next question",
         "bo qua", "bo qua cau nay", "bo qua di", "chuyen cau", "chuyen sang cau khac",
         "cau tiep theo", "cau ke tiep", "cau khac", "cau khac di", "doi cau", "doi cau khac",
-        "qua cau khac", "sang cau khac", "chuyen cau khac", "doc cau khac", "luyen cau khac"
+        "qua cau khac", "sang cau khac", "chuyen cau khac", "doc cau khac", "luyen cau khac",
+        "cau khac phong phu hon", "luyen cau phong phu hon", "cau phong phu hon", "cau da dang hon",
+        "luyen cau da dang hon", "doi cau da dang hon", "doi cau moi", "cho cau moi", "tao cau moi",
+        "cau ngau nhien", "cung cap cau khac", "cau moi", "doc cau moi",
+        "more diverse sentences", "diverse sentences", "give me a different sentence",
+        "give me another sentence", "fresh sentence", "new sentence", "variety of sentences"
     )
 
     private val REPEAT_DRILL_SENTENCE_PHRASES = listOf(
@@ -733,7 +738,11 @@ object VoiceCommandParser {
     private val ALL_DRILL_PHRASES = listOf(
         "tat ca chu de", "chu de tong hop", "luyen tat ca", "tat ca cac chu de", "luyen ngau nhien",
         "ngau nhien chu de", "tat ca danh muc", "all categories", "all drill topics", "all topics",
-        "mixed topics", "all drill categories"
+        "mixed topics", "all drill categories",
+        "tat ca the loai", "tat ca danh muc luyen", "luyen phong phu", "luyen da dang",
+        "phong phu hon", "da dang hon", "luyen phong phu hon", "luyen tap phong phu hon",
+        "muon phong phu hon", "tap phong phu hon", "luyen da dang hon", "tap da dang hon",
+        "tong hop", "luyen tong hop", "chu de da dang", "more variety", "diverse practice", "more diverse"
     )
 
     private fun isPronunciationContext(q: String): Boolean =
@@ -782,6 +791,41 @@ object VoiceCommandParser {
             "pause when screen off", "pause when screen is off", "pause on screen off",
             "pause when screen locked", "pause when leaving app", "auto pause when leaving app",
             "pause when app unfocused", "auto pause when unfocused", "auto pause"
+        ).map { TopicManager.normalize(it) }
+        if (enablePhrases.any { q.contains(it) }) return true
+
+        return null
+    }
+
+    /**
+     * Parses commands requesting to enable or disable translation subtitles under the repeat drill sentence.
+     * Returns true to enable, false to disable, or null if no command was recognized.
+     */
+    fun parseTranslationSubtitlesCommand(text: String): Boolean? {
+        val q = TopicManager.normalize(text)
+
+        // Disable / Hide phrases first
+        val disablePhrases = listOf(
+            "tat phu de dich", "tat phu de", "tat ban dich", "an ban dich", "an phu de",
+            "khong can phu de", "khong can dich", "dung dich", "tat dich nghia", "an dich nghia",
+            "tat phu de tieng viet", "khong hien phu de", "khong can hien phu de", "dung hien phu de",
+            "dung hien ban dich", "an dong dich", "tat dong dich", "tat phu de dong",
+            "turn off subtitles", "turn off subtitle", "disable subtitles", "hide subtitles",
+            "hide subtitle", "turn off translation", "hide translation", "disable translation",
+            "no subtitles", "without subtitles", "no translation", "don't show translation", "dont show translation"
+        ).map { TopicManager.normalize(it) }
+        if (disablePhrases.any { q.contains(it) }) return false
+
+        // Enable / Show phrases
+        val enablePhrases = listOf(
+            "bat phu de dich", "bat phu de", "hien phu de", "hien ban dich", "bat ban dich",
+            "dich cau noi", "dich nghia", "bat dich nghia", "hien dich nghia", "bat phu de tieng viet",
+            "hien phu de tieng viet", "cho xem phu de", "cho xem ban dich", "hien phu de dich",
+            "bat phu de dich nghia", "hien dong dich", "bat dong dich", "hien thi phu de",
+            "hien thi ban dich", "dich sang tieng viet", "phu de tieng viet",
+            "turn on subtitles", "turn on subtitle", "enable subtitles", "show subtitles",
+            "show subtitle", "turn on translation", "show translation", "enable translation",
+            "with subtitles", "display subtitles", "display translation", "show subtitle translation"
         ).map { TopicManager.normalize(it) }
         if (enablePhrases.any { q.contains(it) }) return true
 

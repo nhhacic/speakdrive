@@ -114,5 +114,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setAutoPauseWhenUnfocused(enabled: Boolean) =
         viewModelScope.launch { repository.setAutoPauseWhenUnfocused(enabled) }
+
+    fun setShowTranslationSubtitle(enabled: Boolean) =
+        viewModelScope.launch { repository.setShowTranslationSubtitle(enabled) }
 }
 

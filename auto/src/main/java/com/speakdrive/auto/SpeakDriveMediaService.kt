@@ -1,5 +1,6 @@
 package com.speakdrive.auto
 
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -58,7 +59,7 @@ class SpeakDriveMediaService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
-        liveAudio.setCarConnected(true)
+        liveAudio.setCarConnected(engine.isCarConnected.value)
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
         wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "speakdrive:lesson_wakelock")?.apply {
             setReferenceCounted(false)
@@ -91,6 +92,7 @@ class SpeakDriveMediaService : MediaLibraryService() {
                     } catch (e: Exception) {
                         Log.w(TAG, "Could not release WakeLock", e)
                     }
+                    dismissNotificationAndStopIfIdle()
                 }
             }
         }
@@ -99,11 +101,37 @@ class SpeakDriveMediaService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = librarySession
 
     override fun onUpdateNotificationAsync(session: MediaSession, startInForegroundRequired: Boolean): ListenableFuture<Void?> {
+        if (!engine.state.value.isInLesson) {
+            dismissNotificationAndStopIfIdle()
+            return Futures.immediateFuture(null)
+        }
         val future = super.onUpdateNotificationAsync(session, startInForegroundRequired)
         if (startInForegroundRequired) {
             future.addListener(::ensureMicrophoneForegroundType, ContextCompat.getMainExecutor(this))
         }
         return future
+    }
+
+    /**
+     * Stops the foreground service and removes any stale notification when no lesson is active.
+     */
+    private fun dismissNotificationAndStopIfIdle() {
+        try {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not stop foreground", e)
+        }
+        val notificationId = notificationProvider.latest?.notificationId
+        if (notificationId != null) {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            notificationManager?.cancel(notificationId)
+        }
+        notificationProvider.clearLatest()
+
+        // If car is not connected and no lesson is in progress, stop the service.
+        if (!engine.isCarConnected.value) {
+            pauseAllPlayersAndStopSelf()
+        }
     }
 
     /**
@@ -131,7 +159,10 @@ class SpeakDriveMediaService : MediaLibraryService() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         // Keep the lesson running when the app is swiped away during a drive.
-        if (!engine.state.value.isInLesson) pauseAllPlayersAndStopSelf()
+        if (!engine.state.value.isInLesson) {
+            dismissNotificationAndStopIfIdle()
+            pauseAllPlayersAndStopSelf()
+        }
     }
 
     override fun onDestroy() {

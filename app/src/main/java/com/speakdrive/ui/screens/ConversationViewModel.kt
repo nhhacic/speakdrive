@@ -156,6 +156,7 @@ class ConversationViewModel @Inject constructor(
 
     fun end() {
         viewModelScope.launch {
+            runCatching { playback.stop() }
             if (engine.end() == null) _events.send(ConversationEvent.Discarded)
         }
     }

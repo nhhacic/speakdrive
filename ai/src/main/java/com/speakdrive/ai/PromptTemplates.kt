@@ -482,11 +482,24 @@ object PromptTemplates {
 
         val sampleGuidance = if (sampleDrillSentences.isNotEmpty()) {
             """
-            - CURATED TARGET PRACTICE SENTENCES (Draw your practice sentences from these high-impact models):
+            - SEED PRACTICE SENTENCES (High-yield starter examples for pronunciation & rhythm):
             ${sampleDrillSentences.mapIndexed { idx, s -> "  ${idx + 1}. \"$s\"" }.joinToString("\n")}
-            - PRIORITIZE introducing these exact sentences or formulating sentences matching their phonetic and idiomatic quality. NEVER invent dull, generic, filler sentences.
+
+            - DIVERSITY & ENDLESS VARIETY ENGINE (CRITICAL - NEVER REPEAT SENTENCES):
+              1. ABSOLUTELY NO REPETITIONS: NEVER repeat a sentence that has already been spoken or attempted in this session! Once a sentence is passed, failed, or skipped, permanently move forward to a brand new sentence.
+              2. CONTINUOUS DYNAMIC CREATION: You are NOT restricted to the seed sentences above. Actively compose FRESH, ENGAGING, AUTHENTIC sentences on the fly matching the topic "${lesson.topic.titleEn}".
+              3. STRUCTURAL & LEXICAL DIVERSITY: Rotate naturally between diverse sentence forms: short statements, questions, polite inquiries, daily reactions, idiomatic chunks. Never use the same grammatical pattern twice consecutively.
+              4. EXACT LEVEL TUNING: Strictly maintain sentence length and vocabulary difficulty for ${lesson.level.displayName} (${lesson.level.cefr}): $length.
             """.trimIndent()
-        } else ""
+        } else {
+            """
+            - DIVERSITY & ENDLESS VARIETY ENGINE (CRITICAL - NEVER REPEAT SENTENCES):
+              1. ABSOLUTELY NO REPETITIONS: NEVER repeat a sentence that has already been spoken or attempted in this session!
+              2. CONTINUOUS DYNAMIC CREATION: Actively compose FRESH, ENGAGING, AUTHENTIC practice sentences on the fly matching the topic "${lesson.topic.titleEn}".
+              3. STRUCTURAL & LEXICAL DIVERSITY: Rotate naturally between diverse sentence forms: statements, questions, polite inquiries, daily reactions, idiomatic chunks.
+              4. EXACT LEVEL TUNING: Strictly maintain sentence length and vocabulary difficulty for ${lesson.level.displayName} (${lesson.level.cefr}): $length.
+            """.trimIndent()
+        }
 
         val categoryGuidance = when (drillCategory) {
             com.speakdrive.ai.model.DrillCategory.VIETNAMESE_PITFALLS -> """
@@ -530,7 +543,7 @@ object PromptTemplates {
             - NEVER say an attempt was correct, good, great, perfect or close unless the tool's final_verdict is "correct".
               Do not flatter. Be honest and encouraging about effort, never about accuracy that was not there.
             - Then do exactly what the tool's instruction says.
-            - If the learner says "skip" or "next" (or in Vietnamese "bỏ qua", "câu khác", "tiếp theo"), move to a new sentence immediately, starting with "Repeat after me: <new sentence>". If they say "again" or "slower", say the sentence
+            - If the learner says "skip" or "next" (or in Vietnamese "bỏ qua", "câu khác", "tiếp theo", "câu phong phú hơn"), move to a brand new sentence immediately, starting with "Repeat after me: <new sentence>". Never cycle back to a sentence already practiced in this session. If they say "again" or "slower", say the sentence
               again slowly, word by word, then at normal speed.
             - Keep your own talking short so the learner speaks as much as possible.
         """.trimIndent()

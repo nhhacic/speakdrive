@@ -261,7 +261,8 @@ class MediaContentProvider @Inject constructor(
         lesson: ActiveLesson,
         state: ConversationState,
         lastAiText: String? = null,
-        drillTarget: String? = null
+        drillTarget: String? = null,
+        drillTargetTranslation: String? = null
     ): MediaItem {
         val isStory = lesson.mode == SessionMode.STORY_LISTENING
         val status = when (state) {
@@ -280,7 +281,11 @@ class MediaContentProvider @Inject constructor(
         val (title, subtitle, artist) = when {
             hasTarget -> {
                 val title = "🎯 Lặp lại theo AI"
-                val subtitle = "${lesson.topic.emoji} ${lesson.titleVi} • Đang nghe bạn nói"
+                val subtitle = if (!drillTargetTranslation.isNullOrBlank()) {
+                    "🇻🇳 Dịch: $drillTargetTranslation"
+                } else {
+                    "${lesson.topic.emoji} ${lesson.titleVi} • Đang nghe bạn nói"
+                }
                 val artist = "${lesson.level.displayName} • SpeakDrive"
                 Triple(title, subtitle, artist)
             }
@@ -315,7 +320,7 @@ class MediaContentProvider @Inject constructor(
             .setIsPlayable(true)
             .setMediaType(MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE)
 
-        val cardArtwork = artworkGenerator.generateCard(lesson, state, lastAiText, drillTarget)
+        val cardArtwork = artworkGenerator.generateCard(lesson, state, lastAiText, drillTarget, drillTargetTranslation)
         if (cardArtwork != null) {
             metadataBuilder.setArtworkData(cardArtwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
         }

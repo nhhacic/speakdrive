@@ -60,6 +60,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.speakdrive.ai.ConversationEngine
+import com.speakdrive.playback.PlaybackConnection
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -76,6 +77,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var engine: ConversationEngine
+
+    @Inject
+    lateinit var playbackConnection: PlaybackConnection
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -193,6 +197,9 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         runCatching { unregisterReceiver(screenReceiver) }
+        if (!engine.state.value.isInLesson) {
+            runCatching { playbackConnection.release() }
+        }
     }
 }
 

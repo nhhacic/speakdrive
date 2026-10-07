@@ -113,7 +113,8 @@ fun SettingsScreen(
         onSetDrillSentenceLength = viewModel::setDrillSentenceLength,
         onSetDrillCategory = viewModel::setDrillCategory,
         onSetAiVolume = viewModel::setAiVolume,
-        onSetAutoPauseWhenUnfocused = viewModel::setAutoPauseWhenUnfocused
+        onSetAutoPauseWhenUnfocused = viewModel::setAutoPauseWhenUnfocused,
+        onSetShowTranslationSubtitle = viewModel::setShowTranslationSubtitle
     )
 }
 
@@ -145,7 +146,8 @@ fun SettingsContent(
     onSaveAndTestAzure: (String, String) -> Unit = { _, _ -> },
     onSetDailyGoal: (Int) -> Unit = {},
     onSetAiVolume: (Int) -> Unit = {},
-    onSetAutoPauseWhenUnfocused: (Boolean) -> Unit = {}
+    onSetAutoPauseWhenUnfocused: (Boolean) -> Unit = {},
+    onSetShowTranslationSubtitle: (Boolean) -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -528,6 +530,31 @@ fun SettingsContent(
                         Switch(
                             checked = prefs.learner.autoPauseWhenUnfocused,
                             onCheckedChange = onSetAutoPauseWhenUnfocused
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            stringResource(R.string.settings_show_translation_subtitles),
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            stringResource(R.string.settings_show_translation_subtitles_desc) + "\n" + stringResource(R.string.settings_show_translation_subtitles_voice_tip),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = prefs.learner.showTranslationSubtitle,
+                            onCheckedChange = onSetShowTranslationSubtitle
                         )
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)

@@ -49,6 +49,9 @@
     <string name="settings_auto_pause_unfocused">Tự động tạm dừng khi rời app hoặc tắt màn hình</string>
     <string name="settings_auto_pause_unfocused_desc">Tự động chuyển sang tạm dừng nếu thoát ứng dụng hoặc tắt màn hình ngoài Android Auto.</string>
     <string name="settings_auto_pause_unfocused_voice_tip">💡 Lệnh giọng nói: \"bật tự động tạm dừng khi tắt màn hình\" hoặc \"tắt tự động tạm dừng\".</string>
+    <string name="settings_show_translation_subtitles">Phụ đề dịch nghĩa câu luyện nói</string>
+    <string name="settings_show_translation_subtitles_desc">Tự động hiển thị dòng dịch nghĩa bên dưới câu tiếng Anh trên màn hình xe ô tô và điện thoại theo ngôn ngữ bạn chọn.</string>
+    <string name="settings_show_translation_subtitles_voice_tip">💡 Lệnh giọng nói: \"bật phụ đề dịch\", \"hiện bản dịch\", \"tắt phụ đề dịch\" hoặc \"ẩn bản dịch\".</string>
     <string name="settings_group_azure">Dịch vụ Chấm phát âm Azure</string>
     <string name="settings_azure_enable">Chấm phát âm bằng Azure</string>
     <string name="settings_azure_enable_desc">Microsoft Azure chấm thêm từng từ và từng âm (0–100).</string>

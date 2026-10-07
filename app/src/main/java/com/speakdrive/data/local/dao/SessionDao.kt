@@ -82,6 +82,9 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE mode = 'STORY_LISTENING' AND isCompleted = 0 ORDER BY startedAt DESC LIMIT 1")
     suspend fun latestUnfinishedStorySession(): SessionEntity?
 
+    @Query("SELECT DISTINCT target FROM pronunciation_attempts ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun recentDrillTargets(limit: Int): List<String>
+
     @Query("SELECT * FROM messages WHERE sessionId = :sessionId ORDER BY position ASC")
     suspend fun getMessagesForSession(sessionId: String): List<MessageEntity>
 

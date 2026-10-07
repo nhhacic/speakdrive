@@ -93,6 +93,7 @@ open class ConversationEngine @Inject constructor(
     private val pronunciationAssessor: PronunciationAssessor,
     private val storyRecommender: StoryRecommender = StoryRecommender(topicManager),
     private val drillSentenceManager: DrillSentenceManager = DrillSentenceManager(),
+    private val sentenceTranslator: com.speakdrive.ai.translation.SentenceTranslator = com.speakdrive.ai.translation.SentenceTranslator(drillSentenceManager),
     @EngineDispatcher dispatcher: CoroutineDispatcher
 ) {
     /** Replaceable in tests. */
@@ -106,10 +107,10 @@ open class ConversationEngine @Inject constructor(
     open val state: StateFlow<ConversationState> = _state.asStateFlow()
 
     private val _lesson = MutableStateFlow<ActiveLesson?>(null)
-    val lesson: StateFlow<ActiveLesson?> = _lesson.asStateFlow()
+    open val lesson: StateFlow<ActiveLesson?> = _lesson.asStateFlow()
 
     private val _transcript = MutableStateFlow(emptyList<TranscriptTurn>())
-    val transcript: StateFlow<List<TranscriptTurn>> = _transcript.asStateFlow()
+    open val transcript: StateFlow<List<TranscriptTurn>> = _transcript.asStateFlow()
 
     /** Who is talking right now, for the mic animation. Null when nobody is. */
     private val _activeSpeaker = MutableStateFlow<Speaker?>(null)
@@ -132,7 +133,7 @@ open class ConversationEngine @Inject constructor(
     }
 
     private val _error = MutableStateFlow<EngineError?>(null)
-    val error: StateFlow<EngineError?> = _error.asStateFlow()
+    open val error: StateFlow<EngineError?> = _error.asStateFlow()
 
     /** Emits the id of each lesson as soon as it ends and its transcript is saved. */
     private val _endedSessions = MutableSharedFlow<String>(extraBufferCapacity = 4)
@@ -148,7 +149,13 @@ open class ConversationEngine @Inject constructor(
 
     /** The sentence the AI last asked the learner to repeat, for display on the phone. */
     private val _drillTarget = MutableStateFlow<String?>(null)
-    val drillTarget: StateFlow<String?> = _drillTarget.asStateFlow()
+    open val drillTarget: StateFlow<String?> = _drillTarget.asStateFlow()
+
+    /** Translated meaning of the repeat drill sentence for display as subtitle. */
+    private val _drillTargetTranslation = MutableStateFlow<String?>(null)
+    open val drillTargetTranslation: StateFlow<String?> = _drillTargetTranslation.asStateFlow()
+    private var translationJob: Job? = null
+
     private val attemptCounts = mutableMapOf<String, Int>()
 
     /** Whether the app is currently projecting / connected to Android Auto. */
@@ -436,11 +443,14 @@ open class ConversationEngine @Inject constructor(
     private suspend fun connectLive(lesson: ActiveLesson, recap: Boolean) {
         val drill = lesson.mode == SessionMode.REPEAT_AFTER_ME
         val sampleDrillSentences = if (drill) {
+            val recentTargets = runCatching { sessionStore.recentDrillTargets(30) }.getOrDefault(emptyList()).toSet()
             drillSentenceManager.getSampleSentencesForPrompt(
                 category = learnerSettings.drillCategory,
                 level = lesson.level,
                 topicId = lesson.topic.id,
-                isCarConnected = _isCarConnected.value
+                isCarConnected = _isCarConnected.value,
+                excludeTexts = recentTargets,
+                limit = 10
             ).map { it.text }
         } else emptyList()
         val instruction = PromptTemplates.buildSystemInstruction(
@@ -485,6 +495,7 @@ open class ConversationEngine @Inject constructor(
         VoiceSettingsTools.SET_DRILL_CATEGORY_FUNCTION -> handleSetDrillCategory(call)
         VoiceSettingsTools.SET_AI_VOLUME_FUNCTION -> handleSetAiVolume(call)
         VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION -> handleSetAutoPauseWhenUnfocused(call)
+        VoiceSettingsTools.SET_TRANSLATION_SUBTITLES_FUNCTION -> handleSetTranslationSubtitles(call)
         PronunciationDrill.CHECK_ATTEMPT_FUNCTION -> gradeAttempt(call)
         else -> mapOf("status" to "unknown function")
     }
@@ -1067,7 +1078,7 @@ open class ConversationEngine @Inject constructor(
         val topic = _lesson.value?.topic?.titleEn ?: "daily situations"
         return mapOf(
             "status" to "success",
-            "instruction" to "The learner skipped this sentence. Confirm in one short phrase and immediately introduce the next sentence related to $topic. You MUST ALWAYS start the next sentence with: \"Repeat after me: <sentence>\"."
+            "instruction" to "The learner skipped this sentence. Confirm in one short phrase and immediately introduce a fresh, brand new sentence related to $topic that has not been used yet in this session. Never repeat previous sentences. You MUST ALWAYS start the next sentence with: \"Repeat after me: <sentence>\"."
         )
     }
 
@@ -1105,8 +1116,8 @@ open class ConversationEngine @Inject constructor(
                     runCatching {
                         liveClient.sendText(
                             "System: The learner skipped to the next sentence. " +
-                                "Confirm in one short phrase, then give a new sentence related to $topic immediately. " +
-                                "You MUST ALWAYS start the new sentence with: \"Repeat after me: <sentence>\"."
+                                "Confirm in one short phrase, then give a fresh, brand new sentence related to $topic that has not been used yet in this session. " +
+                                "Never repeat previous sentences. You MUST ALWAYS start the new sentence with: \"Repeat after me: <sentence>\"."
                         )
                     }.onFailure { Log.w(TAG, "Could not send skip drill sentence to Live client", it) }
                 }

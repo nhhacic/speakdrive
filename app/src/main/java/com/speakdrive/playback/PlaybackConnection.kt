@@ -50,6 +50,13 @@ open class PlaybackConnection internal constructor(
         controller.play()
     }
 
+    /** Stops playback on the media controller. */
+    open suspend fun stop() {
+        mutex.withLock {
+            controller?.takeIf { it.isConnected }?.stop()
+        }
+    }
+
     fun release() {
         controller?.release()
         controller = null

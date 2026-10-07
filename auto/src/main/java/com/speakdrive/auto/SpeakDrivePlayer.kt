@@ -55,6 +55,9 @@ class SpeakDrivePlayer(
 
     override fun getState(): State {
         val engineState = engine.state.value
+        if (!engineState.isInLesson) {
+            selectedItem = null
+        }
         val lesson = engine.lesson.value
         val item = lesson?.let {
             val transcript = engine.transcript.value
@@ -199,13 +202,13 @@ class SpeakDrivePlayer(
     }
 
     private fun ConversationState.toPlaybackState(): Int = when (this) {
-        ConversationState.ACTIVE, ConversationState.PAUSED,
-        ConversationState.ENDED, ConversationState.IDLE -> Player.STATE_READY
+        ConversationState.ACTIVE, ConversationState.PAUSED -> Player.STATE_READY
         ConversationState.CONNECTING,
         ConversationState.RECONNECTING,
         ConversationState.WAITING_FOR_NETWORK,
         ConversationState.ENDING -> Player.STATE_BUFFERING
-        ConversationState.ERROR -> Player.STATE_IDLE
+        ConversationState.ENDED -> Player.STATE_ENDED
+        ConversationState.IDLE, ConversationState.ERROR -> Player.STATE_IDLE
     }
 
     private companion object {

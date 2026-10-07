@@ -12,18 +12,33 @@ class DrillSentenceManagerTest {
     @Test
     fun `manager has rich collection of curated sentences across all categories`() {
         val allSentences = manager.getSentences(DrillCategory.ALL)
-        // Verify bank has over 100 curated sentences
-        assertThat(allSentences.size).isAtLeast(100)
+        // Verify bank has over 200 curated sentences
+        assertThat(allSentences.size).isAtLeast(200)
 
         // Verify each specific category has substantial sentence coverage
         DrillCategory.entries.filterNot { it == DrillCategory.ALL }.forEach { category ->
             val catSentences = manager.getSentences(category)
-            assertThat(catSentences.size).isAtLeast(15)
+            assertThat(catSentences.size).isAtLeast(25)
             catSentences.forEach { sentence ->
                 assertThat(sentence.category).isEqualTo(category)
                 assertThat(sentence.text).isNotEmpty()
                 assertThat(sentence.translationVi).isNotEmpty()
             }
+        }
+    }
+
+    @Test
+    fun `getSentences excludes recently practiced sentence texts`() {
+        val allBeginner = manager.getSentences(DrillCategory.VIETNAMESE_PITFALLS, level = DifficultyLevel.BEGINNER)
+        val toExclude = allBeginner.take(3).map { it.text }.toSet()
+        val filtered = manager.getSentences(
+            DrillCategory.VIETNAMESE_PITFALLS,
+            level = DifficultyLevel.BEGINNER,
+            excludeTexts = toExclude
+        )
+        assertThat(filtered).isNotEmpty()
+        filtered.forEach {
+            assertThat(it.text).isNotIn(toExclude)
         }
     }
 

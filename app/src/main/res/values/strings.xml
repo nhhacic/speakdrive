@@ -49,6 +49,9 @@
     <string name="settings_auto_pause_unfocused">Auto-pause When Leaving App or Screen Off</string>
     <string name="settings_auto_pause_unfocused_desc">Automatically pauses lesson when app loses focus or screen turns off outside Android Auto.</string>
     <string name="settings_auto_pause_unfocused_voice_tip">💡 Voice command: \"auto pause when screen off\" or \"disable auto pause\".</string>
+    <string name="settings_show_translation_subtitles">Drill Translation Subtitles</string>
+    <string name="settings_show_translation_subtitles_desc">Display translated meaning below English drill sentences on car and phone screen based on your chosen language.</string>
+    <string name="settings_show_translation_subtitles_voice_tip">💡 Voice command: \"turn on subtitles\", \"show translation\", \"turn off subtitles\" or \"hide translation\".</string>
     <string name="settings_group_azure">Azure Pronunciation Service</string>
     <string name="settings_azure_enable">Grade with Microsoft Azure</string>
     <string name="settings_azure_enable_desc">Azure provides additional phoneme and word scoring (0–100).</string>

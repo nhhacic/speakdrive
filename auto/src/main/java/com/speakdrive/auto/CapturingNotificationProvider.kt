@@ -21,6 +21,10 @@ class CapturingNotificationProvider(
     var latest: MediaNotification? = null
         private set
 
+    fun clearLatest() {
+        latest = null
+    }
+
     override fun createNotification(
         mediaSession: MediaSession,
         mediaButtonPreferences: ImmutableList<CommandButton>,
