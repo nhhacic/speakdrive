@@ -104,7 +104,7 @@ object PronunciationDrill {
                 .map { it.groupValues[1].trim() }
                 .filter { quote ->
                     val w = quote.split(Regex("\\s+")).filter(String::isNotBlank)
-                    w.size in 2..35
+                    w.size in 2..35 && quote.firstOrNull()?.isUpperCase() == true
                 }
                 .lastOrNull()
             if (quoteInCandidate != null) {
@@ -122,7 +122,7 @@ object PronunciationDrill {
             .map { it.groupValues[1].trim() }
             .filter { quote ->
                 val w = quote.split(Regex("\\s+")).filter(String::isNotBlank)
-                w.size in 2..35
+                w.size in 2..35 && quote.firstOrNull()?.isUpperCase() == true
             }
             .toList()
         if (quoteMatches.isNotEmpty()) {

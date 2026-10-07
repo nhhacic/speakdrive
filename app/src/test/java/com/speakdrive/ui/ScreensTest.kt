@@ -40,6 +40,7 @@ import com.speakdrive.ui.screens.SettingsContent
 import com.speakdrive.ai.pronunciation.AzureAssessment
 import com.speakdrive.ai.pronunciation.AzurePhoneme
 import com.speakdrive.ai.pronunciation.AzureWord
+import com.speakdrive.ai.pronunciation.PronunciationAttempt
 import com.speakdrive.ai.pronunciation.PronunciationGrader
 import com.speakdrive.ai.model.LevelAdjustmentDirection
 import com.speakdrive.ai.model.LevelRecommendation
@@ -220,10 +221,10 @@ class ScreensTest {
         val attempt = PronunciationAttempt(
             target = "Can you provide an update on the budget status?",
             heard = "Can you provide an update on the budget status",
-            words = emptyList(),
+            words = emptyList<com.speakdrive.ai.pronunciation.WordResult>(),
             accuracyPercent = 100,
             modelSaidCorrect = false,
-            modelProblemWords = emptyList(),
+            modelProblemWords = emptyList<String>(),
             modelNotes = "Mumbled slightly",
             attemptNumber = 1,
             passed = false,

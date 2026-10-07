@@ -1715,7 +1715,8 @@ open class ConversationEngine @Inject constructor(
                         val isPartialOfCurrent = current != null &&
                             norm(current).startsWith(norm(newTarget)) && norm(newTarget) != norm(current)
                         val explicitCue = turn.text.contains("repeat after me", ignoreCase = true)
-                        if (awaitingNewDrillTarget || current == null || isExtension || (isDifferentSentence && !isPartialOfCurrent) || explicitCue) {
+                        val canUpdate = awaitingNewDrillTarget || current == null || isExtension || explicitCue
+                        if (canUpdate) {
                             setDrillTarget(newTarget)
                         }
                     }
