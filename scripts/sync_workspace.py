@@ -21,11 +21,14 @@ import sys
 # Prevent recursive hooks
 os.environ["SPEAKDRIVE_SYNCING"] = "1"
 
-# Ensure UTF-8 output on all platforms
+# Ensure UTF-8 output and instant flush on all platforms
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
+import functools
+print = functools.partial(print, flush=True)
 
 import json
 import sqlite3
@@ -38,6 +41,8 @@ from pathlib import Path
 
 # ==================== CẤU HÌNH HỆ THỐNG ====================
 PROJECT_ID = "08cbdccc-b264-47ae-8f6a-0acb555d0fe2"
+STATE_FILE_WIN = os.path.join(r"d:\@Vibe_code_projects\English Speaking App", ".git", "speakdrive_sync_state.json")
+
 
 # Đường dẫn trên Windows
 WIN_PROJECT_DIR = r"d:\@Vibe_code_projects\English Speaking App"
@@ -338,7 +343,35 @@ def sync_code_git(direction):
 
 
 # ==================== INCREMENTAL CONVERSATION SYNC ====================
-def get_candidates_to_linux(since_hours=48, sync_all=False, specific_cid=None):
+def load_last_sync_cutoff(since_hours=None):
+    if since_hours is not None:
+        return (datetime.now(timezone.utc) - timedelta(hours=since_hours)).strftime("%Y-%m-%d %H:%M:%S")
+    
+    if os.path.exists(STATE_FILE_WIN):
+        try:
+            with open(STATE_FILE_WIN, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            last_time = data.get("last_sync_time")
+            if last_time:
+                # Trừ hao 15 phút để đảm bảo không sót phiên nào vừa kết thúc
+                dt = datetime.fromisoformat(last_time) - timedelta(minutes=15)
+                return dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+    # Mặc định lần đầu lấy 6 giờ gần nhất
+    return (datetime.now(timezone.utc) - timedelta(hours=6)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def save_last_sync_time():
+    try:
+        os.makedirs(os.path.dirname(STATE_FILE_WIN), exist_ok=True)
+        with open(STATE_FILE_WIN, "w", encoding="utf-8") as f:
+            json.dump({"last_sync_time": datetime.now(timezone.utc).isoformat()}, f, indent=2)
+    except Exception as e:
+        print(f"  [Cảnh báo] Không thể lưu state file: {e}")
+
+
+def get_candidates_to_linux(since_hours=None, sync_all=False, specific_cid=None):
     """Lọc danh sách các phiên hội thoại cần đồng bộ sang Linux"""
     local_db_path = os.path.join(WIN_GEMINI_DIR, "conversation_summaries.db")
     if not os.path.exists(local_db_path):
@@ -365,8 +398,8 @@ def get_candidates_to_linux(since_hours=48, sync_all=False, specific_cid=None):
             (PROJECT_ID,)
         )
     else:
-        # Incremental filter
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=since_hours)).strftime("%Y-%m-%d %H:%M:%S")
+        # Incremental filter qua state file hoặc since_hours
+        cutoff = load_last_sync_cutoff(since_hours)
         cur.execute(
             "SELECT conversation_id, title, preview, step_count, last_modified_time, workspace_uris, "
             "status, source, project_id, agent_name, parent_conversation_id, nesting_depth, battle_id, "
@@ -672,6 +705,7 @@ print("[Linux] Database & Protobuf cache updated successfully!")
     send_bytes_ssh(remote_apply_script.encode('utf-8'), "/tmp/remote_apply_sync.py")
     run_cmd(f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"python3 /tmp/remote_apply_sync.py\"")
 
+    save_last_sync_time()
     print(f"  ✅ Đã đồng bộ thành công {len(rows)} phiên hội thoại sang Linux!")
 
 
@@ -802,6 +836,7 @@ conn.close()
     with open(pb_path, 'wb') as f:
         f.write(encode_protobuf(existing_entries))
 
+    save_last_sync_time()
     print(f"  ✅ Đã đồng bộ thành công {len(remote_rows)} phiên hội thoại từ Linux về Windows!")
 
 
@@ -813,7 +848,7 @@ def main():
     parser.add_argument("--code-only", action="store_true", help="Chỉ đồng bộ mã nguồn Git")
     parser.add_argument("--conv-only", action="store_true", help="Chỉ đồng bộ phiên hội thoại AI")
     parser.add_argument("--all", action="store_true", help="Đồng bộ toàn bộ tất cả phiên lịch sử (bỏ qua lọc thời gian)")
-    parser.add_argument("--since-hours", type=int, default=48, help="Số giờ quét phiên sửa đổi gần đây (mặc định: 48h)")
+    parser.add_argument("--since-hours", type=int, default=None, help="Số giờ quét phiên sửa đổi gần đây (mặc định: tự động từ lần sync trước)")
     parser.add_argument("--cid", type=str, default=None, help="Chỉ đồng bộ duy nhất một Conversation ID cụ thể")
     args = parser.parse_args()
 
@@ -821,7 +856,12 @@ def main():
     print("================================================================")
     print(f"🚀 BẮT ĐẦU ĐỒNG BỘ SPEAKDRIVE ({dir_label})")
     if not args.code_only:
-        mode_str = "TOÀN BỘ LỊCH SỬ" if args.all else f"GIA TĂNG ({args.since_hours}h gần nhất)"
+        if args.all:
+            mode_str = "TOÀN BỘ LỊCH SỬ"
+        elif args.since_hours:
+            mode_str = f"GIA TĂNG ({args.since_hours}h gần nhất)"
+        else:
+            mode_str = "GIA TĂNG TỰ ĐỘNG (Từ lần đồng bộ trước)"
         print(f"   Chế độ đồng bộ phiên: {mode_str}")
     print("================================================================")
 
