@@ -21,6 +21,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -82,8 +83,7 @@ class ConversationViewModel @Inject constructor(
     /** The lesson this screen is showing; lessons that ended before it are ignored. */
     private var trackedLessonId: String? = null
 
-    /**
-     * Survives process death: when Android restores this screen later, it must not start the
+    /** Survives process death: when Android restores this screen later, it must not start the
      * lesson again by itself.
      */
     private var startRequested: Boolean
@@ -91,6 +91,8 @@ class ConversationViewModel @Inject constructor(
         set(value) {
             savedState[KEY_START_REQUESTED] = value
         }
+
+    private val _startError = MutableStateFlow<EngineError?>(null)
 
     /** Refreshes the elapsed time once a second, but only while the lesson is running. */
     private val ticker: Flow<Unit> = engine.state
@@ -111,7 +113,7 @@ class ConversationViewModel @Inject constructor(
 
     val uiState: StateFlow<ConversationUiState> = combine(
         combine(engine.lesson, engine.state, engine.transcript, ::Triple),
-        combine(engine.activeSpeaker, engine.error, engine.isAiThinking, ::Triple),
+        combine(engine.activeSpeaker, combine(engine.error, _startError) { e1, e2 -> e1 ?: e2 }, engine.isAiThinking, ::Triple),
         combine(
             combine(engine.drillTarget, engine.drillTargetTranslation, engine.offlinePractice, ::Triple),
             engine.pronunciationAttempts,
@@ -172,6 +174,7 @@ class ConversationViewModel @Inject constructor(
         if (mediaId == null || startRequested) return
         startRequested = true
         trackedLessonId = null
+        _startError.value = null
         engine.clearError()
         viewModelScope.launch {
             try {
@@ -182,12 +185,14 @@ class ConversationViewModel @Inject constructor(
                 android.util.Log.e("ConversationViewModel", "Failed to start lesson via playback: $mediaId", e)
                 // Let the learner try again.
                 startRequested = false
+                _startError.value = EngineError.ConnectionFailed(e.localizedMessage ?: e.message)
             }
         }
     }
 
     fun retry(mediaId: String?) {
         startRequested = false
+        _startError.value = null
         start(mediaId)
     }
 

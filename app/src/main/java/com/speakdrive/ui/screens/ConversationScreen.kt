@@ -51,6 +51,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -157,6 +158,7 @@ fun ConversationScreen(
     }
 
     ConversationContent(
+        mediaId = mediaId,
         state = state,
         permissionDenied = permissionDenied,
         onBack = onBack,
@@ -191,6 +193,7 @@ fun ConversationScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationContent(
+    mediaId: String? = null,
     state: ConversationUiState,
     permissionDenied: Boolean,
     onBack: () -> Unit,
@@ -395,12 +398,32 @@ fun ConversationContent(
                     secondaryLabel = if (state.error == EngineError.MissingMicPermission) stringResource(R.string.convo_btn_grant_permission) else null,
                     onSecondary = onRequestPermission
                 )
-                lesson == null && !state.state.isInLesson && state.state != ConversationState.ENDING -> MessageCard(
+                mediaId == null && lesson == null && !state.state.isInLesson && state.state != ConversationState.ENDING -> MessageCard(
                     title = stringResource(R.string.convo_empty_lesson_title),
                     message = stringResource(R.string.convo_empty_lesson_desc),
                     primaryLabel = stringResource(R.string.convo_btn_home),
                     onPrimary = onBack
                 )
+                mediaId != null && lesson == null && !state.state.isInLesson && state.state != ConversationState.ENDING -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            CircularProgressIndicator()
+                            Text(
+                                text = stringResource(R.string.convo_connecting),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
 
             state.drill?.let { drill ->

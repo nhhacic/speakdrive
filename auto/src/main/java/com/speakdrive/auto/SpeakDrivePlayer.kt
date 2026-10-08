@@ -86,10 +86,10 @@ class SpeakDrivePlayer(
         if (lesson != null && isSameAsCurrentLesson(selectedItem)) {
             selectedItem = null
         }
-        val isSwitching = selectedItem != null && !isSameAsCurrentLesson(selectedItem)
-        if (!engineState.isInLesson && !isSwitching) {
+        if (engineState == ConversationState.ENDED) {
             selectedItem = null
         }
+        val isSwitching = engineState.isInLesson && selectedItem != null && !isSameAsCurrentLesson(selectedItem)
         val item = lesson?.let {
             val transcript = engine.transcript.value
             val lastAiText = transcript.lastOrNull { turn -> turn.speaker == Speaker.AI }?.text
@@ -135,9 +135,11 @@ class SpeakDrivePlayer(
         val item = mediaItems.getOrNull(startIndex.coerceAtLeast(0)) ?: mediaItems.firstOrNull()
             ?: return Futures.immediateVoidFuture()
         selectedItem = item
-        // While a lesson is running, switch now so Android Auto hands-free transition occurs immediately.
-        if (!engine.state.value.isInLesson) return Futures.immediateVoidFuture()
-        return scope.future { startFromItem(item) }
+        // While a lesson is running or when already playing, start immediately
+        if (engine.state.value.isInLesson || getState().playWhenReady) {
+            return scope.future { startFromItem(item) }
+        }
+        return Futures.immediateVoidFuture()
     }
 
     override fun handlePrepare(): ListenableFuture<*> = Futures.immediateVoidFuture()
