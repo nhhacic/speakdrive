@@ -342,8 +342,9 @@ fun ProgressContent(
 
             items(state.history, key = { it.sessionId }) { item ->
                 val displayTitle = when {
-                    item.mode == SessionMode.VOCAB_REVIEW.name -> if (isVi) "📝 Ôn tập từ vựng" else "📝 Vocabulary Review"
-                    item.mode == SessionMode.REPEAT_AFTER_ME.name -> if (isVi) "🗣️ Phát âm: ${item.topicTitleVi}" else "🗣️ Pronunciation: ${item.topicTitleEn}"
+                    item.mode == SessionMode.VOCAB_REVIEW.name -> stringResource(R.string.progress_session_vocab_review)
+                    item.mode == SessionMode.REPEAT_AFTER_ME.name ->
+                        stringResource(R.string.progress_session_pronunciation, if (isVi) item.topicTitleVi else item.topicTitleEn)
                     item.scenarioTitleVi != null -> "🎭 ${if (isVi) item.scenarioTitleVi else (item.scenarioTitleEn ?: item.scenarioTitleVi)}"
                     else -> "${item.topicEmoji} ${if (isVi) item.topicTitleVi else item.topicTitleEn}"
                 }

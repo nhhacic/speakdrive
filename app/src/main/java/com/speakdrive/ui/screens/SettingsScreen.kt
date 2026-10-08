@@ -191,7 +191,10 @@ fun SettingsContent(
                         FilterChip(
                             selected = lang == prefs.appLanguage,
                             onClick = { onSetAppLanguage(lang) },
-                            label = { Text("${lang.flagEmoji} ${lang.nativeName}") }
+                            label = {
+                        val name = if (lang == AppLanguage.SYSTEM) stringResource(R.string.settings_language_system) else lang.nativeName
+                        Text("${lang.flagEmoji} $name")
+                    }
                         )
                     }
                 }
@@ -267,11 +270,12 @@ fun SettingsContent(
                 val currentStrictness = prefs.learner.pronunciationStrictness
                 val strictnessDesc = if (currentStrictness == PronunciationStrictness.AUTO) {
                     val resolved = currentStrictness.resolveForLevel(prefs.learner.level)
-                    if (isVi) {
-                        "Tự động theo cấp độ học viên: ${prefs.learner.level.getLabel(true)} (${prefs.learner.level.cefr}) — ${resolved.getDescription(true)}"
-                    } else {
-                        "Auto adapted to your level: ${prefs.learner.level.displayName} (${prefs.learner.level.cefr}) — ${resolved.getDescription(false)}"
-                    }
+                    stringResource(
+                        R.string.settings_strictness_auto_desc,
+                        prefs.learner.level.getLabel(isVi),
+                        prefs.learner.level.cefr,
+                        resolved.getDescription(isVi)
+                    )
                 } else {
                     currentStrictness.getDescription(isVi)
                 }
@@ -393,7 +397,7 @@ fun SettingsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        if (isVi) "Âm lượng giọng nói AI" else "AI Voice Volume",
+                        stringResource(R.string.ai_volume_title),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -413,11 +417,7 @@ fun SettingsContent(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    if (isVi) {
-                        "Điều chỉnh độ lớn giọng nói của AI. Rất hữu ích khi dùng tai nghe Bluetooth để âm lượng vừa vặn, không bị quá to.\nTip lệnh giọng nói: Nói \"nói nhỏ lại\", \"giảm âm lượng\", \"nói to lên\" hoặc \"âm lượng 50%\"."
-                    } else {
-                        "Adjust AI voice volume. Especially helpful for Bluetooth headsets to prevent loud audio.\nVoice tip: Say \"speak softer\", \"lower volume\", \"speak louder\" or \"volume 50%\"."
-                    },
+                    stringResource(R.string.settings_volume_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

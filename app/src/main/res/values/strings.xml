@@ -442,4 +442,18 @@
     <string name="memory_delete">Delete</string>
     <string name="settings_offline_practice">Practise offline when the signal drops</string>
     <string name="settings_offline_practice_desc">In tunnels or on mountain roads the phone keeps a repeat-after-me practice going on its own, then the AI tutor takes over again when the connection is back.</string>
+    <string name="settings_language_system">System default</string>
+    <string name="convo_ai_volume_cd">AI volume</string>
+    <string name="convo_azure_scores">Azure: %1$d/100 • accuracy %2$d • fluency %3$d • completeness %4$d</string>
+    <string name="ai_volume_title">AI Voice Volume</string>
+    <string name="convo_volume_level">Volume level:</string>
+    <string name="convo_volume_tip" formatted="false">Voice tip: you can say \"speak softer\", \"lower volume\", \"speak louder\" or \"volume 50%\" at any time.</string>
+    <string name="dialog_close">Close</string>
+    <string name="settings_strictness_auto_desc">Auto adapted to your level: %1$s (%2$s) — %3$s</string>
+    <string name="settings_volume_desc" formatted="false">Adjust the AI voice volume. Especially helpful with Bluetooth headsets so it is not too loud.\nVoice tip: say \"speak softer\", \"lower volume\", \"speak louder\" or \"volume 50%\".</string>
+    <string name="about_bio">SpeakDrive was created to turn daily driving and commutes into hands-free, natural and safe English conversation practice.</string>
+    <string name="vocab_listen_sentence">Listen</string>
+    <string name="vocab_practice_word_with_ai">Practise this word with AI</string>
+    <string name="progress_session_vocab_review">📝 Vocabulary review</string>
+    <string name="progress_session_pronunciation">🗣️ Pronunciation: %1$s</string>
 </resources>

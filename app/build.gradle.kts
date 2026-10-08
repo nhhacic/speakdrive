@@ -126,7 +126,9 @@ android {
     }
     lint {
         checkReleaseBuilds = false
-        abortOnError = false
+        // New lint errors fail the build (and CI); issues that predate this are listed in the baseline.
+        abortOnError = true
+        baseline = file("lint-baseline.xml")
     }
 }
 

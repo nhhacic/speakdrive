@@ -102,12 +102,7 @@ fun AboutScreen(
             AppHeader()
 
             // Thẻ Thông tin người phát triển
-            val bio = if (isVi) {
-                "SpeakDrive ra đời từ mong muốn biến thời gian lái xe và di chuyển hằng ngày " +
-                    "thành cơ hội luyện phản xạ giao tiếp tiếng Anh một cách tự nhiên, rảnh tay và an toàn tuyệt đối."
-            } else {
-                "SpeakDrive was created to transform daily driving and commutes into opportunities for hands-free, natural, and safe English conversational practice."
-            }
+            val bio = stringResource(R.string.about_bio)
             DeveloperCard(
                 name = "nhhacic",
                 role = stringResource(R.string.about_developer_role),

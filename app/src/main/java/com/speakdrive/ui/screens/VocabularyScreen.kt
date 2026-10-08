@@ -981,7 +981,7 @@ fun VocabularyCard(
                                             ) {
                                                 Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, modifier = Modifier.size(14.dp))
                                                 Spacer(Modifier.width(4.dp))
-                                                Text("Nghe câu", fontSize = 11.sp)
+                                                Text(stringResource(R.string.vocab_listen_sentence), fontSize = 11.sp)
                                             }
                                             Button(
                                                 onClick = onSaveSentenceAsExample,
@@ -1204,7 +1204,7 @@ fun FlashcardStudyView(
                         ) {
                             Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Luyện từ này với AI")
+                            Text(stringResource(R.string.vocab_practice_word_with_ai))
                         }
                     }
                 }

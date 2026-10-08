@@ -442,4 +442,18 @@
     <string name="memory_delete">Xoá</string>
     <string name="settings_offline_practice">Luyện offline khi mất sóng</string>
     <string name="settings_offline_practice_desc">Khi qua hầm hay đường đèo mất sóng, điện thoại tự cho bạn luyện nhắc lại câu, có sóng lại thì gia sư AI tiếp tục.</string>
+    <string name="settings_language_system">Mặc định hệ thống</string>
+    <string name="convo_ai_volume_cd">Âm lượng AI</string>
+    <string name="convo_azure_scores">Azure: %1$d/100 • chính xác %2$d • trôi chảy %3$d • đầy đủ %4$d</string>
+    <string name="ai_volume_title">Âm lượng giọng nói AI</string>
+    <string name="convo_volume_level">Mức âm lượng:</string>
+    <string name="convo_volume_tip" formatted="false">Mẹo giọng nói: bạn có thể nói \"nói nhỏ lại\", \"giảm âm lượng\", \"nói to lên\" hoặc \"âm lượng 50%\" bất cứ lúc nào.</string>
+    <string name="dialog_close">Đóng</string>
+    <string name="settings_strictness_auto_desc">Tự động theo cấp độ học viên: %1$s (%2$s) — %3$s</string>
+    <string name="settings_volume_desc" formatted="false">Điều chỉnh độ lớn giọng nói của AI. Rất hữu ích khi dùng tai nghe Bluetooth để âm lượng vừa vặn, không bị quá to.\nMẹo lệnh giọng nói: nói \"nói nhỏ lại\", \"giảm âm lượng\", \"nói to lên\" hoặc \"âm lượng 50%\".</string>
+    <string name="about_bio">SpeakDrive ra đời từ mong muốn biến thời gian lái xe và di chuyển hằng ngày thành cơ hội luyện phản xạ giao tiếp tiếng Anh một cách tự nhiên, rảnh tay và an toàn tuyệt đối.</string>
+    <string name="vocab_listen_sentence">Nghe câu</string>
+    <string name="vocab_practice_word_with_ai">Luyện từ này với AI</string>
+    <string name="progress_session_vocab_review">📝 Ôn tập từ vựng</string>
+    <string name="progress_session_pronunciation">🗣️ Phát âm: %1$s</string>
 </resources>

@@ -335,7 +335,7 @@ fun ConversationContent(
                                 ) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                                        contentDescription = if (isVi) "Âm lượng AI" else "AI Volume",
+                                        contentDescription = stringResource(R.string.convo_ai_volume_cd),
                                         modifier = Modifier.size(20.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -414,8 +414,7 @@ fun ConversationContent(
                     accuracyPercent = attempt?.accuracyPercent,
                     problemNote = attempt?.modelNotes,
                     azureSummary = attempt?.azure?.let {
-                        if (isVi) "Azure: ${it.pronunciationScore}/100 • chính xác ${it.accuracyScore} • trôi chảy ${it.fluencyScore} • đầy đủ ${it.completenessScore}"
-                        else "Azure: ${it.pronunciationScore}/100 • accuracy ${it.accuracyScore} • fluency ${it.fluencyScore} • completeness ${it.completenessScore}"
+                        stringResource(R.string.convo_azure_scores, it.pronunciationScore, it.accuracyScore, it.fluencyScore, it.completenessScore)
                     },
                     azureWeakSounds = attempt?.azure?.describeProblems()?.joinToString(),
                     azureWarning = attempt?.azureError,
@@ -541,7 +540,7 @@ fun ConversationContent(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = if (isVi) "Âm lượng giọng nói AI" else "AI Voice Volume",
+                        text = stringResource(R.string.ai_volume_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -553,7 +552,7 @@ fun ConversationContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (isVi) "Mức âm lượng:" else "Volume level:",
+                            text = stringResource(R.string.convo_volume_level),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
@@ -572,8 +571,7 @@ fun ConversationContent(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        text = if (isVi) "Mẹo giọng nói: Bạn có thể nói \"nói nhỏ lại\", \"giảm âm lượng\", \"nói to lên\" hoặc \"volume 50%\" bất cứ lúc nào."
-                        else "Voice tip: You can say \"speak softer\", \"lower volume\", \"speak louder\" or \"volume 50%\" at any time.",
+                        text = stringResource(R.string.convo_volume_tip),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -582,7 +580,7 @@ fun ConversationContent(
                         horizontalArrangement = Arrangement.End
                     ) {
                         TextButton(onClick = { showVolumeDialog = false }) {
-                            Text(if (isVi) "Đóng" else "Close")
+                            Text(stringResource(R.string.dialog_close))
                         }
                     }
                 }
