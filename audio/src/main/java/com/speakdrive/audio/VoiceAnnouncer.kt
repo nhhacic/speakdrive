@@ -13,6 +13,9 @@ import javax.inject.Singleton
 /** Speaks short status messages ("connection lost…") when the AI itself cannot talk. */
 interface VoiceAnnouncer {
     fun announce(text: String)
+
+    /** Stops what is being read right now (e.g. when the screen that asked for it closes). */
+    fun stop() = Unit
     fun shutdown()
 }
 
@@ -77,6 +80,12 @@ class TextToSpeechAnnouncer @Inject constructor(
         }
         if (engine.voice?.locale?.language != wanted.language) engine.language = wanted
         engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "speakdrive-announcement")
+    }
+
+    @Synchronized
+    override fun stop() {
+        pending = null
+        runCatching { tts?.stop() }
     }
 
     @Synchronized

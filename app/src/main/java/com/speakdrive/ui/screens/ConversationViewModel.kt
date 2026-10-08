@@ -1,5 +1,6 @@
 package com.speakdrive.ui.screens
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.speakdrive.ai.ConversationEngine
@@ -15,13 +16,17 @@ import com.speakdrive.data.repository.UserPreferencesRepository
 import com.speakdrive.playback.PlaybackConnection
 import com.speakdrive.ui.components.MicState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -60,11 +65,13 @@ sealed interface ConversationEvent {
     data object Discarded : ConversationEvent
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ConversationViewModel @Inject constructor(
     private val engine: ConversationEngine,
     private val playback: PlaybackConnection,
-    private val preferencesRepository: UserPreferencesRepository
+    private val preferencesRepository: UserPreferencesRepository,
+    private val savedState: SavedStateHandle
 ) : ViewModel() {
 
     private val _events = Channel<ConversationEvent>(Channel.BUFFERED)
@@ -72,14 +79,33 @@ class ConversationViewModel @Inject constructor(
 
     /** The lesson this screen is showing; lessons that ended before it are ignored. */
     private var trackedLessonId: String? = null
-    private var startRequested = false
 
-    private val ticker = flow {
-        while (true) {
-            emit(Unit)
-            delay(1_000)
+    /**
+     * Survives process death: when Android restores this screen later, it must not start the
+     * lesson again by itself.
+     */
+    private var startRequested: Boolean
+        get() = savedState[KEY_START_REQUESTED] ?: false
+        set(value) {
+            savedState[KEY_START_REQUESTED] = value
         }
-    }
+
+    /** Refreshes the elapsed time once a second, but only while the lesson is running. */
+    private val ticker: Flow<Unit> = engine.state
+        .map { it == ConversationState.ACTIVE }
+        .distinctUntilChanged()
+        .flatMapLatest { active ->
+            if (active) {
+                flow {
+                    while (true) {
+                        emit(Unit)
+                        delay(1_000)
+                    }
+                }
+            } else {
+                flowOf(Unit)
+            }
+        }
 
     val uiState: StateFlow<ConversationUiState> = combine(
         combine(engine.lesson, engine.state, engine.transcript, ::Triple),
@@ -147,8 +173,12 @@ class ConversationViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 playback.play(mediaId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("ConversationViewModel", "Failed to start lesson via playback: $mediaId", e)
+                // Let the learner try again.
+                startRequested = false
             }
         }
     }
@@ -217,6 +247,10 @@ class ConversationViewModel @Inject constructor(
         }
         ConversationState.PAUSED -> MicState.PAUSED
         else -> MicState.BUSY
+    }
+
+    private companion object {
+        const val KEY_START_REQUESTED = "start_requested"
     }
 
     private fun formatElapsed(ms: Long): String {

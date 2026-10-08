@@ -58,10 +58,10 @@ adb forward tcp:5277 tcp:5277
 | # | Thao tác trên DHU | Kết quả mong đợi |
 |---|---|---|
 | A1 | Mở launcher của xe | SpeakDrive có trong danh sách app media |
-| A2 | Mở SpeakDrive | 4 tab: Bắt đầu, Chủ đề, Nhập vai, Độ khó |
+| A2 | Mở SpeakDrive | 4 tab: Bắt đầu, Luyện nghe kể chuyện, Chủ đề, Nhập vai. "Độ khó" nằm cuối tab Bắt đầu |
 | A3 | Chủ đề → Mua sắm | AI bắt đầu nói; màn hình *Now playing* hiện "🛒 Mua sắm • Đang trò chuyện" |
 | A4 | Bấm Pause / Play | Bài học dừng rồi tiếp tục |
-| A5 | Bấm Next | Đổi sang chủ đề khác; bài cũ được lưu |
+| A5 | Bấm Next (nút trên màn hình hoặc vô-lăng) | Hội thoại: đổi sang chủ đề khác, bài cũ được lưu. Luyện phát âm: chuyển sang câu tiếp theo. Kể chuyện: đổi truyện |
 | A6 | Độ khó → Advanced | Bài mới bắt đầu ở mức Advanced, Cài đặt trên điện thoại cũng đổi theo |
 | A7 | Nút micro trên DHU → "play easy job interview practice on SpeakDrive" | Bắt đầu chủ đề Phỏng vấn ở mức Beginner |
 | A8 | Khoá điện thoại trong khi đang học | **Micro vẫn nhận giọng nói** (xem phần rủi ro bên dưới) |

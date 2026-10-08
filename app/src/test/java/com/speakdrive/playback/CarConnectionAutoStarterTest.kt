@@ -56,6 +56,7 @@ class CarConnectionAutoStarterTest {
 
     private val carFlow = MutableSharedFlow<Boolean>()
     private var playedMediaId: String? = null
+    private var autoStartEnabled = true
     private var engineCarConnected: Boolean = false
     private val engineStateFlow = MutableStateFlow(ConversationState.IDLE)
 
@@ -174,7 +175,8 @@ class CarConnectionAutoStarterTest {
         val starter = CarConnectionAutoStarter(
             carConnection = fakeCarConnection,
             playbackConnection = fakePlaybackConnection,
-            engine = fakeEngine
+            engine = fakeEngine,
+            autoStartPolicy = { autoStartEnabled }
         )
         starter.start()
         testScheduler.advanceUntilIdle()
@@ -197,7 +199,8 @@ class CarConnectionAutoStarterTest {
         val starter = CarConnectionAutoStarter(
             carConnection = fakeCarConnection,
             playbackConnection = fakePlaybackConnection,
-            engine = fakeEngine
+            engine = fakeEngine,
+            autoStartPolicy = { autoStartEnabled }
         )
         starter.start()
         testScheduler.advanceUntilIdle()
@@ -216,7 +219,8 @@ class CarConnectionAutoStarterTest {
         val starter = CarConnectionAutoStarter(
             carConnection = fakeCarConnection,
             playbackConnection = fakePlaybackConnection,
-            engine = fakeEngine
+            engine = fakeEngine,
+            autoStartPolicy = { autoStartEnabled }
         )
         starter.start()
         testScheduler.advanceUntilIdle()
@@ -238,7 +242,8 @@ class CarConnectionAutoStarterTest {
         val starter = CarConnectionAutoStarter(
             carConnection = fakeCarConnection,
             playbackConnection = fakePlaybackConnection,
-            engine = fakeEngine
+            engine = fakeEngine,
+            autoStartPolicy = { autoStartEnabled }
         )
         starter.start()
         testScheduler.advanceUntilIdle()
@@ -255,5 +260,24 @@ class CarConnectionAutoStarterTest {
         assertThat(engineCarConnected).isTrue()
         assertThat(fakeEngine.resumeCalled).isTrue()
         assertThat(playedMediaId).isNull() // Should resume directly, not start fresh from MediaIds.RESUME
+    }
+
+    @Test
+    fun `when auto-start is turned off in settings, connecting the car starts nothing`() = testScope.runTest {
+        autoStartEnabled = false
+        val starter = CarConnectionAutoStarter(
+            carConnection = fakeCarConnection,
+            playbackConnection = fakePlaybackConnection,
+            engine = fakeEngine,
+            autoStartPolicy = { autoStartEnabled }
+        )
+        starter.start()
+        testScheduler.advanceUntilIdle()
+
+        carFlow.emit(true)
+        testScheduler.advanceUntilIdle()
+
+        assertThat(engineCarConnected).isTrue()
+        assertThat(playedMediaId).isNull()
     }
 }

@@ -132,7 +132,9 @@ class MainActivity : ComponentActivity() {
                 val locale = if (appLang.code.isNotBlank()) {
                     Locale.forLanguageTag(appLang.code)
                 } else {
-                    Locale.getDefault()
+                    // Locale.getDefault() is still the language forced before, so "System default"
+                    // would keep it until a restart; the device language comes from the system resources.
+                    android.content.res.Resources.getSystem().configuration.locales[0]
                 }
                 Locale.setDefault(locale)
                 val config = android.content.res.Configuration(baseContext.resources.configuration)
@@ -199,7 +201,8 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         runCatching { unregisterReceiver(screenReceiver) }
-        if (!engine.state.value.isInLesson) {
+        // A rotation recreates the activity: keep the shared media controller connected.
+        if (!isChangingConfigurations && !engine.state.value.isInLesson) {
             runCatching { playbackConnection.release() }
         }
     }

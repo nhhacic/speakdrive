@@ -67,4 +67,16 @@ class SentenceTranslatorTest {
         assertThat(result).isNotEmpty()
         assertThat(result).contains("dừng xe lại")
     }
+
+    @Test
+    fun `pattern guesses match whole words only and are not cached as the real translation`() {
+        // "alarm" contains "arm": it must not become a sentence about cutting off an arm.
+        val alarm = sentenceTranslator.generateInstantFallbackTranslation("The alarm was cut off", AppLanguage.VIETNAMESE)
+        assertThat(alarm.orEmpty()).doesNotContain("cánh tay")
+
+        // A guess is shown at once but must not block the cloud translation later.
+        val guess = sentenceTranslator.generateInstantFallbackTranslation("There is heavy traffic ahead", AppLanguage.VIETNAMESE)
+        assertThat(guess).isNotNull()
+        assertThat(sentenceTranslator.getInstantTranslation("There is heavy traffic ahead", AppLanguage.VIETNAMESE)).isNull()
+    }
 }

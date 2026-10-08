@@ -26,16 +26,26 @@ open class CarConnectionObserver internal constructor(
     constructor() : this(null, true)
 
     open val isConnectedToCar: Flow<Boolean> = callbackFlow {
-        val ctx = context ?: return@callbackFlow
-        runCatching {
+        val ctx = context
+        if (ctx == null) {
+            trySend(false)
+            awaitClose { }
+            return@callbackFlow
+        }
+        // Only the registration may fail; awaitClose must stay outside so cancelling the flow is not
+        // mistaken for an error.
+        val registration = try {
             val liveData = CarConnection(ctx).type
             val observer = Observer<Int> { type -> trySend(type == CarConnection.CONNECTION_TYPE_PROJECTION) }
             liveData.observeForever(observer)
-            awaitClose { runCatching { liveData.removeObserver(observer) } }
-        }.onFailure { e ->
+            liveData to observer
+        } catch (e: Exception) {
             Log.w("CarConnectionObserver", "Could not observe CarConnection", e)
             trySend(false)
-            awaitClose { }
+            null
+        }
+        awaitClose {
+            registration?.let { (liveData, observer) -> runCatching { liveData.removeObserver(observer) } }
         }
     }.flowOn(Dispatchers.Main).distinctUntilChanged()
 }

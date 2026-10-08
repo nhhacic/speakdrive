@@ -64,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -528,6 +529,8 @@ fun ConversationContent(
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
+                    // Follow the finger locally and save once, when the drag ends.
+                    var dragVolume by remember(state.aiVolume) { mutableFloatStateOf(state.aiVolume.toFloat()) }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -538,15 +541,16 @@ fun ConversationContent(
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            text = "${state.aiVolume}%",
+                            text = "${dragVolume.roundToInt()}%",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
                     Slider(
-                        value = state.aiVolume.toFloat(),
-                        onValueChange = { onSetAiVolume(it.roundToInt().coerceIn(10, 100)) },
+                        value = dragVolume,
+                        onValueChange = { dragVolume = it },
+                        onValueChangeFinished = { onSetAiVolume(dragVolume.roundToInt().coerceIn(10, 100)) },
                         valueRange = 10f..100f,
                         steps = 8,
                         modifier = Modifier.fillMaxWidth()

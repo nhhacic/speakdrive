@@ -101,6 +101,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -156,6 +159,7 @@ class VocabularyViewModel @Inject constructor(
 
     internal var clock: () -> Long = System::currentTimeMillis
 
+    // One Room observer shared by the list and the counters, mapped off the main thread.
     private val rawWords: Flow<List<VocabularyItem>> = sessionRepository.observeAllWords()
         .map { words ->
             val currentTime = clock()
@@ -169,6 +173,8 @@ class VocabularyViewModel @Inject constructor(
                 )
             }
         }
+        .flowOn(Dispatchers.Default)
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
 
     val words: StateFlow<List<VocabularyItem>?> = combine(
         rawWords,
@@ -309,6 +315,34 @@ class VocabularyViewModel @Inject constructor(
 
     fun flipFlashcard() {
         _isFlashcardFlipped.value = !_isFlashcardFlipped.value
+    }
+
+    /**
+     * "Again" / "Mastered" on a flashcard. When the answer moves the card out of the current filter
+     * (e.g. "Mastered" while showing due words), the next card slides into the same position, so the
+     * index must not advance as well or one card would be skipped.
+     */
+    fun answerFlashcard(item: VocabularyItem, mastered: Boolean, listSize: Int) {
+        if (mastered) markMastered(item.word.id) else resetReview(item.word.id)
+        val staysInList = when (_selectedFilter.value) {
+            VocabFilter.ALL -> true
+            VocabFilter.DUE -> !mastered
+            VocabFilter.LEARNING -> false
+            VocabFilter.MASTERED -> mastered
+        }
+        if (staysInList) {
+            nextFlashcard(listSize)
+        } else {
+            _isFlashcardFlipped.value = false
+            _activeSentenceWordId.value = null
+            if (_flashcardIndex.value >= listSize - 1) _flashcardIndex.value = 0
+        }
+    }
+
+    override fun onCleared() {
+        // A long example sentence must not keep playing after leaving the screen (or over a lesson).
+        voiceAnnouncer.stop()
+        super.onCleared()
     }
 }
 
@@ -598,14 +632,8 @@ fun VocabularyScreen(
                         onPracticeWithAi = { onStartReview(MediaIds.vocabWord(currentItem.word.word)) },
                         onNext = { viewModel.nextFlashcard(flashcardList.size) },
                         onPrev = { viewModel.prevFlashcard(flashcardList.size) },
-                        onMarkAgain = {
-                            viewModel.resetReview(currentItem.word.id)
-                            viewModel.nextFlashcard(flashcardList.size)
-                        },
-                        onMarkMastered = {
-                            viewModel.markMastered(currentItem.word.id)
-                            viewModel.nextFlashcard(flashcardList.size)
-                        }
+                        onMarkAgain = { viewModel.answerFlashcard(currentItem, mastered = false, listSize = flashcardList.size) },
+                        onMarkMastered = { viewModel.answerFlashcard(currentItem, mastered = true, listSize = flashcardList.size) }
                     )
                 }
             }

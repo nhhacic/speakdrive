@@ -36,6 +36,9 @@ open class PlaybackConnection internal constructor(
     @OptIn(UnstableApi::class)
     private suspend fun controller(): MediaController = mutex.withLock {
         controller?.takeIf { it.isConnected } ?: run {
+            // A controller whose service went away is useless; release it instead of leaking it.
+            controller?.release()
+            controller = null
             val ctx = checkNotNull(context) { "Context required for real PlaybackConnection" }
             val token = SessionToken(ctx, ComponentName(ctx, SpeakDriveMediaService::class.java))
             MediaController.Builder(ctx, token).buildAsync().await().also { controller = it }
@@ -58,7 +61,13 @@ open class PlaybackConnection internal constructor(
     }
 
     fun release() {
-        controller?.release()
-        controller = null
+        // Never in the middle of controller(): it holds the lock while connecting.
+        if (!mutex.tryLock()) return
+        try {
+            controller?.release()
+            controller = null
+        } finally {
+            mutex.unlock()
+        }
     }
 }
