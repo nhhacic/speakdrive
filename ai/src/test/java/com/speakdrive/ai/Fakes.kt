@@ -257,6 +257,22 @@ class FakeSettings(settings: LearnerSettings = LearnerSettings()) : LearningSett
         settings = settings.copy(showTranslationSubtitle = enabled)
     }
 
+    override suspend fun setAzureEnabled(enabled: Boolean) {
+        settings = settings.copy(azureEnabled = enabled)
+    }
+
+    override suspend fun setAutoStartOnCarConnect(enabled: Boolean) {
+        settings = settings.copy(autoStartOnCarConnect = enabled)
+    }
+
+    override suspend fun setDailyGoalMinutes(minutes: Int) {
+        settings = settings.copy(dailyGoalMinutes = minutes)
+    }
+
+    override suspend fun setScreenAwakeMode(mode: com.speakdrive.ai.model.ScreenAwakeMode) {
+        settings = settings.copy(screenAwakeMode = mode)
+    }
+
     override suspend fun setRememberLearner(enabled: Boolean) {
         settings = settings.copy(rememberLearner = enabled)
     }

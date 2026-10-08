@@ -7,6 +7,7 @@ import com.speakdrive.ai.ConversationEngine
 import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.EngineError
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.model.TranscriptTurn
@@ -46,7 +47,8 @@ data class ConversationUiState(
     val drill: DrillUiState? = null,
     val isCarConnected: Boolean = false,
     val isBargeInEnabled: Boolean = false,
-    val aiVolume: Int = 80
+    val aiVolume: Int = 80,
+    val screenAwakeMode: ScreenAwakeMode = ScreenAwakeMode.ALWAYS_ON
 )
 
 /** Repeat-after-me progress shown above the transcript. */
@@ -115,7 +117,7 @@ class ConversationViewModel @Inject constructor(
             engine.pronunciationAttempts,
             ::Pair
         ),
-        combine(engine.isCarConnected, preferencesRepository.observeLearnerSettings().map { Pair(it.allowBargeIn, it.aiVolume) }, ::Pair),
+        combine(engine.isCarConnected, preferencesRepository.observeLearnerSettings().map { Triple(it.allowBargeIn, it.aiVolume, it.screenAwakeMode) }, ::Pair),
         ticker
     ) { (lesson, state, transcript), (speaker, error, isThinking), (drillData, attempts), (isCarConnected, settingsPair), _ ->
         val (target, translation, offlinePractice) = drillData
@@ -145,7 +147,8 @@ class ConversationViewModel @Inject constructor(
             error = error,
             isCarConnected = isCarConnected,
             isBargeInEnabled = settingsPair.first,
-            aiVolume = settingsPair.second
+            aiVolume = settingsPair.second,
+            screenAwakeMode = settingsPair.third
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConversationUiState())
 

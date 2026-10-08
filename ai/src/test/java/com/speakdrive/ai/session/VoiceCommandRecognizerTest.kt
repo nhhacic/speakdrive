@@ -1,5 +1,6 @@
 package com.speakdrive.ai.session
 
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.speakdrive.ai.drill.DrillSentenceManager
@@ -164,5 +165,17 @@ class VoiceCommandRecognizerTest {
         assertThat(recognize("tắt luyện offline")).isEqualTo(VoiceCommand.SetOfflinePractice(false))
         assertThat(recognize("turn off offline practice")).isEqualTo(VoiceCommand.SetOfflinePractice(false))
         assertThat(recognize("bật luyện offline")).isNull()
+    }
+
+    @Test
+    fun `car, goal, azure and screen settings are recognised as commands`() {
+        assertThat(recognize("tắt tự động học khi lên xe")).isEqualTo(VoiceCommand.SetAutoStartInCar(false))
+        assertThat(recognize("đặt mục tiêu 20 phút mỗi ngày")).isEqualTo(VoiceCommand.SetDailyGoal(20))
+        assertThat(recognize("bật chấm điểm Azure")).isEqualTo(VoiceCommand.SetAzureScoring(true))
+        assertThat(recognize("tắt màn hình sau 1 phút")).isEqualTo(VoiceCommand.SetScreenAwake(ScreenAwakeMode.AFTER_1_MINUTE))
+        // Already the current value: nothing to do.
+        assertThat(recognize("luôn sáng màn hình")).isNull()
+        // Statements, not requests.
+        assertThat(recognize("hôm nay tôi học 20 phút trên đường đi làm")).isNull()
     }
 }

@@ -605,12 +605,82 @@ data class LearnerSettings(
     /** A missed day uses an earned streak freeze instead of breaking the streak. */
     val streakFreezeEnabled: Boolean = true,
     /** Keep practising "repeat after me" on the phone alone while the network is gone. */
-    val offlinePracticeEnabled: Boolean = true
+    val offlinePracticeEnabled: Boolean = true,
+    /** Start a lesson by itself when the phone connects to Android Auto. */
+    val autoStartOnCarConnect: Boolean = true,
+    /** Minutes of practice the learner aims for each day (5–60). */
+    val dailyGoalMinutes: Int = DEFAULT_DAILY_GOAL_MINUTES,
+    /** How long the phone screen stays on during a lesson outside Android Auto. */
+    val screenAwakeMode: ScreenAwakeMode = ScreenAwakeMode.ALWAYS_ON
 ) {
     companion object {
         const val REMINDER_AUTO = -1
+        const val DEFAULT_DAILY_GOAL_MINUTES = 15
+        const val MIN_DAILY_GOAL_MINUTES = 5
+        const val MAX_DAILY_GOAL_MINUTES = 60
     }
 }
+
+/** How long the phone screen stays on during a lesson (outside Android Auto). */
+enum class ScreenAwakeMode(
+    val shortLabelVi: String,
+    val descriptionVi: String,
+    val timeoutSeconds: Int,
+    val shortLabelEn: String = "",
+    val descriptionEn: String = ""
+) {
+    ALWAYS_ON(
+        shortLabelVi = "Luôn bật",
+        descriptionVi = "Màn hình luôn sáng trong suốt buổi luyện nói để tiện nhìn văn bản.",
+        timeoutSeconds = -1,
+        shortLabelEn = "Always on",
+        descriptionEn = "Screen stays continuously on while practicing to easily read transcripts."
+    ),
+    FOLLOW_SYSTEM(
+        shortLabelVi = "Theo máy",
+        descriptionVi = "Màn hình tự tắt và khoá theo cài đặt thời gian chờ của điện thoại khi bạn không chạm vào máy. Micro vẫn tiếp tục hoạt động.",
+        timeoutSeconds = 0,
+        shortLabelEn = "System default",
+        descriptionEn = "Screen turns off according to your phone display sleep timeout. Microphone continues listening."
+    ),
+    AFTER_30_SECONDS(
+        shortLabelVi = "Sau 30s",
+        descriptionVi = "Màn hình tự tắt sau 30 giây nếu không có thao tác chạm. Micro vẫn tiếp tục hoạt động.",
+        timeoutSeconds = 30,
+        shortLabelEn = "After 30s",
+        descriptionEn = "Screen turns off after 30 seconds of inactivity. Microphone continues listening."
+    ),
+    AFTER_1_MINUTE(
+        shortLabelVi = "Sau 1 phút",
+        descriptionVi = "Màn hình tự tắt sau 1 phút nếu không có thao tác chạm. Micro vẫn tiếp tục hoạt động.",
+        timeoutSeconds = 60,
+        shortLabelEn = "After 1m",
+        descriptionEn = "Screen turns off after 1 minute of inactivity. Microphone continues listening."
+    ),
+    AFTER_2_MINUTES(
+        shortLabelVi = "Sau 2 phút",
+        descriptionVi = "Màn hình tự tắt sau 2 phút nếu không có thao tác chạm. Micro vẫn tiếp tục hoạt động.",
+        timeoutSeconds = 120,
+        shortLabelEn = "After 2m",
+        descriptionEn = "Screen turns off after 2 minutes of inactivity. Microphone continues listening."
+    ),
+    AFTER_5_MINUTES(
+        shortLabelVi = "Sau 5 phút",
+        descriptionVi = "Màn hình tự tắt sau 5 phút nếu không có thao tác chạm. Micro vẫn tiếp tục hoạt động.",
+        timeoutSeconds = 300,
+        shortLabelEn = "After 5m",
+        descriptionEn = "Screen turns off after 5 minutes of inactivity. Microphone continues listening."
+    );
+
+    fun getLabel(isVi: Boolean): String = if (isVi) shortLabelVi else shortLabelEn
+    fun getDescription(isVi: Boolean): String = if (isVi) descriptionVi else descriptionEn
+
+    companion object {
+        fun fromStored(name: String?): ScreenAwakeMode =
+            entries.firstOrNull { it.name == name } ?: ALWAYS_ON
+    }
+}
+
 
 /** App interface language option for multilingual support. */
 enum class AppLanguage(

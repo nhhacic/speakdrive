@@ -10,6 +10,7 @@ import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.SessionMode
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.ai.model.StoryDuration
 import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.ai.pronunciation.PronunciationGrader
@@ -19,7 +20,7 @@ enum class CommandCategory {
     SESSION_MODE, LEVEL, VIETNAMESE_HELP, APP_LANGUAGE, STORY_STYLE, STRICTNESS, BARGE_IN, RANDOM_VOICE,
     VOICE, STORY_DURATION, MULTI_VOICE, STORY_NAVIGATION, DRILL_NAVIGATION, DRILL_LENGTH, DRILL_CATEGORY,
     LEVEL_RECOMMENDATION, ADAPTIVE_LEVEL, VOLUME, AUTO_PAUSE, SUBTITLES, LEARNER_MEMORY,
-    PRACTICE_REMINDER, STREAK_FREEZE, OFFLINE_PRACTICE;
+    PRACTICE_REMINDER, STREAK_FREEZE, OFFLINE_PRACTICE, AUTO_START_IN_CAR, DAILY_GOAL, AZURE_SCORING, SCREEN_AWAKE;
 
     companion object {
         /** The category a Gemini Live tool works on, so the fallback never applies the same change twice. */
@@ -50,6 +51,10 @@ enum class CommandCategory {
             VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION -> LEARNER_MEMORY
             VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION -> PRACTICE_REMINDER
             VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION -> STREAK_FREEZE
+            VoiceSettingsTools.SET_AUTO_START_IN_CAR_FUNCTION -> AUTO_START_IN_CAR
+            VoiceSettingsTools.SET_DAILY_GOAL_FUNCTION -> DAILY_GOAL
+            VoiceSettingsTools.SET_AZURE_SCORING_FUNCTION -> AZURE_SCORING
+            VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION -> SCREEN_AWAKE
             VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION -> OFFLINE_PRACTICE
             else -> null
         }
@@ -138,6 +143,18 @@ sealed interface VoiceCommand {
     }
     data class SetStreakFreeze(val enabled: Boolean) : VoiceCommand {
         override val category get() = CommandCategory.STREAK_FREEZE
+    }
+    data class SetAutoStartInCar(val enabled: Boolean) : VoiceCommand {
+        override val category get() = CommandCategory.AUTO_START_IN_CAR
+    }
+    data class SetDailyGoal(val minutes: Int) : VoiceCommand {
+        override val category get() = CommandCategory.DAILY_GOAL
+    }
+    data class SetAzureScoring(val enabled: Boolean) : VoiceCommand {
+        override val category get() = CommandCategory.AZURE_SCORING
+    }
+    data class SetScreenAwake(val mode: ScreenAwakeMode) : VoiceCommand {
+        override val category get() = CommandCategory.SCREEN_AWAKE
     }
     data class SetOfflinePractice(val enabled: Boolean) : VoiceCommand {
         override val category get() = CommandCategory.OFFLINE_PRACTICE
@@ -281,6 +298,18 @@ object VoiceCommandRecognizer {
         VoiceCommandParser.parseOfflinePracticeCommand(text)?.let { enabled ->
             if (enabled != s.offlinePracticeEnabled && lenient) return VoiceCommand.SetOfflinePractice(enabled)
         }
+        VoiceCommandParser.parseAutoStartInCarCommand(text)?.let { enabled ->
+            if (enabled != s.autoStartOnCarConnect && lenient) return VoiceCommand.SetAutoStartInCar(enabled)
+        }
+        VoiceCommandParser.parseDailyGoalCommand(text, s.dailyGoalMinutes)?.let { minutes ->
+            if (minutes != s.dailyGoalMinutes && lenient) return VoiceCommand.SetDailyGoal(minutes)
+        }
+        VoiceCommandParser.parseAzureScoringCommand(text)?.let { enabled ->
+            if (enabled != s.azureEnabled && lenient) return VoiceCommand.SetAzureScoring(enabled)
+        }
+        VoiceCommandParser.parseScreenAwakeCommand(text)?.let { mode ->
+            if (mode != s.screenAwakeMode && lenient) return VoiceCommand.SetScreenAwake(mode)
+        }
         return null
     }
 
@@ -308,7 +337,7 @@ object VoiceCommandRecognizer {
     private val REQUEST_OPENERS = setOf(
         "bat", "tat", "mo", "doi", "chuyen", "chinh", "cai", "dat", "tang", "giam", "ha", "cho", "hay", "noi",
         "doc", "ke", "bo", "chon", "dung", "ngung", "luyen", "tap", "nghe", "quay", "hien", "an", "giu", "ap",
-        "de", "cham", "nhac",
+        "de", "cham", "luon", "muc", "nhac",
         "switch", "change", "set", "turn", "make", "enable", "disable", "use", "speak", "skip", "repeat", "play",
         "give", "stop", "start", "show", "hide", "keep", "can", "could", "would", "go", "next", "replay",
         "resume", "continue", "lower", "raise", "increase", "decrease", "apply", "accept", "tell", "read", "say",

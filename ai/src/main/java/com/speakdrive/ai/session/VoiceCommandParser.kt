@@ -9,6 +9,7 @@ import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.SessionMode
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.ai.model.StorytellingStyle
 
 /**
@@ -1063,5 +1064,82 @@ object VoiceCommandParser {
 
         return null
     }
-}
 
+    /**
+     * Turning on/off "start a lesson by itself when the phone connects to Android Auto".
+     * Needs both a car word and an automatic-start word, so "tôi đang lái xe" is never a command.
+     */
+    fun parseAutoStartInCarCommand(text: String): Boolean? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return null
+        val carContext = containsAny(q, listOf(
+            "len xe", "len o to", "len oto", "ket noi o to", "ket noi oto", "ket noi xe", "android auto", "trong xe", "tren xe",
+            "in the car", "in my car", "car connects", "connect to the car", "connected to the car"
+        ))
+        val autoStart = containsAny(q, listOf(
+            "tu dong hoc", "tu dong bat dau", "tu bat dau", "tu khoi dong", "tu dong bat bai", "tu dong mo bai", "tu dong chay",
+            "auto start", "autostart", "start automatically", "start lessons automatically", "start a lesson automatically",
+            "automatically start"
+        ))
+        if (!carContext || !autoStart) return null
+        if (containsAny(q, listOf("tat", "khong", "dung", "ngung", "bo", "disable", "turn off", "stop", "don t", "dont", "do not", "never"))) return false
+        if (containsAny(q, listOf("bat", "mo", "cho phep", "enable", "turn on", "please", "hay", "always"))) return true
+        return null
+    }
+
+    /**
+     * Setting the daily practice goal: "đặt mục tiêu 20 phút mỗi ngày", "daily goal 30 minutes",
+     * "tăng mục tiêu" (+5). Needs a goal word, so "tôi học 20 phút" is never a command.
+     */
+    fun parseDailyGoalCommand(text: String, currentMinutes: Int): Int? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return null
+        if (!containsAny(q, listOf("muc tieu", "chi tieu", "goal", "daily goal", "target"))) return null
+        val minutes = Regex("(\\d{1,3})").find(q)?.groupValues?.get(1)?.toIntOrNull()
+            ?: when {
+                containsAny(q, listOf("tang", "nang", "nhieu hon", "increase", "raise", "more", "higher")) -> currentMinutes + 5
+                containsAny(q, listOf("giam", "ha", "it hon", "decrease", "lower", "less")) -> currentMinutes - 5
+                else -> return null
+            }
+        return minutes.coerceIn(LearnerSettings.MIN_DAILY_GOAL_MINUTES, LearnerSettings.MAX_DAILY_GOAL_MINUTES)
+    }
+
+    /** Turning Azure pronunciation scoring on/off. Only when "Azure" is named. */
+    fun parseAzureScoringCommand(text: String): Boolean? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank() || !containsAny(q, listOf("azure", "a zua", "azua"))) return null
+        // "dùng" (use) and "dừng" (stop) fold to the same letters: decide with the diacritics when present.
+        val accented = text.lowercase()
+        if (accented.contains("dừng")) return false
+        if (containsAny(q, listOf("tat", "khong dung", "bo", "ngung", "disable", "turn off", "stop", "don t use", "dont use", "no azure"))) return false
+        if (containsAny(q, listOf("bat", "mo", "dung", "su dung", "cham bang", "enable", "turn on", "use", "with azure"))) return true
+        return null
+    }
+
+    /**
+     * How long the screen stays on during a lesson: "luôn sáng màn hình", "cho màn hình tự tắt",
+     * "tắt màn hình sau 1 phút", "keep the screen on". Requests about pausing when the screen is off
+     * belong to [parseAutoPauseWhenUnfocusedCommand] and are left alone here.
+     */
+    fun parseScreenAwakeCommand(text: String): ScreenAwakeMode? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank() || !containsAny(q, listOf("man hinh", "screen", "display"))) return null
+        if (containsAny(q, listOf("tam dung", "pause", "dung bai"))) return null
+        val after = containsAny(q, listOf("sau", "after"))
+        return when {
+            after && containsAny(q, listOf("30 giay", "30 s", "30 seconds", "ba muoi giay", "thirty seconds")) -> ScreenAwakeMode.AFTER_30_SECONDS
+            after && containsAny(q, listOf("1 phut", "mot phut", "1 minute", "one minute", "a minute")) -> ScreenAwakeMode.AFTER_1_MINUTE
+            after && containsAny(q, listOf("2 phut", "hai phut", "2 minutes", "two minutes")) -> ScreenAwakeMode.AFTER_2_MINUTES
+            after && containsAny(q, listOf("5 phut", "nam phut", "5 minutes", "five minutes")) -> ScreenAwakeMode.AFTER_5_MINUTES
+            containsAny(q, listOf(
+                "luon sang", "giu man hinh sang", "man hinh luon sang", "khong tat man hinh", "dung tat man hinh",
+                "keep the screen on", "keep screen on", "screen always on", "always on"
+            )) -> ScreenAwakeMode.ALWAYS_ON
+            containsAny(q, listOf(
+                "tu tat", "theo may", "theo he thong", "cho tat man hinh", "de man hinh tat",
+                "follow system", "let the screen turn off", "screen turn off normally", "system timeout"
+            )) -> ScreenAwakeMode.FOLLOW_SYSTEM
+            else -> null
+        }
+    }
+}

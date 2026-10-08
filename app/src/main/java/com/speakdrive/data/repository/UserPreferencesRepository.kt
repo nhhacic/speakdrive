@@ -18,6 +18,7 @@ import com.speakdrive.ai.model.DrillCategory
 import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.PronunciationStrictness
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.ai.session.LearningSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,64 +37,6 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
     corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() }
 )
 
-enum class ScreenAwakeMode(
-    val shortLabelVi: String,
-    val descriptionVi: String,
-    val timeoutSeconds: Int,
-    val shortLabelEn: String = "",
-    val descriptionEn: String = ""
-) {
-    ALWAYS_ON(
-        shortLabelVi = "Luôn bật",
-        descriptionVi = "Màn hình luôn sáng trong suốt buổi luyện nói để tiện nhìn văn bản.",
-        timeoutSeconds = -1,
-        shortLabelEn = "Always on",
-        descriptionEn = "Screen stays continuously on while practicing to easily read transcripts."
-    ),
-    FOLLOW_SYSTEM(
-        shortLabelVi = "Theo máy",
-        descriptionVi = "Màn hình tự tắt và khoá theo cài đặt thời gian chờ của điện thoại khi bạn không chạm vào máy. Micro vẫn tiếp tục hoạt động.",
-        timeoutSeconds = 0,
-        shortLabelEn = "System default",
-        descriptionEn = "Screen turns off according to your phone display sleep timeout. Microphone continues listening."
-    ),
-    AFTER_30_SECONDS(
-        shortLabelVi = "Sau 30s",
-        descriptionVi = "Màn hình tự tắt sau 30 giây nếu không có thao tác chạm. Micro vẫn tiếp tục hoạt động.",
-        timeoutSeconds = 30,
-        shortLabelEn = "After 30s",
-        descriptionEn = "Screen turns off after 30 seconds of inactivity. Microphone continues listening."
-    ),
-    AFTER_1_MINUTE(
-        shortLabelVi = "Sau 1 phút",
-        descriptionVi = "Màn hình tự tắt sau 1 phút nếu không có thao tác chạm. Micro vẫn tiếp tục hoạt động.",
-        timeoutSeconds = 60,
-        shortLabelEn = "After 1m",
-        descriptionEn = "Screen turns off after 1 minute of inactivity. Microphone continues listening."
-    ),
-    AFTER_2_MINUTES(
-        shortLabelVi = "Sau 2 phút",
-        descriptionVi = "Màn hình tự tắt sau 2 phút nếu không có thao tác chạm. Micro vẫn tiếp tục hoạt động.",
-        timeoutSeconds = 120,
-        shortLabelEn = "After 2m",
-        descriptionEn = "Screen turns off after 2 minutes of inactivity. Microphone continues listening."
-    ),
-    AFTER_5_MINUTES(
-        shortLabelVi = "Sau 5 phút",
-        descriptionVi = "Màn hình tự tắt sau 5 phút nếu không có thao tác chạm. Micro vẫn tiếp tục hoạt động.",
-        timeoutSeconds = 300,
-        shortLabelEn = "After 5m",
-        descriptionEn = "Screen turns off after 5 minutes of inactivity. Microphone continues listening."
-    );
-
-    fun getLabel(isVi: Boolean): String = if (isVi) shortLabelVi else shortLabelEn
-    fun getDescription(isVi: Boolean): String = if (isVi) descriptionVi else descriptionEn
-
-    companion object {
-        fun fromStored(name: String?): ScreenAwakeMode =
-            entries.firstOrNull { it.name == name } ?: ALWAYS_ON
-    }
-}
 
 data class UserPreferences(
     val learner: LearnerSettings = LearnerSettings(),
@@ -153,9 +96,12 @@ class UserPreferencesRepository @Inject constructor(
                 practiceReminderMinute = prefs[PRACTICE_REMINDER_MINUTE]
                     ?.takeIf { it in 0 until MINUTES_PER_DAY } ?: LearnerSettings.REMINDER_AUTO,
                 streakFreezeEnabled = prefs[STREAK_FREEZE_ENABLED] ?: true,
-                offlinePracticeEnabled = prefs[OFFLINE_PRACTICE_ENABLED] ?: true
+                offlinePracticeEnabled = prefs[OFFLINE_PRACTICE_ENABLED] ?: true,
+                autoStartOnCarConnect = prefs[AUTO_START_ON_CAR_CONNECT] ?: true,
+                dailyGoalMinutes = clampGoal(prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL),
+                screenAwakeMode = ScreenAwakeMode.fromStored(prefs[SCREEN_AWAKE_MODE])
             ),
-            dailyGoalMinutes = prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL,
+            dailyGoalMinutes = clampGoal(prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL),
             onboardingCompleted = prefs[ONBOARDING_COMPLETED] ?: false,
             autoStartOnCarConnect = prefs[AUTO_START_ON_CAR_CONNECT] ?: true,
             screenAwakeMode = ScreenAwakeMode.fromStored(prefs[SCREEN_AWAKE_MODE]),
@@ -233,7 +179,7 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[ALLOW_BARGE_IN] = allowed }
     }
 
-    suspend fun setAzureEnabled(enabled: Boolean) {
+    override suspend fun setAzureEnabled(enabled: Boolean) {
         dataStore.edit { it[AZURE_ENABLED] = enabled }
     }
 
@@ -244,19 +190,19 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
-    suspend fun setDailyGoalMinutes(minutes: Int) {
-        dataStore.edit { it[DAILY_GOAL_MINUTES] = minutes }
+    override suspend fun setDailyGoalMinutes(minutes: Int) {
+        dataStore.edit { it[DAILY_GOAL_MINUTES] = clampGoal(minutes) }
     }
 
     suspend fun setOnboardingCompleted(completed: Boolean) {
         dataStore.edit { it[ONBOARDING_COMPLETED] = completed }
     }
 
-    suspend fun setAutoStartOnCarConnect(enabled: Boolean) {
+    override suspend fun setAutoStartOnCarConnect(enabled: Boolean) {
         dataStore.edit { it[AUTO_START_ON_CAR_CONNECT] = enabled }
     }
 
-    suspend fun setScreenAwakeMode(mode: ScreenAwakeMode) {
+    override suspend fun setScreenAwakeMode(mode: ScreenAwakeMode) {
         dataStore.edit { it[SCREEN_AWAKE_MODE] = mode.name }
     }
 
@@ -306,6 +252,17 @@ class UserPreferencesRepository @Inject constructor(
 
     override suspend fun setOfflinePractice(enabled: Boolean) {
         dataStore.edit { it[OFFLINE_PRACTICE_ENABLED] = enabled }
+    }
+
+    private fun clampGoal(minutes: Int): Int =
+        minutes.coerceIn(LearnerSettings.MIN_DAILY_GOAL_MINUTES, LearnerSettings.MAX_DAILY_GOAL_MINUTES)
+
+    /** "Delete all my data": back to the default settings, including the learner's Azure key. */
+    suspend fun clearAll() {
+        dataStore.edit { it.clear() }
+        runCatching {
+            context.getSharedPreferences("speakdrive_locale", Context.MODE_PRIVATE).edit().clear().apply()
+        }
     }
 
     private companion object {

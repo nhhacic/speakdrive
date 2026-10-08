@@ -1,5 +1,6 @@
 package com.speakdrive.ai.session
 
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.ai.model.LearnerSettings
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.model.AiVoice
@@ -43,6 +44,10 @@ class VoiceSettingsToolsTest {
             VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION,
             VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION,
             VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION,
+            VoiceSettingsTools.SET_AUTO_START_IN_CAR_FUNCTION,
+            VoiceSettingsTools.SET_DAILY_GOAL_FUNCTION,
+            VoiceSettingsTools.SET_AZURE_SCORING_FUNCTION,
+            VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION,
             VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION
         )
     }
@@ -543,5 +548,27 @@ class VoiceSettingsToolsTest {
         }
         assertThat(VoiceSettingsTools.setPracticeReminderTool.parameters.map { it.name }).containsExactly("enabled", "time")
         assertThat(VoiceSettingsTools.setPracticeReminderTool.parameters.last().optional).isTrue()
+    }
+
+    @Test
+    fun `new settings tools are registered and parse their arguments`() {
+        val names = VoiceSettingsTools.allTools.map { it.name }
+        assertThat(names).containsAtLeast(
+            VoiceSettingsTools.SET_AUTO_START_IN_CAR_FUNCTION,
+            VoiceSettingsTools.SET_DAILY_GOAL_FUNCTION,
+            VoiceSettingsTools.SET_AZURE_SCORING_FUNCTION,
+            VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION
+        )
+        assertThat(VoiceSettingsTools.parseDailyGoal("20", 15)).isEqualTo(20)
+        assertThat(VoiceSettingsTools.parseDailyGoal(30L, 15)).isEqualTo(30)
+        assertThat(VoiceSettingsTools.parseDailyGoal("more", 15)).isEqualTo(20)
+        assertThat(VoiceSettingsTools.parseDailyGoal("tăng", 15)).isEqualTo(20)
+        assertThat(VoiceSettingsTools.parseDailyGoal("2", 15)).isEqualTo(5)
+        assertThat(VoiceSettingsTools.parseDailyGoal("abc", 15)).isNull()
+        assertThat(VoiceSettingsTools.parseScreenAwakeMode("AFTER_1_MINUTE")).isEqualTo(ScreenAwakeMode.AFTER_1_MINUTE)
+        assertThat(VoiceSettingsTools.parseScreenAwakeMode("luôn sáng")).isEqualTo(ScreenAwakeMode.ALWAYS_ON)
+        assertThat(VoiceSettingsTools.parseScreenAwakeMode("theo máy")).isEqualTo(ScreenAwakeMode.FOLLOW_SYSTEM)
+        assertThat(VoiceSettingsTools.parseScreenAwakeMode("sau 2 phút")).isEqualTo(ScreenAwakeMode.AFTER_2_MINUTES)
+        assertThat(VoiceSettingsTools.parseScreenAwakeMode("blue")).isNull()
     }
 }

@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.speakdrive.R
 import com.speakdrive.data.repository.SessionRepository
+import com.speakdrive.data.repository.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,13 +42,17 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class PrivacyViewModel @Inject constructor(private val sessionRepository: SessionRepository) : ViewModel() {
+class PrivacyViewModel @Inject constructor(
+    private val sessionRepository: SessionRepository,
+    private val preferences: UserPreferencesRepository
+) : ViewModel() {
     private val _deleted = MutableStateFlow(false)
     val deleted = _deleted.asStateFlow()
 
     fun deleteAll() {
         viewModelScope.launch {
             sessionRepository.deleteAllData()
+            preferences.clearAll()
             _deleted.value = true
         }
     }

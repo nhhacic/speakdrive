@@ -92,6 +92,11 @@ class SettingsViewModel @Inject constructor(
 
     fun setDailyGoal(minutes: Int) = viewModelScope.launch { repository.setDailyGoalMinutes(minutes) }
 
+    fun setAutoStartOnCarConnect(enabled: Boolean) = viewModelScope.launch { repository.setAutoStartOnCarConnect(enabled) }
+
+    fun setScreenAwakeMode(mode: com.speakdrive.ai.model.ScreenAwakeMode) =
+        viewModelScope.launch { repository.setScreenAwakeMode(mode) }
+
     fun setStorytellingStyle(style: StorytellingStyle) = viewModelScope.launch { repository.setStorytellingStyle(style) }
 
     fun setStoryDuration(duration: com.speakdrive.ai.model.StoryDuration) =

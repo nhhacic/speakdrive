@@ -43,12 +43,14 @@
     <string name="settings_drill_sentence_length_voice_tip">💡 Voice command: \"short sentences while driving\" or \"standard sentence length\".</string>
     <string name="settings_drill_category">Pronunciation Drill Category</string>
     <string name="settings_drill_category_voice_tip">🎤 Voice command: \"practice Vietnamese pitfalls\", \"driving phrases\", \"daily reflex\", or \"all topics\".</string>
-    <string name="settings_auto_start_car">Auto-start on Car Connect</string>
-    <string name="settings_auto_start_car_desc">Automatically start practicing when phone connects to Android Auto.</string>
-    <string name="settings_screen_awake">Keep Screen Awake During Practice</string>
     <string name="settings_auto_pause_unfocused">Auto-pause When Leaving App or Screen Off</string>
     <string name="settings_auto_pause_unfocused_desc">Automatically pauses lesson when app loses focus or screen turns off outside Android Auto.</string>
     <string name="settings_auto_pause_unfocused_voice_tip">💡 Voice command: \"auto pause when screen off\" or \"disable auto pause\".</string>
+    <string name="settings_auto_start_car">Start a Lesson When Android Auto Connects</string>
+    <string name="settings_auto_start_car_desc">As soon as the phone connects to Android Auto, the last lesson starts (or a paused one continues).</string>
+    <string name="settings_auto_start_car_voice_tip">💡 Voice command: \"turn off auto start in the car\" or \"start lessons automatically in the car\".</string>
+    <string name="settings_screen_awake">Screen During Lessons</string>
+    <string name="settings_screen_awake_voice_tip">💡 Voice command: \"keep the screen on\", \"let the screen turn off\" or \"turn the screen off after 1 minute\".</string>
     <string name="settings_show_translation_subtitles">Drill Translation Subtitles</string>
     <string name="settings_show_translation_subtitles_desc">Display translated meaning below English drill sentences on car and phone screen based on your chosen language.</string>
     <string name="settings_show_translation_subtitles_voice_tip">💡 Voice command: \"turn on subtitles\", \"show translation\", \"turn off subtitles\" or \"hide translation\".</string>

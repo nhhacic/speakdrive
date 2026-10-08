@@ -20,6 +20,7 @@ import com.speakdrive.ai.model.LessonRequest
 import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.Scenario
 import com.speakdrive.ai.model.SessionMode
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.ai.model.SessionSummary
 import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.model.StoryDuration
@@ -748,6 +749,14 @@ open class ConversationEngine @Inject constructor(
         VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION -> handleSetPracticeReminder(call)
         VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION -> handleSetStreakFreeze(call)
         VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION -> handleSetOfflinePractice(call)
+        VoiceSettingsTools.SET_AUTO_START_IN_CAR_FUNCTION -> booleanArg(call.args["enabled"])
+            ?.let(::applyAutoStartInCarChange) ?: argumentError("enabled", call.args["enabled"], "true, false")
+        VoiceSettingsTools.SET_DAILY_GOAL_FUNCTION -> VoiceSettingsTools.parseDailyGoal(call.args["minutes"], learnerSettings.dailyGoalMinutes)
+            ?.let(::applyDailyGoalChange) ?: argumentError("minutes", call.args["minutes"], "5-60, more, less")
+        VoiceSettingsTools.SET_AZURE_SCORING_FUNCTION -> booleanArg(call.args["enabled"])
+            ?.let(::applyAzureScoringChange) ?: argumentError("enabled", call.args["enabled"], "true, false")
+        VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION -> VoiceSettingsTools.parseScreenAwakeMode(call.args["mode"] as? String)
+            ?.let(::applyScreenAwakeChange) ?: argumentError("mode", call.args["mode"], ScreenAwakeMode.entries.joinToString { it.name })
         VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION -> handleSwitchSessionMode(call)
         else -> mapOf("status" to "unknown function")
     }
@@ -1172,6 +1181,63 @@ open class ConversationEngine @Inject constructor(
         val enabledArg = call.args["enabled"]
         val enabled = booleanArg(enabledArg) ?: return argumentError("enabled", enabledArg, "true, false")
         return applyOfflinePracticeChange(enabled)
+    }
+
+    // Settings that do not change how the AI talks: the app confirms them out loud itself (works even
+    // when the AI cannot answer), so the model is told not to confirm a second time.
+    private fun appConfirmed(key: String, value: Any): Map<String, Any> = mapOf(
+        "status" to "success",
+        key to value,
+        "instruction" to "The app has already confirmed this change out loud. Do not repeat the confirmation; just continue naturally."
+    )
+
+    internal fun applyAutoStartInCarChange(enabled: Boolean): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(autoStartOnCarConnect = enabled)
+        persist("auto-start in the car") { settings.setAutoStartOnCarConnect(enabled) }
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        announcer.announce(
+            if (isVi) {
+                if (enabled) "Đã bật tự động bắt đầu bài học khi kết nối Android Auto." else "Đã tắt tự động bắt đầu bài học khi kết nối Android Auto."
+            } else {
+                if (enabled) "Lessons will start automatically when Android Auto connects." else "Lessons will no longer start automatically in the car."
+            }
+        )
+        return appConfirmed("auto_start_in_car", enabled)
+    }
+
+    internal fun applyDailyGoalChange(minutes: Int): Map<String, Any> {
+        val goal = minutes.coerceIn(LearnerSettings.MIN_DAILY_GOAL_MINUTES, LearnerSettings.MAX_DAILY_GOAL_MINUTES)
+        learnerSettings = learnerSettings.copy(dailyGoalMinutes = goal)
+        persist("daily goal") { settings.setDailyGoalMinutes(goal) }
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        announcer.announce(if (isVi) "Đã đặt mục tiêu $goal phút mỗi ngày." else "Daily goal set to $goal minutes.")
+        return appConfirmed("daily_goal_minutes", goal)
+    }
+
+    internal fun applyAzureScoringChange(enabled: Boolean): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(azureEnabled = enabled)
+        persist("Azure scoring") { settings.setAzureEnabled(enabled) }
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val needsKey = enabled && !AzureSpeechConfig(learnerSettings.azureRegion, learnerSettings.azureKey).isComplete
+        announcer.announce(
+            when {
+                needsKey && isVi -> "Đã bật chấm điểm Azure. Hãy nhập khoá Azure trong Cài đặt khi xe đã dừng."
+                needsKey -> "Azure scoring is on. Enter your Azure key in Settings when the car is parked."
+                isVi -> if (enabled) "Đã bật chấm điểm phát âm bằng Azure." else "Đã tắt chấm điểm phát âm bằng Azure."
+                else -> if (enabled) "Azure pronunciation scoring is on." else "Azure pronunciation scoring is off."
+            }
+        )
+        return appConfirmed("azure_scoring", enabled) + ("azure_key_missing" to needsKey)
+    }
+
+    internal fun applyScreenAwakeChange(mode: ScreenAwakeMode): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(screenAwakeMode = mode)
+        persist("screen awake mode") { settings.setScreenAwakeMode(mode) }
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        announcer.announce(
+            if (isVi) "Màn hình khi học: ${mode.getLabel(true)}." else "Screen during lessons: ${mode.getLabel(false)}."
+        )
+        return appConfirmed("screen_awake_mode", mode.name)
     }
 
     /** Turning it off while offline stops the practice; turning it on while offline starts it. */
@@ -2514,6 +2580,10 @@ open class ConversationEngine @Inject constructor(
                     aiAnswering
                 )
             }
+            is VoiceCommand.SetAutoStartInCar -> applyAutoStartInCarChange(command.enabled)
+            is VoiceCommand.SetDailyGoal -> applyDailyGoalChange(command.minutes)
+            is VoiceCommand.SetAzureScoring -> applyAzureScoringChange(command.enabled)
+            is VoiceCommand.SetScreenAwake -> applyScreenAwakeChange(command.mode)
             is VoiceCommand.SetStreakFreeze -> {
                 applyStreakFreezeChange(command.enabled)
                 notifyModel(

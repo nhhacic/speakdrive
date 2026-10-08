@@ -43,12 +43,14 @@
     <string name="settings_drill_sentence_length_voice_tip">💡 Bạn có thể ra lệnh giọng nói: \"câu ngắn khi lái xe\", \"rút ngắn câu lặp lại\" hoặc \"độ dài tiêu chuẩn\".</string>
     <string name="settings_drill_category">Chủ đề luyện nhắc lại / Phát âm</string>
     <string name="settings_drill_category_voice_tip">🎤 Bạn có thể ra lệnh giọng nói: \"luyện lỗi phát âm người Việt\", \"tiếng Anh lái xe\", \"phản xạ giao tiếp\", \"chủ đề công sở\", hoặc \"tất cả chủ đề\".</string>
-    <string name="settings_auto_start_car">Tự động luyện nói khi kết nối xe</string>
-    <string name="settings_auto_start_car_desc">Tự động bắt đầu bài học khi điện thoại kết nối với Android Auto.</string>
-    <string name="settings_screen_awake">Giữ màn hình khi đang luyện nói</string>
     <string name="settings_auto_pause_unfocused">Tự động tạm dừng khi rời app hoặc tắt màn hình</string>
     <string name="settings_auto_pause_unfocused_desc">Tự động chuyển sang tạm dừng nếu thoát ứng dụng hoặc tắt màn hình ngoài Android Auto.</string>
     <string name="settings_auto_pause_unfocused_voice_tip">💡 Lệnh giọng nói: \"bật tự động tạm dừng khi tắt màn hình\" hoặc \"tắt tự động tạm dừng\".</string>
+    <string name="settings_auto_start_car">Tự bắt đầu học khi kết nối Android Auto</string>
+    <string name="settings_auto_start_car_desc">Khi điện thoại vừa kết nối Android Auto, bài học gần nhất tự bắt đầu (hoặc bài đang tạm dừng tự tiếp tục).</string>
+    <string name="settings_auto_start_car_voice_tip">💡 Lệnh giọng nói: \"tắt tự động học khi lên xe\" hoặc \"bật tự động bắt đầu khi kết nối ô tô\".</string>
+    <string name="settings_screen_awake">Màn hình khi học</string>
+    <string name="settings_screen_awake_voice_tip">💡 Lệnh giọng nói: \"luôn sáng màn hình\", \"cho màn hình tự tắt theo máy\" hoặc \"tắt màn hình sau 1 phút\".</string>
     <string name="settings_show_translation_subtitles">Phụ đề dịch nghĩa câu luyện nói</string>
     <string name="settings_show_translation_subtitles_desc">Tự động hiển thị dòng dịch nghĩa bên dưới câu tiếng Anh trên màn hình xe ô tô và điện thoại theo ngôn ngữ bạn chọn.</string>
     <string name="settings_show_translation_subtitles_voice_tip">💡 Lệnh giọng nói: \"bật phụ đề dịch\", \"hiện bản dịch\", \"tắt phụ đề dịch\" hoặc \"ẩn bản dịch\".</string>

@@ -120,6 +120,8 @@ fun SettingsScreen(
         onSetAiVolume = viewModel::setAiVolume,
         onSetAutoPauseWhenUnfocused = viewModel::setAutoPauseWhenUnfocused,
         onSetShowTranslationSubtitle = viewModel::setShowTranslationSubtitle,
+        onSetAutoStartOnCarConnect = viewModel::setAutoStartOnCarConnect,
+        onSetScreenAwakeMode = viewModel::setScreenAwakeMode,
         extraGroups = { MemorySettingsGroup(onOpenMemory = onOpenMemory) }
     )
 }
@@ -154,6 +156,8 @@ fun SettingsContent(
     onSetAiVolume: (Int) -> Unit = {},
     onSetAutoPauseWhenUnfocused: (Boolean) -> Unit = {},
     onSetShowTranslationSubtitle: (Boolean) -> Unit = {},
+    onSetAutoStartOnCarConnect: (Boolean) -> Unit = {},
+    onSetScreenAwakeMode: (com.speakdrive.ai.model.ScreenAwakeMode) -> Unit = {},
     /** Groups with their own view model (memory and reminders), shown before the Azure group. */
     extraGroups: @Composable () -> Unit = {}
 ) {
@@ -198,7 +202,7 @@ fun SettingsContent(
                 )
             }
 
-            val isVi = prefs.appLanguage == AppLanguage.VIETNAMESE || (prefs.appLanguage == AppLanguage.SYSTEM && java.util.Locale.getDefault().language == "vi")
+            val isVi = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language == "vi"
 
             // Group 1: Learning & Level
             SettingsGroupCard(title = stringResource(R.string.settings_group_learning), icon = Icons.Filled.School) {
@@ -381,6 +385,8 @@ fun SettingsContent(
             // Group 2: AI Voice & Speech Interaction
             SettingsGroupCard(title = stringResource(R.string.settings_group_voice), icon = Icons.Filled.RecordVoiceOver) {
                 // AI Voice Volume Setting
+                // Follow the finger locally and save once, when the drag ends.
+                var dragVolume by remember(prefs.learner.aiVolume) { mutableFloatStateOf(prefs.learner.aiVolume.toFloat()) }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -392,15 +398,16 @@ fun SettingsContent(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "${prefs.learner.aiVolume}%",
+                        "${dragVolume.roundToInt()}%",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
                 Slider(
-                    value = prefs.learner.aiVolume.toFloat(),
-                    onValueChange = { onSetAiVolume(it.roundToInt().coerceIn(10, 100)) },
+                    value = dragVolume,
+                    onValueChange = { dragVolume = it },
+                    onValueChangeFinished = { onSetAiVolume(dragVolume.roundToInt().coerceIn(10, 100)) },
                     valueRange = 10f..100f,
                     steps = 8,
                     modifier = Modifier.fillMaxWidth()
@@ -541,6 +548,53 @@ fun SettingsContent(
                         )
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                ListItem(
+                    headlineContent = {
+                        Text(stringResource(R.string.settings_auto_start_car), fontWeight = FontWeight.Bold)
+                    },
+                    supportingContent = {
+                        Text(
+                            stringResource(R.string.settings_auto_start_car_desc) + "\n" + stringResource(R.string.settings_auto_start_car_voice_tip),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = prefs.learner.autoStartOnCarConnect,
+                            onCheckedChange = onSetAutoStartOnCarConnect
+                        )
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                Text(
+                    stringResource(R.string.settings_screen_awake),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    com.speakdrive.ai.model.ScreenAwakeMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = prefs.learner.screenAwakeMode == mode,
+                            onClick = { onSetScreenAwakeMode(mode) },
+                            label = { Text(mode.getLabel(isVi)) }
+                        )
+                    }
+                }
+                Text(
+                    prefs.learner.screenAwakeMode.getDescription(isVi) + "\n" + stringResource(R.string.settings_screen_awake_voice_tip),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

@@ -10,6 +10,7 @@ import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.SessionMode
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.ai.model.StoryDuration
 import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.ai.TopicManager
@@ -45,6 +46,10 @@ object VoiceSettingsTools {
     const val SET_PRACTICE_REMINDER_FUNCTION = "set_practice_reminder"
     const val SET_STREAK_FREEZE_FUNCTION = "set_streak_freeze"
     const val SET_OFFLINE_PRACTICE_FUNCTION = "set_offline_practice"
+    const val SET_AUTO_START_IN_CAR_FUNCTION = "set_auto_start_in_car"
+    const val SET_DAILY_GOAL_FUNCTION = "set_daily_goal"
+    const val SET_AZURE_SCORING_FUNCTION = "set_azure_pronunciation_scoring"
+    const val SET_SCREEN_AWAKE_FUNCTION = "set_screen_awake"
 
     val switchSessionModeTool = LiveTool(
         name = SWITCH_SESSION_MODE_FUNCTION,
@@ -118,6 +123,62 @@ object VoiceSettingsTools {
                 name = "enabled",
                 type = LiveToolParam.Type.BOOLEAN,
                 description = "True to practise offline when the network is lost, false to just wait quietly."
+            )
+        )
+    )
+
+    val setAutoStartInCarTool = LiveTool(
+        name = SET_AUTO_START_IN_CAR_FUNCTION,
+        description = "Turns on or off starting a lesson by itself as soon as the phone connects to Android Auto, when requested by the learner in Vietnamese or English " +
+            "(e.g. \"tắt tự động học khi lên xe\", \"đừng tự bắt đầu khi kết nối ô tô\", \"bật tự động bắt đầu khi lên xe\", " +
+            "\"don't start lessons automatically in the car\", \"turn on auto start in the car\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "enabled",
+                type = LiveToolParam.Type.BOOLEAN,
+                description = "True to start a lesson automatically when Android Auto connects, false to wait for the learner."
+            )
+        )
+    )
+
+    val setDailyGoalTool = LiveTool(
+        name = SET_DAILY_GOAL_FUNCTION,
+        description = "Sets the learner's daily practice goal in minutes (5 to 60) when requested in Vietnamese or English " +
+            "(e.g. \"đặt mục tiêu 20 phút mỗi ngày\", \"mục tiêu hàng ngày 30 phút\", \"tăng mục tiêu lên\", \"giảm mục tiêu\", " +
+            "\"set my daily goal to 25 minutes\", \"increase my daily goal\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "minutes",
+                type = LiveToolParam.Type.STRING,
+                description = "Minutes per day as a number (e.g. \"20\"), or \"more\" / \"less\" to change the current goal by 5 minutes."
+            )
+        )
+    )
+
+    val setAzureScoringTool = LiveTool(
+        name = SET_AZURE_SCORING_FUNCTION,
+        description = "Turns Microsoft Azure pronunciation scoring on or off for repeat-after-me drills, when requested by the learner in Vietnamese or English " +
+            "(e.g. \"bật chấm điểm Azure\", \"dùng Azure để chấm\", \"tắt Azure\", \"turn on Azure scoring\", \"stop using Azure\"). " +
+            "Azure needs the learner's own key, entered in Settings.",
+        parameters = listOf(
+            LiveToolParam(
+                name = "enabled",
+                type = LiveToolParam.Type.BOOLEAN,
+                description = "True to also grade attempts with Azure, false to stop using it."
+            )
+        )
+    )
+
+    val setScreenAwakeTool = LiveTool(
+        name = SET_SCREEN_AWAKE_FUNCTION,
+        description = "Sets how long the phone screen stays on during a lesson (outside Android Auto), when requested by the learner in Vietnamese or English " +
+            "(e.g. \"luôn sáng màn hình\", \"giữ màn hình sáng\", \"cho màn hình tự tắt theo máy\", \"tắt màn hình sau 1 phút\", " +
+            "\"keep the screen on\", \"let the screen turn off\", \"turn the screen off after 30 seconds\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "mode",
+                type = LiveToolParam.Type.STRING,
+                description = "ALWAYS_ON, FOLLOW_SYSTEM (the phone's own timeout), AFTER_30_SECONDS, AFTER_1_MINUTE, AFTER_2_MINUTES or AFTER_5_MINUTES without touching the screen."
             )
         )
     )
@@ -443,8 +504,56 @@ object VoiceSettingsTools {
         setPracticeReminderTool,
         setStreakFreezeTool,
         setOfflinePracticeTool,
+        setAutoStartInCarTool,
+        setDailyGoalTool,
+        setAzureScoringTool,
+        setScreenAwakeTool,
         switchSessionModeTool
     )
+
+    /**
+     * Resolves a daily goal argument: a number of minutes, or "more"/"less" (5 minutes) from [current].
+     * The result is kept within 5–60 minutes.
+     */
+    fun parseDailyGoal(value: Any?, current: Int): Int? {
+        val minutes = when (value) {
+            is Number -> value.toInt()
+            is String -> {
+                val normalized = TopicManager.normalize(value.trim())
+                Regex("(\\d{1,3})").find(normalized)?.groupValues?.get(1)?.toIntOrNull()
+                    ?: when {
+                        hasWord(normalized, "more") || normalized.contains("increase") || normalized.contains("tang") ||
+                            normalized.contains("nhieu hon") || normalized.contains("higher") -> current + GOAL_STEP_MINUTES
+                        hasWord(normalized, "less") || normalized.contains("decrease") || normalized.contains("giam") ||
+                            normalized.contains("it hon") || normalized.contains("lower") -> current - GOAL_STEP_MINUTES
+                        else -> null
+                    }
+            }
+            else -> null
+        } ?: return null
+        return minutes.coerceIn(LearnerSettings.MIN_DAILY_GOAL_MINUTES, LearnerSettings.MAX_DAILY_GOAL_MINUTES)
+    }
+
+    /** Resolves a screen-awake mode from its enum name or a spoken description. */
+    fun parseScreenAwakeMode(value: String?): ScreenAwakeMode? {
+        if (value.isNullOrBlank()) return null
+        val trimmed = value.trim()
+        ScreenAwakeMode.entries.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }?.let { return it }
+        val normalized = TopicManager.normalize(trimmed)
+        return when {
+            Regex("\\b30\\b").containsMatchIn(normalized) -> ScreenAwakeMode.AFTER_30_SECONDS
+            Regex("\\b5\\b").containsMatchIn(normalized) || normalized.contains("nam phut") || normalized.contains("five minute") -> ScreenAwakeMode.AFTER_5_MINUTES
+            Regex("\\b2\\b").containsMatchIn(normalized) || normalized.contains("hai phut") || normalized.contains("two minute") -> ScreenAwakeMode.AFTER_2_MINUTES
+            Regex("\\b1\\b").containsMatchIn(normalized) || normalized.contains("mot phut") || normalized.contains("one minute") -> ScreenAwakeMode.AFTER_1_MINUTE
+            normalized.contains("system") || normalized.contains("theo may") || normalized.contains("tu tat") ||
+                normalized.contains("follow") || normalized.contains("mac dinh") -> ScreenAwakeMode.FOLLOW_SYSTEM
+            normalized.contains("always") || normalized.contains("luon") || normalized.contains("keep") ||
+                normalized.contains("giu") -> ScreenAwakeMode.ALWAYS_ON
+            else -> null
+        }
+    }
+
+    private const val GOAL_STEP_MINUTES = 5
 
     /** True when [word] (one or more words) appears as whole words in [normalized] text. */
     private fun hasWord(normalized: String, word: String): Boolean = " $normalized ".contains(" $word ")

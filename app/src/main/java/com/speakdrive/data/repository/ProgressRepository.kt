@@ -5,7 +5,11 @@ import com.speakdrive.data.local.dao.SessionDao
 import com.speakdrive.data.local.dao.WordDao
 import com.speakdrive.domain.StreakCalculator
 import com.speakdrive.domain.TimeWindows
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -43,11 +47,23 @@ class ProgressRepository @Inject constructor(
     private val preferences: UserPreferencesRepository,
     private val memoryDao: MemoryDao
 ) {
-    fun observeStats(zone: ZoneId = ZoneId.systemDefault()): Flow<ProgressStats> {
-        val today = LocalDate.now(zone)
+    /**
+     * Statistics that stay correct while the app stays open: "today", the streak and the words or
+     * mistakes that have become due are recomputed every few minutes (and so right after midnight).
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeStats(zone: ZoneId = ZoneId.systemDefault()): Flow<ProgressStats> =
+        flow {
+            while (true) {
+                emit(System.currentTimeMillis())
+                delay(REFRESH_MS)
+            }
+        }.flatMapLatest { now -> statsAt(now, zone) }.distinctUntilChanged()
+
+    private fun statsAt(now: Long, zone: ZoneId): Flow<ProgressStats> {
+        val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
         val startOfToday = TimeWindows.startOfDay(today, zone)
         val weekStart = today.minusDays(6)
-        val now = System.currentTimeMillis()
 
         val week = sessionDao.observePracticeSince(TimeWindows.startOfDay(weekStart, zone))
         val freezesEnabled = preferences.preferences.map { it.learner.streakFreezeEnabled }.distinctUntilChanged()
@@ -87,4 +103,8 @@ class ProgressRepository @Inject constructor(
     }
 
     private fun toMinutes(ms: Long): Int = TimeUnit.MILLISECONDS.toMinutes(ms + 30_000).toInt()
+
+    private companion object {
+        val REFRESH_MS = TimeUnit.MINUTES.toMillis(5)
+    }
 }

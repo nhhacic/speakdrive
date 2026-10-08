@@ -1,5 +1,6 @@
 package com.speakdrive.ai
 
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.audio.ListenResult
 import com.speakdrive.ai.offline.OfflineDrillCoach
 import com.google.common.truth.Truth.assertThat
@@ -2268,4 +2269,42 @@ class ConversationEngineTest {
     }
 
     // endregion
+
+    @Test
+    fun `car auto-start, daily goal, Azure and screen settings change by voice tool and confirm out loud`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        val handler = live.connects.single().toolHandler!!
+
+        val car = handler.handle(LiveToolCall(VoiceSettingsTools.SET_AUTO_START_IN_CAR_FUNCTION, mapOf("enabled" to false)))
+        val goal = handler.handle(LiveToolCall(VoiceSettingsTools.SET_DAILY_GOAL_FUNCTION, mapOf("minutes" to "25")))
+        val azure = handler.handle(LiveToolCall(VoiceSettingsTools.SET_AZURE_SCORING_FUNCTION, mapOf("enabled" to true)))
+        val screen = handler.handle(LiveToolCall(VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION, mapOf("mode" to "FOLLOW_SYSTEM")))
+        runCurrent()
+
+        assertThat(car["status"]).isEqualTo("success")
+        assertThat(settings.settings.autoStartOnCarConnect).isFalse()
+        assertThat(goal["daily_goal_minutes"]).isEqualTo(25)
+        assertThat(settings.settings.dailyGoalMinutes).isEqualTo(25)
+        assertThat(settings.settings.azureEnabled).isTrue()
+        assertThat(azure["azure_key_missing"]).isEqualTo(true) // no key entered yet: the learner is told
+        assertThat(settings.settings.screenAwakeMode).isEqualTo(ScreenAwakeMode.FOLLOW_SYSTEM)
+        assertThat(screen["status"]).isEqualTo("success")
+        assertThat(announcer.announcements.any { it.contains("Android Auto") }).isTrue()
+        assertThat(announcer.announcements.any { it.contains("25") }).isTrue()
+    }
+
+    @Test
+    fun `car auto-start and daily goal change from the transcript when the model does not call the tool`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+
+        sayCommand("tắt tự động học khi lên xe")
+        sayCommand("đặt mục tiêu 30 phút mỗi ngày")
+        sayCommand("tắt màn hình sau 2 phút")
+
+        assertThat(settings.settings.autoStartOnCarConnect).isFalse()
+        assertThat(settings.settings.dailyGoalMinutes).isEqualTo(30)
+        assertThat(settings.settings.screenAwakeMode).isEqualTo(ScreenAwakeMode.AFTER_2_MINUTES)
+    }
 }

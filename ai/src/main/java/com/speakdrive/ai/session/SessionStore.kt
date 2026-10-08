@@ -78,6 +78,10 @@ interface LearningSettings {
     suspend fun setAiVolume(volume: Int) {}
     suspend fun setAutoPauseWhenUnfocused(enabled: Boolean) {}
     suspend fun setShowTranslationSubtitle(enabled: Boolean) {}
+    suspend fun setAzureEnabled(enabled: Boolean) {}
+    suspend fun setAutoStartOnCarConnect(enabled: Boolean) {}
+    suspend fun setDailyGoalMinutes(minutes: Int) {}
+    suspend fun setScreenAwakeMode(mode: com.speakdrive.ai.model.ScreenAwakeMode) {}
     suspend fun setRememberLearner(enabled: Boolean) {}
     suspend fun setPracticeReminder(enabled: Boolean, minuteOfDay: Int? = null) {}
     suspend fun setStreakFreeze(enabled: Boolean) {}

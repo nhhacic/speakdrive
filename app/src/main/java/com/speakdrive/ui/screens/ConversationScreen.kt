@@ -60,11 +60,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.style.TextOverflow
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -89,6 +91,7 @@ import com.speakdrive.R
 import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.EngineError
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ui.components.ChatBubble
@@ -129,10 +132,23 @@ fun ConversationScreen(
 
     val isPracticing = state.state == ConversationState.ACTIVE
     val isCarConnected = state.isCarConnected
-    // Context-aware screen awake behavior:
-    // When actively speaking outside Android Auto: keep phone screen awake continuously.
-    // When paused, inactive, or on Android Auto: allow screen to turn off normally according to system timeout.
-    val shouldKeepScreenOn = isPracticing && !isCarConnected
+    // Screen during lessons (Settings / voice "keep the screen on"): only while actively practising
+    // outside Android Auto. "After N seconds" keeps it on until the screen has not been touched for N s.
+    val awakeMode = state.screenAwakeMode
+    var touches by remember { mutableIntStateOf(0) }
+    var awakeAfterTouch by remember { mutableStateOf(true) }
+    LaunchedEffect(touches, awakeMode, isPracticing) {
+        awakeAfterTouch = true
+        if (awakeMode.timeoutSeconds > 0) {
+            delay(awakeMode.timeoutSeconds * 1_000L)
+            awakeAfterTouch = false
+        }
+    }
+    val shouldKeepScreenOn = isPracticing && !isCarConnected && when (awakeMode) {
+        ScreenAwakeMode.ALWAYS_ON -> true
+        ScreenAwakeMode.FOLLOW_SYSTEM -> false
+        else -> awakeAfterTouch
+    }
 
     val view = LocalView.current
     DisposableEffect(shouldKeepScreenOn) {
@@ -168,7 +184,7 @@ fun ConversationScreen(
             )
         },
         onSetAiVolume = viewModel::setAiVolume,
-        onUserInteraction = {}
+        onUserInteraction = { touches++ }
     )
 }
 

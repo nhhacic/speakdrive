@@ -1,5 +1,6 @@
 package com.speakdrive.ai.session
 
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.ai.model.LearnerSettings
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.model.DifficultyLevel
@@ -1191,5 +1192,52 @@ class VoiceCommandParserTest {
         assertThat(VoiceCommandParser.parseOfflinePracticeCommand("bật luyện offline")).isTrue()
         assertThat(VoiceCommandParser.parseOfflinePracticeCommand("turn on offline practice")).isTrue()
         assertThat(VoiceCommandParser.parseOfflinePracticeCommand("I practise offline sometimes")).isNull()
+    }
+
+    @Test
+    fun `auto start in the car is recognised in Vietnamese with and without diacritics and in English`() {
+        assertThat(VoiceCommandParser.parseAutoStartInCarCommand("tắt tự động học khi lên xe")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoStartInCarCommand("tat tu dong hoc khi len xe")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoStartInCarCommand("đừng tự bắt đầu khi kết nối ô tô")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoStartInCarCommand("bật tự động bắt đầu khi lên xe")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoStartInCarCommand("bat tu dong bat dau khi ket noi o to")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoStartInCarCommand("don't start lessons automatically in the car")).isFalse()
+        assertThat(VoiceCommandParser.parseAutoStartInCarCommand("turn on auto start in the car")).isTrue()
+        assertThat(VoiceCommandParser.parseAutoStartInCarCommand("tôi đang lái xe")).isNull()
+    }
+
+    @Test
+    fun `daily goal is recognised with numbers and relative changes`() {
+        assertThat(VoiceCommandParser.parseDailyGoalCommand("đặt mục tiêu 20 phút mỗi ngày", 15)).isEqualTo(20)
+        assertThat(VoiceCommandParser.parseDailyGoalCommand("dat muc tieu 30 phut", 15)).isEqualTo(30)
+        assertThat(VoiceCommandParser.parseDailyGoalCommand("set my daily goal to 25 minutes", 15)).isEqualTo(25)
+        assertThat(VoiceCommandParser.parseDailyGoalCommand("tăng mục tiêu lên", 15)).isEqualTo(20)
+        assertThat(VoiceCommandParser.parseDailyGoalCommand("lower my daily goal", 15)).isEqualTo(10)
+        assertThat(VoiceCommandParser.parseDailyGoalCommand("mục tiêu 200 phút", 15)).isEqualTo(60)
+        assertThat(VoiceCommandParser.parseDailyGoalCommand("hôm nay tôi học 20 phút", 15)).isNull()
+    }
+
+    @Test
+    fun `azure scoring needs the word Azure and tells using from stopping`() {
+        assertThat(VoiceCommandParser.parseAzureScoringCommand("bật chấm điểm Azure")).isTrue()
+        assertThat(VoiceCommandParser.parseAzureScoringCommand("dùng Azure để chấm")).isTrue()
+        assertThat(VoiceCommandParser.parseAzureScoringCommand("dừng dùng Azure")).isFalse()
+        assertThat(VoiceCommandParser.parseAzureScoringCommand("tat azure")).isFalse()
+        assertThat(VoiceCommandParser.parseAzureScoringCommand("turn on Azure scoring")).isTrue()
+        assertThat(VoiceCommandParser.parseAzureScoringCommand("stop using Azure")).isFalse()
+        assertThat(VoiceCommandParser.parseAzureScoringCommand("bật chấm điểm")).isNull()
+    }
+
+    @Test
+    fun `screen awake mode is recognised and leaves auto-pause requests alone`() {
+        assertThat(VoiceCommandParser.parseScreenAwakeCommand("luôn sáng màn hình")).isEqualTo(ScreenAwakeMode.ALWAYS_ON)
+        assertThat(VoiceCommandParser.parseScreenAwakeCommand("giu man hinh sang")).isEqualTo(ScreenAwakeMode.ALWAYS_ON)
+        assertThat(VoiceCommandParser.parseScreenAwakeCommand("cho màn hình tự tắt theo máy")).isEqualTo(ScreenAwakeMode.FOLLOW_SYSTEM)
+        assertThat(VoiceCommandParser.parseScreenAwakeCommand("tắt màn hình sau 1 phút")).isEqualTo(ScreenAwakeMode.AFTER_1_MINUTE)
+        assertThat(VoiceCommandParser.parseScreenAwakeCommand("tat man hinh sau 30 giay")).isEqualTo(ScreenAwakeMode.AFTER_30_SECONDS)
+        assertThat(VoiceCommandParser.parseScreenAwakeCommand("keep the screen on")).isEqualTo(ScreenAwakeMode.ALWAYS_ON)
+        assertThat(VoiceCommandParser.parseScreenAwakeCommand("turn the screen off after 5 minutes")).isEqualTo(ScreenAwakeMode.AFTER_5_MINUTES)
+        assertThat(VoiceCommandParser.parseScreenAwakeCommand("tạm dừng khi tắt màn hình")).isNull()
+        assertThat(VoiceCommandParser.parseScreenAwakeCommand("màn hình điện thoại tôi bị vỡ")).isNull()
     }
 }
