@@ -50,7 +50,17 @@ WIN_GEMINI_DIR = os.path.expanduser(r"~\.gemini\antigravity")
 WIN_APP_STORAGE = os.path.expandvars(r"%APPDATA%\Antigravity\app_storage.json")
 WIN_TAILSCALE_IP = "100.94.114.23"
 WIN_RECEIVER_PORT = 49200
-SYNC_SECRET_TOKEN = "speakdrive_sync_token_secure_49200"
+# The shared secret lives outside the repo (the old hard-coded value is public in git history).
+# Create it once on both machines, e.g.: python -c "import secrets;print(secrets.token_hex(24))" > ~/.speakdrive_sync_token
+SYNC_TOKEN_FILE = os.path.expanduser("~/.speakdrive_sync_token")
+
+
+def load_sync_token():
+    try:
+        with open(SYNC_TOKEN_FILE, encoding="utf-8") as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
 
 # Đường dẫn trên Linux
 LINUX_HOST = "root@100.107.110.66"
@@ -238,7 +248,7 @@ def run_cmd(cmd, check=True, cwd=None):
 
 
 def send_bytes_ssh(data_bytes, remote_path):
-    cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"cat > '{remote_path}'"]
+    cmd = ["ssh", "-o", "StrictHostKeyChecking=accept-new", LINUX_HOST, f"cat > '{remote_path}'"]
     p = subprocess.run(cmd, input=data_bytes, check=True)
     return p.returncode
 
@@ -257,7 +267,7 @@ def stream_tar_to_linux(source_dir, items_list, remote_target_dir):
                 tar.add(str(full_p), arcname=item)
     
     tar_bytes = buf.getvalue()
-    ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -xzf - -C '{remote_target_dir}'"]
+    ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=accept-new", LINUX_HOST, f"tar -xzf - -C '{remote_target_dir}'"]
     p = subprocess.run(ssh_cmd, input=tar_bytes, check=True)
     if p.returncode != 0:
         raise RuntimeError(f"Lỗi truyền tải dữ liệu tar stream (exit {p.returncode})")
@@ -270,7 +280,7 @@ def stream_tar_from_linux(remote_source_dir, items_list, local_target_dir):
     import tarfile
     import io
     items_str = " ".join([f"'{item}'" for item in items_list])
-    ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -czf - -C '{remote_source_dir}' {items_str}"]
+    ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=accept-new", LINUX_HOST, f"tar -czf - -C '{remote_source_dir}' {items_str}"]
     
     p = subprocess.run(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
     tar_bytes = p.stdout
@@ -278,10 +288,19 @@ def stream_tar_from_linux(remote_source_dir, items_list, local_target_dir):
         return
 
     os.makedirs(local_target_dir, exist_ok=True)
+    target_root = os.path.realpath(local_target_dir)
     with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:gz") as tar:
         for member in tar.getmembers():
+            # Never write outside the target folder (absolute paths, "..", links).
+            dest = os.path.realpath(os.path.join(target_root, member.name))
+            if not (dest == target_root or dest.startswith(target_root + os.sep)) or member.issym() or member.islnk():
+                print(f"   [Bỏ qua mục không an toàn] {member.name}")
+                continue
             try:
-                tar.extract(member, path=local_target_dir)
+                if hasattr(tarfile, "data_filter"):
+                    tar.extract(member, path=local_target_dir, filter="data")
+                else:
+                    tar.extract(member, path=local_target_dir)
             except (PermissionError, OSError):
                 # Bỏ qua file đang bị mở bởi phiên Antigravity hiện tại trên Windows
                 pass
@@ -290,78 +309,80 @@ def stream_tar_from_linux(remote_source_dir, items_list, local_target_dir):
 
 
 # ==================== GIT CODE SYNC ====================
+# Only commits that already exist are synced. Uncommitted changes are never swept into an
+# "Auto-sync" commit (that used to publish half-done work of a running agent to the public repo),
+# and pulls only fast-forward, so a sync can never leave a merge conflict in a working tree.
+REMOTE_GIT_SSH = "GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new'"
+
+
+class DirtyWorkingTree(RuntimeError):
+    pass
+
+
+def require_clean(status, where):
+    if status.strip():
+        raise DirtyWorkingTree(
+            f"Thư mục làm việc trên {where} còn thay đổi chưa commit. Hãy commit (hoặc stash) trước rồi đồng bộ lại.\n{status}"
+        )
+
+
 def sync_code_git(direction):
     print("\n--- BƯỚC 1: ĐỒNG BỘ MÃ NGUỒN GIT ---")
     current_os = 'windows' if platform.system() == 'Windows' else 'linux'
-    
+
     if direction == "to-linux":
         if current_os == 'windows':
             branch = run_cmd("git rev-parse --abbrev-ref HEAD", cwd=WIN_PROJECT_DIR)
             print(f"  Branch hiện tại: {branch}")
-            
-            # Check uncommitted
-            status = run_cmd("git status --porcelain", cwd=WIN_PROJECT_DIR)
-            if status:
-                print("  [Thông báo] Phát hiện file chưa commit, tự động commit đồng bộ...")
-                run_cmd("git add -A", cwd=WIN_PROJECT_DIR)
-                run_cmd('git commit --no-verify -m "Auto-sync: update from Windows workspace"', cwd=WIN_PROJECT_DIR)
-            
+            require_clean(run_cmd("git status --porcelain", cwd=WIN_PROJECT_DIR), "Windows")
+
             print("  Đẩy code lên GitHub...")
             run_cmd(f"git push origin {branch}", cwd=WIN_PROJECT_DIR)
-            
+
             print(f"  Kéo code trên máy Linux ({LINUX_HOST})...")
-            remote_git = f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"cd '{LINUX_PROJECT_DIR}' && git pull origin {branch}\""
+            remote_status = run_cmd(
+                f"ssh -o StrictHostKeyChecking=accept-new {LINUX_HOST} \"cd '{LINUX_PROJECT_DIR}' && git status --porcelain\""
+            )
+            require_clean(remote_status, "Linux")
+            remote_git = (
+                f"ssh -o StrictHostKeyChecking=accept-new {LINUX_HOST} "
+                f"\"cd '{LINUX_PROJECT_DIR}' && {REMOTE_GIT_SSH} git pull --ff-only origin {branch}\""
+            )
             run_cmd(remote_git)
             print("  ✅ Mã nguồn Git đã được đồng bộ thành công sang Linux!")
         else:
-            # Running on Linux
             branch = run_cmd("git rev-parse --abbrev-ref HEAD", cwd=LINUX_PROJECT_DIR)
-            status = run_cmd("git status --porcelain", cwd=LINUX_PROJECT_DIR)
-            if status:
-                run_cmd("git add -A", cwd=LINUX_PROJECT_DIR)
-                run_cmd('git commit --no-verify -m "Auto-sync: update from Linux workspace"', cwd=LINUX_PROJECT_DIR)
+            require_clean(run_cmd("git status --porcelain", cwd=LINUX_PROJECT_DIR), "Linux")
             run_cmd(f"git push origin {branch}", cwd=LINUX_PROJECT_DIR)
             print("  ✅ Mã nguồn Git đã được đẩy lên GitHub từ Linux!")
 
     elif direction in ("from-linux", "to-windows"):
         if current_os == 'windows':
             branch = run_cmd("git rev-parse --abbrev-ref HEAD", cwd=WIN_PROJECT_DIR)
-            # 1. Check and commit uncommitted changes on Linux first via SSH
-            remote_status_cmd = f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"cd '{LINUX_PROJECT_DIR}' && git status --porcelain\""
-            remote_status = run_cmd(remote_status_cmd)
-            if remote_status:
-                print("  [Thông báo] Phát hiện file chưa commit trên Linux, tự động commit...")
-                remote_commit = f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"cd '{LINUX_PROJECT_DIR}' && git add -A && git commit --no-verify -m 'Auto-sync: update from Linux workspace'\""
-                run_cmd(remote_commit)
-            
-            # 2. Pull directly from Linux workspace via SSH
+            require_clean(run_cmd("git status --porcelain", cwd=WIN_PROJECT_DIR), "Windows")
+            remote_status = run_cmd(
+                f"ssh -o StrictHostKeyChecking=accept-new {LINUX_HOST} \"cd '{LINUX_PROJECT_DIR}' && git status --porcelain\""
+            )
+            require_clean(remote_status, "Linux")
+
             print("  Kéo code trực tiếp từ máy Linux qua SSH...")
-            direct_pull_cmd = f"git pull \"ssh://{LINUX_HOST}{LINUX_PROJECT_DIR}\" {branch}"
             try:
-                run_cmd(direct_pull_cmd, cwd=WIN_PROJECT_DIR)
+                run_cmd(f"git pull --ff-only \"ssh://{LINUX_HOST}{LINUX_PROJECT_DIR}\" {branch}", cwd=WIN_PROJECT_DIR)
             except Exception as e:
                 print(f"  [Thông báo] Thử kéo qua GitHub: {e}")
-                run_cmd(f"git pull origin {branch}", cwd=WIN_PROJECT_DIR)
+                run_cmd(f"git pull --ff-only origin {branch}", cwd=WIN_PROJECT_DIR)
 
-            # 3. Push to GitHub from Windows
             print("  Đẩy code lên GitHub từ Windows...")
             try:
                 run_cmd(f"git push origin {branch}", cwd=WIN_PROJECT_DIR)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"  [Cảnh báo] Không đẩy được lên GitHub: {e}")
             print("  ✅ Mã nguồn Git đã được đồng bộ thành công về Windows và cập nhật lên GitHub!")
         else:
-            # Running on Linux
             branch = run_cmd("git rev-parse --abbrev-ref HEAD", cwd=LINUX_PROJECT_DIR)
-            status = run_cmd("git status --porcelain", cwd=LINUX_PROJECT_DIR)
-            if status:
-                run_cmd("git add -A", cwd=LINUX_PROJECT_DIR)
-                run_cmd('git commit --no-verify -m "Auto-sync: update from Linux workspace"', cwd=LINUX_PROJECT_DIR)
-            try:
-                run_cmd(f"git push origin {branch}", cwd=LINUX_PROJECT_DIR, check=False)
-            except Exception:
-                pass
-            print("  ✅ Mã nguồn Git trên Linux đã được commit sẵn sàng đồng bộ!")
+            require_clean(run_cmd("git status --porcelain", cwd=LINUX_PROJECT_DIR), "Linux")
+            run_cmd(f"git push origin {branch}", cwd=LINUX_PROJECT_DIR, check=False)
+            print("  ✅ Mã nguồn Git trên Linux sẵn sàng đồng bộ!")
 
 
 # ==================== INCREMENTAL CONVERSATION SYNC ====================
@@ -492,7 +513,11 @@ def sync_conversations_to_linux(since_hours=48, sync_all=False, specific_cid=Non
     }
 
     # Gửi payload JSON sang Linux
-    send_bytes_ssh(json.dumps(sync_payload).encode('utf-8'), "/tmp/speakdrive_sync.json")
+    import uuid
+    run_id = uuid.uuid4().hex
+    remote_payload = f"/tmp/speakdrive_sync_{run_id}.json"
+    remote_script = f"/tmp/speakdrive_apply_{run_id}.py"
+    send_bytes_ssh(json.dumps(sync_payload).encode('utf-8'), remote_payload)
 
     # 2. Truyền tải file SQLite (.db, .db-wal, .db-shm)
     print("  Đang đồng bộ SQLite database của các phiên...")
@@ -635,7 +660,7 @@ def get_cid_from_entry(entry):
                     pass
     return None
 
-with open('/tmp/speakdrive_sync.json', 'r', encoding='utf-8') as f:
+with open(sys.argv[1], 'r', encoding='utf-8') as f:
     payload = json.load(f)
 
 # 1. Update SQLite
@@ -724,8 +749,11 @@ if os.path.exists(storage_path):
 os.system("chown -R cic-ai:cic-ai /home/cic-ai/.gemini /home/cic-ai/.config/Antigravity")
 print("[Linux] Database & Protobuf cache updated successfully!")
 """
-    send_bytes_ssh(remote_apply_script.encode('utf-8'), "/tmp/remote_apply_sync.py")
-    run_cmd(f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"python3 /tmp/remote_apply_sync.py\"")
+    send_bytes_ssh(remote_apply_script.encode('utf-8'), remote_script)
+    try:
+        run_cmd(f"ssh -o StrictHostKeyChecking=accept-new {LINUX_HOST} \"python3 {remote_script} {remote_payload}\"")
+    finally:
+        run_cmd(f"ssh -o StrictHostKeyChecking=accept-new {LINUX_HOST} \"rm -f {remote_script} {remote_payload}\"", check=False)
 
     save_last_sync_time()
     print(f"  ✅ Đã đồng bộ thành công {len(rows)} phiên hội thoại sang Linux!")
@@ -758,7 +786,7 @@ print(json.dumps([{{
 conn.close()
 """
     p = subprocess.run(
-        ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, "python3"],
+        ["ssh", "-o", "StrictHostKeyChecking=accept-new", LINUX_HOST, "python3"],
         input=remote_script, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding='utf-8', errors='replace', check=True
     )
@@ -872,6 +900,10 @@ def notify_windows_receiver():
     """Gửi tín hiệu notify từ Linux sang Windows Sync Receiver qua Tailscale"""
     print("\n--- BƯỚC 2: BẮN THÔNG BÁO ĐỒNG BỘ VỀ MÁY WINDOWS ---")
     url = f"http://{WIN_TAILSCALE_IP}:{WIN_RECEIVER_PORT}/notify-sync"
+    token = load_sync_token()
+    if not token:
+        print(f"  ℹ️ Chưa có token đồng bộ ({SYNC_TOKEN_FILE}); bỏ qua thông báo sang Windows.")
+        return
     req_data = json.dumps({"source": "linux_auto_push", "timestamp": datetime.now(timezone.utc).isoformat()}).encode("utf-8")
     
     try:
@@ -880,7 +912,7 @@ def notify_windows_receiver():
             url, data=req_data,
             headers={
                 "Content-Type": "application/json",
-                "X-Sync-Token": SYNC_SECRET_TOKEN
+                "X-Sync-Token": token
             }
         )
         with urllib.request.urlopen(req, timeout=3) as resp:
