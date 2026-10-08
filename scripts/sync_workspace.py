@@ -266,19 +266,45 @@ def stream_tar_to_linux(source_dir, items_list, remote_target_dir):
 
 
 def stream_tar_from_linux(remote_source_dir, items_list, local_target_dir):
-    """Kéo file từ Linux về và giải nén trực tiếp trên local Windows"""
+    """Kéo file từ Linux về và giải nén an toàn trên local Windows (xử lý Windows file lock)"""
     if not items_list:
         return
+    import tempfile
+    staging_dir = Path(tempfile.gettempdir()) / "speakdrive_pull_staging"
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir, ignore_errors=True)
+    staging_dir.mkdir(parents=True, exist_ok=True)
+
     items_str = " ".join([f"'{item}'" for item in items_list])
     ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -czf - -C '{remote_source_dir}' {items_str}"]
-    tar_cmd = ["tar", "-xzf", "-", "-C", local_target_dir]
+    tar_cmd = ["tar", "-xzf", "-", "-C", str(staging_dir)]
     
     p1 = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE)
     p2 = subprocess.Popen(tar_cmd, stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     p1.stdout.close()
     out, err = p2.communicate()
-    if p2.returncode != 0:
-        raise RuntimeError(f"Lỗi giải nén từ Linux về local:\n{err.decode('utf-8', errors='replace')}")
+
+    # Chép từ staging sang local_target_dir, nhẹ nhàng bỏ qua các file đang bị khóa bởi tiến trình đang chạy
+    os.makedirs(local_target_dir, exist_ok=True)
+    for root, dirs, files in os.walk(staging_dir):
+        rel_path = os.path.relpath(root, staging_dir)
+        dest_dir = Path(local_target_dir) if rel_path == '.' else Path(local_target_dir) / rel_path
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for f in files:
+            src_f = Path(root) / f
+            dst_f = dest_dir / f
+            try:
+                shutil.copy2(src_f, dst_f)
+            except (PermissionError, OSError):
+                # File đang được mở / memory-mapped bởi chính phiên Antigravity hiện tại trên Windows
+                pass
+            except Exception as e:
+                print(f"   [Cảnh báo copy] {f}: {e}")
+
+    try:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+    except Exception:
+        pass
 
 
 # ==================== GIT CODE SYNC ====================
@@ -710,19 +736,21 @@ print("[Linux] Database & Protobuf cache updated successfully!")
 
 
 # ==================== PULL FROM LINUX (LINUX -> WINDOWS) ====================
-def sync_conversations_from_linux(since_hours=48, sync_all=False):
+def sync_conversations_from_linux(since_hours=None, sync_all=False):
     print("\n--- BƯỚC 2: ĐỒNG BỘ PHIÊN HỘI THOẠI & KÝ ỨC (LINUX -> WINDOWS) ---")
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=since_hours)).strftime("%Y-%m-%d %H:%M:%S")
+    cutoff = load_last_sync_cutoff(since_hours)
     
-    # Query candidate sessions from Linux SQLite
-    remote_query = f"""python3 -c "
+    # Query candidate sessions from Linux SQLite qua SSH stdin pipe
+    if sync_all:
+        query_sql = f"SELECT conversation_id, title, preview, step_count, last_modified_time, workspace_uris, status, source, project_id, agent_name, parent_conversation_id, nesting_depth, battle_id, winning_conversation_id, not_fully_idle, killed, last_user_input_time, last_user_input_step_index, app_data_dir, hex(raw_summary), group_id FROM conversation_summaries WHERE project_id = '{PROJECT_ID}' OR workspace_uris LIKE '%English%' ORDER BY last_modified_time DESC"
+    else:
+        query_sql = f"SELECT conversation_id, title, preview, step_count, last_modified_time, workspace_uris, status, source, project_id, agent_name, parent_conversation_id, nesting_depth, battle_id, winning_conversation_id, not_fully_idle, killed, last_user_input_time, last_user_input_step_index, app_data_dir, hex(raw_summary), group_id FROM conversation_summaries WHERE (project_id = '{PROJECT_ID}' OR workspace_uris LIKE '%English%') AND last_modified_time >= '{cutoff}' ORDER BY last_modified_time DESC"
+
+    remote_script = f"""
 import sqlite3, json
 conn = sqlite3.connect('/home/cic-ai/.gemini/antigravity/conversation_summaries.db')
 cur = conn.cursor()
-if {sync_all}:
-    cur.execute('SELECT conversation_id, title, preview, step_count, last_modified_time, workspace_uris, status, source, project_id, agent_name, parent_conversation_id, nesting_depth, battle_id, winning_conversation_id, not_fully_idle, killed, last_user_input_time, last_user_input_step_index, app_data_dir, hex(raw_summary), group_id FROM conversation_summaries WHERE project_id = ? OR workspace_uris LIKE ? ORDER BY last_modified_time DESC', ('{PROJECT_ID}', '%English%'))
-else:
-    cur.execute('SELECT conversation_id, title, preview, step_count, last_modified_time, workspace_uris, status, source, project_id, agent_name, parent_conversation_id, nesting_depth, battle_id, winning_conversation_id, not_fully_idle, killed, last_user_input_time, last_user_input_step_index, app_data_dir, hex(raw_summary), group_id FROM conversation_summaries WHERE (project_id = ? OR workspace_uris LIKE ?) AND last_modified_time >= ? ORDER BY last_modified_time DESC', ('{PROJECT_ID}', '%English%', '{cutoff}'))
+cur.execute('''{query_sql}''')
 rows = cur.fetchall()
 print(json.dumps([{{
     'cid': r[0], 'title': r[1], 'preview': r[2], 'step_count': r[3], 'last_modified': r[4],
@@ -732,12 +760,16 @@ print(json.dumps([{{
     'raw_summary_hex': r[19] or '', 'group_id': r[20]
 }} for r in rows]))
 conn.close()
-" """
-    res = run_cmd(f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"{remote_query}\"")
+"""
+    p = subprocess.run(
+        ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, "python3"],
+        input=remote_script, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding='utf-8', errors='replace', check=True
+    )
     try:
-        remote_rows = json.loads(res)
+        remote_rows = json.loads(p.stdout.strip())
     except Exception as e:
-        print(f"  [Lỗi] Không đọc được dữ liệu phiên từ Linux: {e}")
+        print(f"  [Lỗi] Không đọc được dữ liệu phiên từ Linux: {e}\nRaw output: {p.stdout}")
         return
 
     if not remote_rows:
