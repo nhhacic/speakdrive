@@ -410,7 +410,7 @@
     <string name="home_streak_freezes">%1$d 🧊</string>
     <string name="reminder_channel_name">Nhắc luyện tập</string>
     <string name="reminder_channel_description">Mỗi ngày một lần, chỉ khi bạn chưa luyện</string>
-    <string name="settings_group_memory">Ghi nhớ &amp; nhắc học</string>
+    <string name="settings_group_memory">Ghi nhớ, nhắc học &amp; offline</string>
     <string name="settings_remember_learner">AI ghi nhớ về bạn</string>
     <string name="settings_remember_learner_desc">Gia sư nhớ lỗi sai cũ và những điều bạn kể (công việc, sở thích, dự định) để bài học sát với bạn hơn. Chỉ lưu trên điện thoại này.</string>
     <string name="settings_open_memory">Xem AI đang nhớ gì</string>
@@ -424,7 +424,7 @@
     <string name="settings_reminder_permission_desc">SpeakDrive đang bị tắt thông báo nên chưa nhắc bạn được.</string>
     <string name="settings_streak_freeze">Bảo toàn chuỗi ngày học</string>
     <string name="settings_streak_freeze_desc">Cứ 7 ngày luyện liên tiếp được 1 lượt (giữ tối đa 2). Lỡ một ngày sẽ dùng 1 lượt thay vì mất chuỗi.</string>
-    <string name="settings_memory_voice_tip">Bằng giọng nói: \"tắt ghi nhớ\", \"nhắc tôi lúc 7 giờ sáng\", \"tắt nhắc học\", \"tắt bảo toàn chuỗi\".</string>
+    <string name="settings_memory_voice_tip">Bằng giọng nói: \"tắt ghi nhớ\", \"nhắc học lúc 7 giờ sáng\", \"tắt nhắc học\", \"tắt bảo toàn chuỗi\", \"tắt luyện offline\".</string>
     <string name="memory_title">AI đang nhớ gì về bạn</string>
     <string name="memory_privacy_note">Chỉ lưu trên điện thoại này và chỉ gửi cho AI như ghi chú của bài học. Bị xoá cùng toàn bộ dữ liệu.</string>
     <string name="memory_off_banner">Đang tắt ghi nhớ: AI sẽ không ghi nhớ thêm điều gì về bạn.</string>
@@ -438,4 +438,6 @@
     <string name="memory_mistake_made_times">Mắc %1$d lần</string>
     <string name="memory_start_review">Ôn lỗi sai ngay</string>
     <string name="memory_delete">Xoá</string>
+    <string name="settings_offline_practice">Luyện offline khi mất sóng</string>
+    <string name="settings_offline_practice_desc">Khi qua hầm hay đường đèo mất sóng, điện thoại tự cho bạn luyện nhắc lại câu, có sóng lại thì gia sư AI tiếp tục.</string>
 </resources>

@@ -1181,4 +1181,15 @@ class VoiceCommandParserTest {
         assertThat(VoiceCommandParser.parseStreakFreezeCommand("turn on streak freeze")).isTrue()
         assertThat(VoiceCommandParser.parseStreakFreezeCommand("My streak is long")).isNull()
     }
+
+    @Test
+    fun `offline practice can be turned on and off`() {
+        assertThat(VoiceCommandParser.parseOfflinePracticeCommand("tắt luyện offline")).isFalse()
+        assertThat(VoiceCommandParser.parseOfflinePracticeCommand("tat luyen offline")).isFalse()
+        assertThat(VoiceCommandParser.parseOfflinePracticeCommand("mất sóng thì đừng luyện")).isFalse()
+        assertThat(VoiceCommandParser.parseOfflinePracticeCommand("turn off offline practice")).isFalse()
+        assertThat(VoiceCommandParser.parseOfflinePracticeCommand("bật luyện offline")).isTrue()
+        assertThat(VoiceCommandParser.parseOfflinePracticeCommand("turn on offline practice")).isTrue()
+        assertThat(VoiceCommandParser.parseOfflinePracticeCommand("I practise offline sometimes")).isNull()
+    }
 }

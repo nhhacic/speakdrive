@@ -81,5 +81,6 @@ interface LearningSettings {
     suspend fun setRememberLearner(enabled: Boolean) {}
     suspend fun setPracticeReminder(enabled: Boolean, minuteOfDay: Int? = null) {}
     suspend fun setStreakFreeze(enabled: Boolean) {}
+    suspend fun setOfflinePractice(enabled: Boolean) {}
 }
 

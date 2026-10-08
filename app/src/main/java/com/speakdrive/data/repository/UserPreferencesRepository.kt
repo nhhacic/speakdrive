@@ -152,7 +152,8 @@ class UserPreferencesRepository @Inject constructor(
                 practiceReminderEnabled = prefs[PRACTICE_REMINDER_ENABLED] ?: true,
                 practiceReminderMinute = prefs[PRACTICE_REMINDER_MINUTE]
                     ?.takeIf { it in 0 until MINUTES_PER_DAY } ?: LearnerSettings.REMINDER_AUTO,
-                streakFreezeEnabled = prefs[STREAK_FREEZE_ENABLED] ?: true
+                streakFreezeEnabled = prefs[STREAK_FREEZE_ENABLED] ?: true,
+                offlinePracticeEnabled = prefs[OFFLINE_PRACTICE_ENABLED] ?: true
             ),
             dailyGoalMinutes = prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL,
             onboardingCompleted = prefs[ONBOARDING_COMPLETED] ?: false,
@@ -303,6 +304,10 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[STREAK_FREEZE_ENABLED] = enabled }
     }
 
+    override suspend fun setOfflinePractice(enabled: Boolean) {
+        dataStore.edit { it[OFFLINE_PRACTICE_ENABLED] = enabled }
+    }
+
     private companion object {
         val DIFFICULTY_LEVEL = stringPreferencesKey("difficulty_level")
         val VOICE_ID = stringPreferencesKey("voice_id")
@@ -334,6 +339,7 @@ class UserPreferencesRepository @Inject constructor(
         val PRACTICE_REMINDER_ENABLED = booleanPreferencesKey("practice_reminder_enabled")
         val PRACTICE_REMINDER_MINUTE = intPreferencesKey("practice_reminder_minute")
         val STREAK_FREEZE_ENABLED = booleanPreferencesKey("streak_freeze_enabled")
+        val OFFLINE_PRACTICE_ENABLED = booleanPreferencesKey("offline_practice_enabled")
         const val MINUTES_PER_DAY = 24 * 60
     }
 }

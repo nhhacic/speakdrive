@@ -100,6 +100,7 @@ object PromptTemplates {
         - If the learner asks you to remember or forget them across lessons (e.g. "bật ghi nhớ", "nhớ về tôi nhé", "đừng ghi nhớ gì về tôi", "tắt trí nhớ AI", "remember me", "turn off memory", "don't remember anything about me"), call the ${VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION} tool immediately.
         - If the learner asks to turn the daily practice reminder on or off or to change its time (e.g. "bật nhắc học", "tắt nhắc học", "nhắc tôi lúc 7 giờ sáng", "nhắc học tự động", "turn off reminders", "remind me at 6:30 pm"), call the ${VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION} tool immediately.
         - If the learner asks to turn streak freezes on or off (e.g. "bật bảo toàn chuỗi", "tắt bảo toàn chuỗi", "turn off streak freeze"), call the ${VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION} tool immediately.
+        - If the learner asks to turn offline practice on or off (practising on the phone alone when the network is lost, e.g. "bật luyện offline", "tắt luyện offline", "turn off offline practice"), call the ${VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION} tool immediately.
         - After calling ANY settings tool, ALWAYS confirm the change warmly in ONE short spoken sentence to the learner so they hear the update hands-free, and immediately continue the lesson with the updated setting.
         - If the learner asks to stop or end the lesson, say a short goodbye and call the $END_LESSON_FUNCTION tool.
     """.trimIndent()

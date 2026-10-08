@@ -49,6 +49,10 @@ import com.speakdrive.ai.summary.SummaryParser
 import com.speakdrive.ai.util.suspendRunCatching
 import com.speakdrive.ai.live.LiveToolHandler
 import com.speakdrive.ai.model.LearnerMemory
+import com.speakdrive.ai.offline.OfflineDrillCoach
+import com.speakdrive.ai.offline.OfflineDrillListener
+import com.speakdrive.audio.NoOfflineSpeech
+import com.speakdrive.audio.OfflineSpeech
 import com.speakdrive.ai.model.LevelAdjustmentDirection
 import com.speakdrive.ai.model.LevelRecommendation
 import com.speakdrive.audio.AudioFocus
@@ -58,6 +62,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -106,6 +111,7 @@ open class ConversationEngine @Inject constructor(
     private val storyRecommender: StoryRecommender,
     private val drillSentenceManager: DrillSentenceManager,
     private val sentenceTranslator: com.speakdrive.ai.translation.SentenceTranslator,
+    private val offlineSpeech: OfflineSpeech,
     @EngineDispatcher dispatcher: CoroutineDispatcher
 ) {
     /** Secondary constructor for tests without optional managers. */
@@ -120,7 +126,8 @@ open class ConversationEngine @Inject constructor(
         announcer: VoiceAnnouncer,
         micPermission: MicPermissionChecker,
         pronunciationAssessor: PronunciationAssessor,
-        dispatcher: CoroutineDispatcher
+        dispatcher: CoroutineDispatcher,
+        offlineSpeech: OfflineSpeech = NoOfflineSpeech
     ) : this(
         liveClient = liveClient,
         summaryGenerator = summaryGenerator,
@@ -135,6 +142,7 @@ open class ConversationEngine @Inject constructor(
         storyRecommender = StoryRecommender(topicManager),
         drillSentenceManager = DrillSentenceManager(),
         sentenceTranslator = com.speakdrive.ai.translation.SentenceTranslator(DrillSentenceManager()),
+        offlineSpeech = offlineSpeech,
         dispatcher = dispatcher
     )
 
@@ -162,6 +170,13 @@ open class ConversationEngine @Inject constructor(
     open val lesson: StateFlow<ActiveLesson?> = _lesson.asStateFlow()
 
     private val _transcript = MutableStateFlow(emptyList<TranscriptTurn>())
+
+    /** True while the phone runs the offline "repeat after me" practice because the network is gone. */
+    private val _offlinePractice = MutableStateFlow(false)
+    open val offlinePractice: StateFlow<Boolean> = _offlinePractice.asStateFlow()
+    private var offlineJob: Job? = null
+    private var offlineStartedAt = 0L
+    private var offlineEndedAt: Long? = null
     open val transcript: StateFlow<List<TranscriptTurn>> = _transcript.asStateFlow()
 
     /** Who is talking right now, for the mic animation. Null when nobody is. */
@@ -732,6 +747,7 @@ open class ConversationEngine @Inject constructor(
         VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION -> handleSetLearnerMemory(call)
         VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION -> handleSetPracticeReminder(call)
         VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION -> handleSetStreakFreeze(call)
+        VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION -> handleSetOfflinePractice(call)
         VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION -> handleSwitchSessionMode(call)
         else -> mapOf("status" to "unknown function")
     }
@@ -1149,6 +1165,34 @@ open class ConversationEngine @Inject constructor(
             "status" to "success",
             "streak_freeze" to enabled,
             "instruction" to "Streak freezes were turned ${if (enabled) "on" else "off"}. Confirm in one short sentence and continue the lesson."
+        )
+    }
+
+    private fun handleSetOfflinePractice(call: LiveToolCall): Map<String, Any> {
+        val enabledArg = call.args["enabled"]
+        val enabled = booleanArg(enabledArg) ?: return argumentError("enabled", enabledArg, "true, false")
+        return applyOfflinePracticeChange(enabled)
+    }
+
+    /** Turning it off while offline stops the practice; turning it on while offline starts it. */
+    internal fun applyOfflinePracticeChange(enabled: Boolean): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(offlinePracticeEnabled = enabled)
+        persist("offline practice") { settings.setOfflinePractice(enabled) }
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        announcer.announce(
+            if (isVi) {
+                if (enabled) "Đã bật luyện offline khi mất sóng." else "Đã tắt luyện offline khi mất sóng."
+            } else {
+                if (enabled) "Offline practice is on." else "Offline practice is off."
+            }
+        )
+        if (_state.value == ConversationState.WAITING_FOR_NETWORK) {
+            if (enabled) startOfflineDrillLocked() else stopOfflineDrillLocked()
+        }
+        return mapOf(
+            "status" to "success",
+            "offline_practice" to enabled,
+            "instruction" to "Offline practice was turned ${if (enabled) "on" else "off"}. Confirm in one short sentence and continue the lesson."
         )
     }
 
@@ -1764,6 +1808,7 @@ open class ConversationEngine @Inject constructor(
         val state = _state.value
         if (!state.isInLesson) return
         pauseReasons += reason
+        stopOfflineDrillLocked()
         // Keep the focus request after a transient loss so the system tells us when we may resume.
         if (reason != PauseReason.FOCUS_TRANSIENT) audioFocus.abandon()
         if (state != ConversationState.ACTIVE) return
@@ -1793,6 +1838,15 @@ open class ConversationEngine @Inject constructor(
     }
 
     private suspend fun resumeLocked(): Boolean {
+        if (_state.value == ConversationState.WAITING_FOR_NETWORK) {
+            if (!audioFocus.request()) {
+                _error.value = EngineError.AudioFocusDenied
+                return false
+            }
+            pauseReasons.clear()
+            startOfflineDrillLocked()
+            return true
+        }
         if (_state.value != ConversationState.PAUSED) return _state.value == ConversationState.ACTIVE
         val lesson = _lesson.value ?: return false
         pauseCloseJob?.cancel()
@@ -1907,7 +1961,93 @@ open class ConversationEngine @Inject constructor(
         setAiThinking(false)
         clearUtterance()
         _state.value = ConversationState.WAITING_FOR_NETWORK
-        announcer.announce(ANNOUNCE_OFFLINE)
+        if (!startOfflineDrillLocked()) announcer.announce(ANNOUNCE_OFFLINE)
+    }
+
+    /**
+     * Starts the offline practice while the lesson waits for the network. Returns false when it is
+     * turned off, paused, or already running. Call with the mutex held.
+     */
+    private fun startOfflineDrillLocked(): Boolean {
+        val lesson = _lesson.value ?: return false
+        if (offlineJob?.isActive == true) return true
+        if (!offlineSpeech.isAvailable || !learnerSettings.offlinePracticeEnabled || pauseReasons.isNotEmpty()) return false
+        if (_state.value != ConversationState.WAITING_FOR_NETWORK) return false
+        val sentences = offlineSentences(lesson)
+        if (sentences.isEmpty()) return false
+        val coach = OfflineDrillCoach(offlineSpeech, OfflineDrillEvents(lesson.sessionId)) { clock() }
+        val options = OfflineDrillCoach.Options(
+            level = lesson.level,
+            strictness = learnerSettings.pronunciationStrictness,
+            vietnamese = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        )
+        offlineStartedAt = clock()
+        offlineEndedAt = null
+        _offlinePractice.value = true
+        // Started only once assigned, so its first events already count as the current practice.
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            try {
+                coach.run(sentences, options)
+            } finally {
+                offlineEndedAt = clock()
+                offlineSpeech.release()
+            }
+        }
+        offlineJob = job
+        job.start()
+        Log.i(TAG, "Offline practice started with ${sentences.size} sentences")
+        return true
+    }
+
+    /** Stops the offline practice (network back, pause, end) and counts its time as practice. */
+    private fun stopOfflineDrillLocked() {
+        val job = offlineJob ?: return
+        offlineJob = null
+        job.cancel()
+        accumulatedActiveMs += ((offlineEndedAt ?: clock()) - offlineStartedAt).coerceAtLeast(0L)
+        _offlinePractice.value = false
+        // Outside a drill lesson the practice card belongs to the offline practice only.
+        if (_lesson.value?.mode != SessionMode.REPEAT_AFTER_ME) setDrillTarget(null)
+    }
+
+    /** Curated sentences for the lesson's level and topic; words the learner finds hard come first. */
+    private fun offlineSentences(lesson: ActiveLesson): List<String> {
+        val short = learnerSettings.drillSentenceLength == DrillSentenceLength.ALWAYS_SHORT ||
+            (learnerSettings.drillSentenceLength == DrillSentenceLength.AUTO_ON_CAR && _isCarConnected.value)
+        val pool = drillSentenceManager.getSentences(
+            category = learnerSettings.drillCategory,
+            level = lesson.level,
+            topicId = lesson.topic.id,
+            isShortOnly = short
+        ).map { it.text }.shuffled()
+        val weak = lesson.learnerMemory?.weakWords.orEmpty().toSet()
+        val ordered = pool.sortedByDescending { sentence -> TopicManager.normalize(sentence).split(' ').count { it in weak } }
+        // A drill lesson goes on with the sentence it was practising.
+        val current = _drillTarget.value?.takeIf { lesson.mode == SessionMode.REPEAT_AFTER_ME && it.isNotBlank() }
+        return listOfNotNull(current) + ordered.filter { it != current }
+    }
+
+    /** Connects the offline coach to this lesson; events of a lesson that has ended are dropped. */
+    private inner class OfflineDrillEvents(private val sessionId: String) : OfflineDrillListener {
+        private fun isCurrent() = _lesson.value?.sessionId == sessionId && offlineJob != null
+
+        override fun onTarget(target: String?) {
+            if (isCurrent()) setDrillTarget(target)
+        }
+
+        override fun onTurn(speaker: Speaker, text: String) {
+            if (!isCurrent()) return
+            _transcript.value = accumulator.append(speaker, text)
+            lastActivityAt = clock()
+        }
+
+        override fun onAttempt(attempt: PronunciationAttempt) {
+            if (isCurrent()) _pronunciationAttempts.value = _pronunciationAttempts.value + attempt
+        }
+
+        override fun onEndRequested() {
+            if (isCurrent()) scope.launch { end() }
+        }
     }
 
     private suspend fun endLocked(): String? {
@@ -1916,6 +2056,7 @@ open class ConversationEngine @Inject constructor(
             return null
         }
         stopActiveClock()
+        stopOfflineDrillLocked()
         _state.value = ConversationState.ENDING
         _activeSpeaker.value = null
         setAiThinking(false)
@@ -2365,6 +2506,14 @@ open class ConversationEngine @Inject constructor(
                     aiAnswering
                 )
             }
+            is VoiceCommand.SetOfflinePractice -> {
+                applyOfflinePracticeChange(command.enabled)
+                notifyModel(
+                    "System: The learner turned offline practice ${if (command.enabled) "on" else "off"}. " +
+                        "Confirm in one short sentence and continue.",
+                    aiAnswering
+                )
+            }
             is VoiceCommand.SetStreakFreeze -> {
                 applyStreakFreezeChange(command.enabled)
                 notifyModel(
@@ -2396,6 +2545,7 @@ open class ConversationEngine @Inject constructor(
                         // Only a pause caused by the call / prompt itself ends here; the learner's own
                         // pause or an auto-pause in the background stays.
                         if (_state.value == ConversationState.PAUSED && pauseReasons.isEmpty()) resumeLocked()
+                        if (_state.value == ConversationState.WAITING_FOR_NETWORK && pauseReasons.isEmpty()) startOfflineDrillLocked()
                     }
                 }
                 AudioFocusState.NONE -> Unit
@@ -2409,6 +2559,7 @@ open class ConversationEngine @Inject constructor(
             if (!online && (state == ConversationState.ACTIVE || state == ConversationState.RECONNECTING)) {
                 goOffline()
             } else if (online && state == ConversationState.WAITING_FOR_NETWORK) {
+                stopOfflineDrillLocked()
                 requestReconnectLocked()
             }
         }

@@ -42,6 +42,7 @@ class VoiceSettingsToolsTest {
             VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION,
             VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION,
             VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION,
+            VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION,
             VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION
         )
     }
@@ -535,7 +536,8 @@ class VoiceSettingsToolsTest {
         listOf(
             VoiceSettingsTools.setLearnerMemoryTool to listOf("tắt ghi nhớ", "turn off memory"),
             VoiceSettingsTools.setPracticeReminderTool to listOf("nhắc tôi lúc 7 giờ sáng", "turn off reminders"),
-            VoiceSettingsTools.setStreakFreezeTool to listOf("tắt bảo toàn chuỗi", "turn off streak freeze")
+            VoiceSettingsTools.setStreakFreezeTool to listOf("tắt bảo toàn chuỗi", "turn off streak freeze"),
+            VoiceSettingsTools.setOfflinePracticeTool to listOf("tắt luyện offline", "turn off offline practice")
         ).forEach { (tool, examples) ->
             examples.forEach { assertThat(tool.description).contains(it) }
         }

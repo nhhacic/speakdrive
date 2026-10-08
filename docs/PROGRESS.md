@@ -81,6 +81,19 @@ Ký hiệu:
 | F11 | Offline mode | ➖ Live API bắt buộc có mạng. App hiện báo bằng giọng nói và tự tiếp tục khi có mạng lại |
 | F12 | Giao diện tiếng Việt, giải thích bằng tiếng Việt | ✅ (giải thích tiếng Việt bật/tắt trong Cài đặt) |
 
+## Nâng cấp 08/10/2026 (v1.3.1)
+
+| Tính năng | Trạng thái |
+|---|---|
+| Sửa gợi ý lộ trình cấp độ: dùng số lỗi thật của từng buổi | ✅ test `ProgressTrendTest`, `LevelEvaluatorTest` |
+| AI nhớ người học (lỗi hay mắc, từ khó, điều người học kể), bật/tắt bằng giọng nói, màn "AI đang nhớ gì" | ✅ test engine, prompt, repository; 🧪 hành vi thật của model |
+| Chế độ Ôn lỗi sai (`MISTAKE_REVIEW`): điện thoại, Android Auto, "Hey Google, play review my mistakes" | ✅ test; 🧪 trên DHU |
+| Room v6: bảng `mistakes`, `learner_facts`; migration 5→6 chuyển lỗi cũ thành lỗi cần ôn | ✅ `MigrationTest` |
+| Nhắc luyện tập hằng ngày (WorkManager), giờ tự động theo thói quen hoặc tự chọn | ✅ test logic; 🧪 thông báo thật trên máy |
+| Bảo toàn chuỗi ngày học (streak freeze) | ✅ `LearningMathTest` |
+| Luyện offline khi mất sóng: TTS + nhận dạng giọng nói trên máy, tự quay lại AI khi có sóng | ✅ test coach và engine; 🧪 **cần thử trên máy thật**: máy phải có gói nhận dạng tiếng Anh offline (Cài đặt → Google → Giọng nói → Nhận dạng giọng nói ngoại tuyến). Không có thì app chuyển sang nghe và nói theo, không chấm điểm |
+| Điều khiển bằng giọng nói cho mọi setting mới (tool Gemini, parser dự phòng, bộ nhận dạng lệnh) | ✅ test tiếng Việt và tiếng Anh |
+
 ## Thay đổi so với kế hoạch gốc
 
 - **Audio**: không tự viết `MicrophoneRecorder`/`AudioPlayer` nữa mà dùng audio pipeline của Firebase SDK.

@@ -44,6 +44,7 @@ object VoiceSettingsTools {
     const val SET_LEARNER_MEMORY_FUNCTION = "set_learner_memory"
     const val SET_PRACTICE_REMINDER_FUNCTION = "set_practice_reminder"
     const val SET_STREAK_FREEZE_FUNCTION = "set_streak_freeze"
+    const val SET_OFFLINE_PRACTICE_FUNCTION = "set_offline_practice"
 
     val switchSessionModeTool = LiveTool(
         name = SWITCH_SESSION_MODE_FUNCTION,
@@ -103,6 +104,20 @@ object VoiceSettingsTools {
                 name = "enabled",
                 type = LiveToolParam.Type.BOOLEAN,
                 description = "True to use streak freezes, false to turn them off."
+            )
+        )
+    )
+
+    val setOfflinePracticeTool = LiveTool(
+        name = SET_OFFLINE_PRACTICE_FUNCTION,
+        description = "Turns offline practice on or off: when the network is lost during a lesson, the phone keeps a repeat-after-me practice going on its own until the connection is back. " +
+            "Call it when requested by the learner in Vietnamese or English " +
+            "(e.g. \"bật luyện offline\", \"tắt luyện offline\", \"mất sóng thì đừng luyện\", \"turn on offline practice\", \"turn off offline practice\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "enabled",
+                type = LiveToolParam.Type.BOOLEAN,
+                description = "True to practise offline when the network is lost, false to just wait quietly."
             )
         )
     )
@@ -427,6 +442,7 @@ object VoiceSettingsTools {
         setLearnerMemoryTool,
         setPracticeReminderTool,
         setStreakFreezeTool,
+        setOfflinePracticeTool,
         switchSessionModeTool
     )
 

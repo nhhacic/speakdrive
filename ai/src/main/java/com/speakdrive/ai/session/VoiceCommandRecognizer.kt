@@ -19,7 +19,7 @@ enum class CommandCategory {
     SESSION_MODE, LEVEL, VIETNAMESE_HELP, APP_LANGUAGE, STORY_STYLE, STRICTNESS, BARGE_IN, RANDOM_VOICE,
     VOICE, STORY_DURATION, MULTI_VOICE, STORY_NAVIGATION, DRILL_NAVIGATION, DRILL_LENGTH, DRILL_CATEGORY,
     LEVEL_RECOMMENDATION, ADAPTIVE_LEVEL, VOLUME, AUTO_PAUSE, SUBTITLES, LEARNER_MEMORY,
-    PRACTICE_REMINDER, STREAK_FREEZE;
+    PRACTICE_REMINDER, STREAK_FREEZE, OFFLINE_PRACTICE;
 
     companion object {
         /** The category a Gemini Live tool works on, so the fallback never applies the same change twice. */
@@ -50,6 +50,7 @@ enum class CommandCategory {
             VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION -> LEARNER_MEMORY
             VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION -> PRACTICE_REMINDER
             VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION -> STREAK_FREEZE
+            VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION -> OFFLINE_PRACTICE
             else -> null
         }
     }
@@ -137,6 +138,9 @@ sealed interface VoiceCommand {
     }
     data class SetStreakFreeze(val enabled: Boolean) : VoiceCommand {
         override val category get() = CommandCategory.STREAK_FREEZE
+    }
+    data class SetOfflinePractice(val enabled: Boolean) : VoiceCommand {
+        override val category get() = CommandCategory.OFFLINE_PRACTICE
     }
 }
 
@@ -273,6 +277,9 @@ object VoiceCommandRecognizer {
         }
         VoiceCommandParser.parseStreakFreezeCommand(text)?.let { enabled ->
             if (enabled != s.streakFreezeEnabled && lenient) return VoiceCommand.SetStreakFreeze(enabled)
+        }
+        VoiceCommandParser.parseOfflinePracticeCommand(text)?.let { enabled ->
+            if (enabled != s.offlinePracticeEnabled && lenient) return VoiceCommand.SetOfflinePractice(enabled)
         }
         return null
     }

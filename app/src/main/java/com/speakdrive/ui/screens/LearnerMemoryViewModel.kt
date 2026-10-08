@@ -26,6 +26,7 @@ data class LearnerMemoryUiState(
     /** When an automatic reminder would fire, from the learner's practice habit. */
     val autoReminderMinute: Int = ReminderPlanner.DEFAULT_MINUTE,
     val streakFreezeEnabled: Boolean = true,
+    val offlinePracticeEnabled: Boolean = true,
     val canNotify: Boolean = true,
     val facts: List<LearnerFactEntity> = emptyList(),
     val mistakes: List<MistakeEntity> = emptyList()
@@ -54,6 +55,7 @@ class LearnerMemoryViewModel @Inject constructor(
             reminderMinute = learner.practiceReminderMinute,
             autoReminderMinute = reminder.reminderMinute(learner.copy(practiceReminderMinute = LearnerSettings.REMINDER_AUTO)),
             streakFreezeEnabled = learner.streakFreezeEnabled,
+            offlinePracticeEnabled = learner.offlinePracticeEnabled,
             canNotify = notify,
             facts = facts,
             mistakes = mistakes
@@ -73,6 +75,8 @@ class LearnerMemoryViewModel @Inject constructor(
     fun setReminderTime(minuteOfDay: Int) = viewModelScope.launch { preferences.setPracticeReminder(true, minuteOfDay) }
 
     fun setStreakFreeze(enabled: Boolean) = viewModelScope.launch { preferences.setStreakFreeze(enabled) }
+
+    fun setOfflinePractice(enabled: Boolean) = viewModelScope.launch { preferences.setOfflinePractice(enabled) }
 
     fun deleteFact(id: Long) = viewModelScope.launch { sessions.deleteLearnerFact(id) }
 

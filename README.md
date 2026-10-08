@@ -17,6 +17,13 @@ Gia sư AI dùng **Gemini Live API** để hội thoại bằng giọng nói the
   đến từng âm; sai thì phải nói lại, AI không được khen khi chưa đạt
 - 📝 **Tóm tắt sau buổi học**: điểm trôi chảy, ngữ pháp, từ vựng; danh sách lỗi sai; từ mới
 - 🔁 **Ôn từ vựng theo lặp lại ngắt quãng** (1, 3, 7, 14, 30, 60 ngày) bằng giọng nói
+- 🧠 **AI nhớ bạn qua các buổi**: lỗi hay mắc, từ khó phát âm và những điều bạn kể (công việc, sở thích...)
+  được dùng tự nhiên ở buổi sau; xem và xoá từng mục trong "AI đang nhớ gì", tắt được bằng giọng nói
+- 🩹 **Ôn lỗi sai**: AI đọc lại câu bạn từng nói sai, bạn sửa rồi đặt câu mới cùng mẫu; lịch ôn ngắt quãng riêng
+- 📡 **Luyện offline khi mất sóng**: qua hầm, đường đèo thì điện thoại tự cho luyện nhắc lại câu (TTS và nhận
+  dạng giọng nói trên máy), có sóng lại thì gia sư AI tiếp tục
+- 🔔 **Nhắc luyện tập hằng ngày** đúng giờ bạn hay luyện (chỉ khi hôm đó chưa luyện) và **bảo toàn chuỗi**
+  (7 ngày liên tiếp được 1 lượt, giữ tối đa 2)
 - 📊 **Tiến trình**: streak, mục tiêu phút mỗi ngày, biểu đồ 7 ngày, lịch sử từng buổi
 - 🔒 Không cần tài khoản, dữ liệu học lưu trên máy, có nút xoá toàn bộ dữ liệu
 

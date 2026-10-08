@@ -603,7 +603,9 @@ data class LearnerSettings(
     /** Minutes after midnight for the reminder, or [REMINDER_AUTO] to follow the learner's usual practice time. */
     val practiceReminderMinute: Int = REMINDER_AUTO,
     /** A missed day uses an earned streak freeze instead of breaking the streak. */
-    val streakFreezeEnabled: Boolean = true
+    val streakFreezeEnabled: Boolean = true,
+    /** Keep practising "repeat after me" on the phone alone while the network is gone. */
+    val offlinePracticeEnabled: Boolean = true
 ) {
     companion object {
         const val REMINDER_AUTO = -1

@@ -271,6 +271,10 @@ class FakeSettings(settings: LearnerSettings = LearnerSettings()) : LearningSett
     override suspend fun setStreakFreeze(enabled: Boolean) {
         settings = settings.copy(streakFreezeEnabled = enabled)
     }
+
+    override suspend fun setOfflinePractice(enabled: Boolean) {
+        settings = settings.copy(offlinePracticeEnabled = enabled)
+    }
 }
 
 class FakeAudioFocus : AudioFocus {
@@ -317,4 +321,35 @@ class FakeAnnouncer : VoiceAnnouncer {
     }
 
     override fun shutdown() = Unit
+}
+
+/** Scripted offline speech: [answer] queues what the learner "says"; listening waits until there is one. */
+class FakeOfflineSpeech : com.speakdrive.audio.OfflineSpeech {
+    var available = false
+    var listenWorks = true
+    val spoken = mutableListOf<String>()
+    private val answers = kotlinx.coroutines.channels.Channel<com.speakdrive.audio.ListenResult>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+    var listens = 0
+    var releases = 0
+
+    fun answer(result: com.speakdrive.audio.ListenResult) {
+        answers.trySend(result)
+    }
+
+    override val isAvailable: Boolean get() = available
+
+    override suspend fun speak(text: String, vietnamese: Boolean) {
+        spoken += text
+    }
+
+    override suspend fun canListen() = listenWorks
+
+    override suspend fun listen(timeoutMs: Long): com.speakdrive.audio.ListenResult {
+        listens++
+        return answers.receive()
+    }
+
+    override fun release() {
+        releases++
+    }
 }

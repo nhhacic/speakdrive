@@ -158,4 +158,11 @@ class VoiceCommandRecognizerTest {
             assertWithMessage(sentence).that(recognize(sentence)).isNull()
         }
     }
+
+    @Test
+    fun `offline practice toggle is recognised`() {
+        assertThat(recognize("tắt luyện offline")).isEqualTo(VoiceCommand.SetOfflinePractice(false))
+        assertThat(recognize("turn off offline practice")).isEqualTo(VoiceCommand.SetOfflinePractice(false))
+        assertThat(recognize("bật luyện offline")).isNull()
+    }
 }

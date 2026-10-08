@@ -1,9 +1,11 @@
 package com.speakdrive.audio.di
 
+import com.speakdrive.audio.AndroidOfflineSpeech
 import com.speakdrive.audio.AudioFocus
 import com.speakdrive.audio.AudioFocusHandler
 import com.speakdrive.audio.LiveAudio
 import com.speakdrive.audio.LiveAudioIO
+import com.speakdrive.audio.OfflineSpeech
 import com.speakdrive.audio.TextToSpeechAnnouncer
 import com.speakdrive.audio.VoiceAnnouncer
 import dagger.Binds
@@ -22,4 +24,7 @@ abstract class AudioModule {
 
     @Binds
     abstract fun bindLiveAudio(impl: LiveAudioIO): LiveAudio
+
+    @Binds
+    abstract fun bindOfflineSpeech(impl: AndroidOfflineSpeech): OfflineSpeech
 }

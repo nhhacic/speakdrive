@@ -1,5 +1,7 @@
 package com.speakdrive.ai
 
+import com.speakdrive.audio.ListenResult
+import com.speakdrive.ai.offline.OfflineDrillCoach
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.live.LiveEvent
 import com.speakdrive.ai.live.LiveToolCall
@@ -52,6 +54,7 @@ class ConversationEngineTest {
     private val connectivity = FakeConnectivity()
     private val announcer = FakeAnnouncer()
     private val assessor = FakeAssessor()
+    private val offline = FakeOfflineSpeech()
     private var micGranted = true
     private var engine: ConversationEngine? = null
     private val uncaughtErrors = mutableListOf<Throwable>()
@@ -68,7 +71,8 @@ class ConversationEngineTest {
             announcer = announcer,
             micPermission = MicPermissionChecker { micGranted },
             pronunciationAssessor = assessor,
-            dispatcher = StandardTestDispatcher(testScheduler)
+            dispatcher = StandardTestDispatcher(testScheduler),
+            offlineSpeech = offline
         )
         created.clock = { testScheduler.currentTime }
         created.onUncaughtError = { uncaughtErrors += it }
@@ -2123,6 +2127,144 @@ class ConversationEngineTest {
         runCurrent()
 
         assertThat(engine.lesson.value?.mode).isEqualTo(SessionMode.MISTAKE_REVIEW)
+    }
+
+    // endregion
+
+    // region Offline practice
+
+    @Test
+    fun `losing the network starts offline practice and the AI takes over again when it is back`(): TestResult = engineTest {
+        offline.available = true
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+
+        connectivity.online.value = false
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.WAITING_FOR_NETWORK)
+        assertThat(engine.offlinePractice.value).isTrue()
+        assertThat(announcer.announcements.none { it.contains("Connection lost") }).isTrue()
+        assertThat(offline.spoken.first()).isEqualTo(OfflineDrillCoach.INTRO_VI)
+        assertThat(engine.drillTarget.value).isNotNull()
+        assertThat(engine.transcript.value.last().text).startsWith("Repeat after me:")
+
+        connectivity.online.value = true
+        runCurrent()
+
+        assertThat(engine.offlinePractice.value).isFalse()
+        assertThat(offline.releases).isEqualTo(1)
+        assertThat(engine.drillTarget.value).isNull()
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+        assertThat(live.connects).hasSize(2)
+        // The AI hears what was practised offline.
+        assertThat(live.connects.last().systemInstruction).contains("Repeat after me:")
+    }
+
+    @Test
+    fun `offline attempts are kept with the lesson and their time counts`(): TestResult = engineTest {
+        offline.available = true
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        connectivity.online.value = false
+        runCurrent()
+        val target = engine.drillTarget.value!!
+
+        offline.answer(ListenResult.Heard(target))
+        runCurrent()
+        advanceTimeBy(60_000)
+        engine.end()
+        runCurrent()
+
+        assertThat(engine.pronunciationAttempts.value.single().passed).isTrue()
+        val saved = store.saved.last()
+        assertThat(saved.pronunciationAttempts.single().modelNotes).isEqualTo(OfflineDrillCoach.OFFLINE_NOTE)
+        assertThat(saved.transcript.map { it.text }).contains(target)
+        assertThat(saved.activeDurationMs).isAtLeast(60_000L)
+        assertThat(offline.releases).isEqualTo(1)
+    }
+
+    @Test
+    fun `saying stop during offline practice ends the lesson`(): TestResult = engineTest {
+        offline.available = true
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        connectivity.online.value = false
+        runCurrent()
+
+        offline.answer(ListenResult.Heard("dừng lại"))
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.ENDED)
+        assertThat(engine.offlinePractice.value).isFalse()
+        assertThat(store.saved).isNotEmpty()
+    }
+
+    @Test
+    fun `with offline practice turned off the lesson just waits for the network`(): TestResult = engineTest {
+        offline.available = true
+        settings.settings = settings.settings.copy(offlinePracticeEnabled = false)
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+
+        connectivity.online.value = false
+        runCurrent()
+
+        assertThat(engine.offlinePractice.value).isFalse()
+        assertThat(offline.spoken).isEmpty()
+        assertThat(announcer.announcements.last()).contains("Connection lost")
+    }
+
+    @Test
+    fun `pausing while offline stops the practice and resuming starts it again`(): TestResult = engineTest {
+        offline.available = true
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        connectivity.online.value = false
+        runCurrent()
+
+        engine.pause()
+        runCurrent()
+        assertThat(engine.offlinePractice.value).isFalse()
+        assertThat(engine.state.value).isEqualTo(ConversationState.WAITING_FOR_NETWORK)
+
+        assertThat(engine.resume()).isTrue()
+        runCurrent()
+        assertThat(engine.offlinePractice.value).isTrue()
+    }
+
+    @Test
+    fun `a phone call while offline stops the practice until the call ends`(): TestResult = engineTest {
+        offline.available = true
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        connectivity.online.value = false
+        runCurrent()
+
+        focus.state.value = AudioFocusState.LOSS_TRANSIENT
+        runCurrent()
+        assertThat(engine.offlinePractice.value).isFalse()
+
+        focus.state.value = AudioFocusState.GAIN
+        runCurrent()
+        assertThat(engine.offlinePractice.value).isTrue()
+    }
+
+    @Test
+    fun `offline practice can be turned off by voice and by the tool`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+
+        sayCommand("tắt luyện offline")
+        assertThat(settings.settings.offlinePracticeEnabled).isFalse()
+        assertThat(announcer.announced.last()).contains("luyện offline")
+
+        advanceTimeBy(10_000)
+        live.connects.single().toolHandler!!.handle(
+            LiveToolCall(VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION, mapOf("enabled" to true))
+        )
+        runCurrent()
+        assertThat(settings.settings.offlinePracticeEnabled).isTrue()
     }
 
     // endregion

@@ -63,6 +63,7 @@ fun MemorySettingsGroup(
         onSetReminderEnabled = viewModel::setReminderEnabled,
         onSetReminderTime = viewModel::setReminderTime,
         onSetStreakFreeze = viewModel::setStreakFreeze,
+        onSetOfflinePractice = viewModel::setOfflinePractice,
         onNotificationStateChanged = viewModel::refreshNotificationState
     )
 }
@@ -76,6 +77,7 @@ fun MemorySettingsContent(
     onSetReminderEnabled: (Boolean) -> Unit,
     onSetReminderTime: (Int) -> Unit,
     onSetStreakFreeze: (Boolean) -> Unit,
+    onSetOfflinePractice: (Boolean) -> Unit = {},
     onNotificationStateChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -169,6 +171,15 @@ fun MemorySettingsContent(
             headlineContent = { Text(stringResource(R.string.settings_streak_freeze)) },
             supportingContent = { Text(stringResource(R.string.settings_streak_freeze_desc)) },
             trailingContent = { Switch(checked = state.streakFreezeEnabled, onCheckedChange = onSetStreakFreeze) },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.settings_offline_practice)) },
+            supportingContent = { Text(stringResource(R.string.settings_offline_practice_desc)) },
+            trailingContent = { Switch(checked = state.offlinePracticeEnabled, onCheckedChange = onSetOfflinePractice) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
         Text(

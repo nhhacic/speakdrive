@@ -918,6 +918,27 @@ object VoiceCommandParser {
         return hour * 60 + minute
     }
 
+    /** "Bật/tắt luyện offline", "mất sóng thì đừng luyện", "turn on/off offline practice". */
+    fun parseOfflinePracticeCommand(text: String): Boolean? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return null
+        if (containsAny(q, OFF_OFFLINE_PRACTICE_PHRASES)) return false
+        if (containsAny(q, ON_OFFLINE_PRACTICE_PHRASES)) return true
+        return null
+    }
+
+    private val ON_OFFLINE_PRACTICE_PHRASES = listOf(
+        "bat luyen offline", "bat che do offline", "bat luyen khi mat song", "bat luyen khi mat mang",
+        "mat song thi luyen tiep", "mat mang thi luyen tiep", "turn on offline practice", "enable offline practice",
+        "offline practice on"
+    )
+
+    private val OFF_OFFLINE_PRACTICE_PHRASES = listOf(
+        "tat luyen offline", "tat che do offline", "tat luyen khi mat song", "tat luyen khi mat mang",
+        "mat song thi dung luyen", "mat mang thi dung luyen", "mat song thi thoi", "turn off offline practice",
+        "disable offline practice", "offline practice off"
+    )
+
     /** "Bật/tắt bảo toàn chuỗi", "turn on/off streak freeze". */
     fun parseStreakFreezeCommand(text: String): Boolean? {
         val q = TopicManager.normalize(text)

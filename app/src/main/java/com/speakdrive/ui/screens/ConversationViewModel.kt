@@ -85,18 +85,19 @@ class ConversationViewModel @Inject constructor(
         combine(engine.lesson, engine.state, engine.transcript, ::Triple),
         combine(engine.activeSpeaker, engine.error, engine.isAiThinking, ::Triple),
         combine(
-            combine(engine.drillTarget, engine.drillTargetTranslation, ::Pair),
+            combine(engine.drillTarget, engine.drillTargetTranslation, engine.offlinePractice, ::Triple),
             engine.pronunciationAttempts,
             ::Pair
         ),
         combine(engine.isCarConnected, preferencesRepository.observeLearnerSettings().map { Pair(it.allowBargeIn, it.aiVolume) }, ::Pair),
         ticker
     ) { (lesson, state, transcript), (speaker, error, isThinking), (drillData, attempts), (isCarConnected, settingsPair), _ ->
-        val (target, translation) = drillData
+        val (target, translation, offlinePractice) = drillData
         val bySentence = attempts.groupBy { PronunciationDrill.key(it.target) }
         val currentTarget = target ?: attempts.lastOrNull()?.target
         ConversationUiState(
-            drill = if (lesson?.mode == SessionMode.REPEAT_AFTER_ME) {
+            // Offline practice shows the sentence card in any mode.
+            drill = if (lesson?.mode == SessionMode.REPEAT_AFTER_ME || offlinePractice) {
                 DrillUiState(
                     target = currentTarget,
                     translation = translation,
