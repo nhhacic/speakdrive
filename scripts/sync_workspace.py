@@ -251,8 +251,7 @@ def stream_tar_to_linux(source_dir, items_list, remote_target_dir):
         f.write("\n".join(items_list) + "\n")
     
     tar_archive = temp_dir / "transfer_batch.tar.gz"
-    force_local = "--force-local " if platform.system() == "Windows" else ""
-    run_cmd(f"tar {force_local}-czf \"{tar_archive}\" -C \"{source_dir}\" -T \"{temp_list}\"", check=True)
+    run_cmd(f"tar -czf \"{tar_archive}\" -C \"{source_dir}\" -T \"{temp_list}\"", check=True)
     
     with open(tar_archive, "rb") as f:
         ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -xzf - -C '{remote_target_dir}'"]
