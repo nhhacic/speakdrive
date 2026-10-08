@@ -15,6 +15,9 @@ SpeakDrive / English Speaking App - Multi-Machine Workspace Synchronizer
 import os
 import sys
 
+# Prevent recursive hooks
+os.environ["SPEAKDRIVE_SYNCING"] = "1"
+
 # Ensure UTF-8 output on all platforms
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -270,7 +273,7 @@ def sync_code_git(direction):
         if status:
             print("  [Thông báo] Phát hiện file chưa commit, tự động commit đồng bộ...")
             run_cmd("git add -A", cwd=WIN_PROJECT_DIR)
-            run_cmd('git commit -m "Auto-sync: update from Windows workspace"', cwd=WIN_PROJECT_DIR)
+            run_cmd('git commit --no-verify -m "Auto-sync: update from Windows workspace"', cwd=WIN_PROJECT_DIR)
         
         print("  Đẩy code lên GitHub...")
         run_cmd(f"git push origin {branch}", cwd=WIN_PROJECT_DIR)
@@ -285,7 +288,7 @@ def sync_code_git(direction):
         status = run_cmd("git status --porcelain", cwd=LINUX_PROJECT_DIR)
         if status:
             run_cmd("git add -A", cwd=LINUX_PROJECT_DIR)
-            run_cmd('git commit -m "Auto-sync: update from Linux workspace"', cwd=LINUX_PROJECT_DIR)
+            run_cmd('git commit --no-verify -m "Auto-sync: update from Linux workspace"', cwd=LINUX_PROJECT_DIR)
         run_cmd(f"git push origin {branch}", cwd=LINUX_PROJECT_DIR)
         print("  ✅ Mã nguồn Git đã được đẩy lên GitHub từ Linux!")
 
