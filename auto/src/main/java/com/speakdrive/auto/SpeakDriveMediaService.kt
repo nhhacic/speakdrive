@@ -235,7 +235,7 @@ class SpeakDriveMediaService : MediaLibraryService() {
                 .setEnabled(true)
                 .build()
 
-            return MediaSession.ConnectionResult.AcceptedResultBuilder()
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(sessionCommands)
                 .setCustomLayout(ImmutableList.of(repeatButton, nextButton))
                 .build()

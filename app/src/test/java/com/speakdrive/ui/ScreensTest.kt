@@ -179,6 +179,33 @@ class ScreensTest {
     }
 
     @Test
+    fun `drill card handles initial state with null target and null attempt without crashing`() {
+        val lesson = ActiveLesson("s", topics.getTopicById("travel")!!, null, DifficultyLevel.BEGINNER, SessionMode.REPEAT_AFTER_ME, 0, emptyList())
+        compose.setContent {
+            SpeakDriveTheme {
+                ConversationContent(
+                    state = ConversationUiState(
+                        lesson = lesson,
+                        state = ConversationState.CONNECTING,
+                        micState = MicState.BUSY,
+                        drill = DrillUiState(target = null, lastAttempt = null, passedSentences = 0, sentences = 0)
+                    ),
+                    permissionDenied = false,
+                    onBack = {},
+                    onEnd = {},
+                    onToggle = {},
+                    onRetry = {},
+                    onRequestPermission = {},
+                    onOpenAppSettings = {}
+                )
+            }
+        }
+
+        // Must display the initial hint without crashing
+        compose.onNodeWithText("Nhắc lại theo AI").assertIsDisplayed()
+        compose.onNodeWithText("AI sắp đọc câu đầu tiên…").assertIsDisplayed()
+    }
+
     fun `drill card shows azure scores and weak sounds`() {
         val azure = AzureAssessment(
             pronunciationScore = 62, accuracyScore = 58, fluencyScore = 90, completenessScore = 100, recognizedText = "",

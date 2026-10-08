@@ -143,7 +143,13 @@ class ConversationViewModel @Inject constructor(
         startRequested = true
         trackedLessonId = null
         engine.clearError()
-        viewModelScope.launch { playback.play(mediaId) }
+        viewModelScope.launch {
+            try {
+                playback.play(mediaId)
+            } catch (e: Exception) {
+                android.util.Log.e("ConversationViewModel", "Failed to start lesson via playback: $mediaId", e)
+            }
+        }
     }
 
     fun retry(mediaId: String?) {

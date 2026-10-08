@@ -158,8 +158,23 @@ class GeminiLiveManager @Inject constructor(
                     config.tools.filter { it.name == PronunciationDrill.CHECK_ATTEMPT_FUNCTION }.map(::toDeclaration)
                 usedDeclarations = coreTools
                 toolsActive = false
-                connectWithTimeout(config, coreTools).also {
-                    Log.i(TAG, "Fallback connection succeeded with core tools (${coreTools.size}); settings tools are off")
+                try {
+                    connectWithTimeout(config, coreTools).also {
+                        Log.i(TAG, "Fallback connection succeeded with core tools (${coreTools.size}); settings tools are off")
+                    }
+                } catch (e2: CancellationException) {
+                    throw e2
+                } catch (e2: Exception) {
+                    if (isToolSchemaRejection(e2)) {
+                        Log.w(TAG, "Core tools also rejected, retrying with minimal end_lesson tool only...", e2)
+                        usedDeclarations = listOf(endLessonDeclaration)
+                        connectWithTimeout(config, listOf(endLessonDeclaration)).also {
+                            Log.i(TAG, "Fallback connection succeeded with minimal end_lesson tool")
+                        }
+                    } else {
+                        Log.e(TAG, "Fallback with core tools failed", e2)
+                        throw e2
+                    }
                 }
             } else {
                 Log.e(TAG, "Live connection failed", e)

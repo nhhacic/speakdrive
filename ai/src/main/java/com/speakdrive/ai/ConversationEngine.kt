@@ -1552,11 +1552,17 @@ open class ConversationEngine @Inject constructor(
 
         return withContext(engineDispatcher) {
             if (_lesson.value?.sessionId != sessionId) return@withContext STALE_TOOL_RESPONSE
+            val rawProblemWords = call.args["problem_words"]
+            val parsedProblemWords = when (rawProblemWords) {
+                is List<*> -> rawProblemWords.mapNotNull { it?.toString()?.trim() }.filter { it.isNotBlank() }
+                is String -> rawProblemWords.split(',', ';').map { it.trim().trim('"', '\'') }.filter { it.isNotBlank() }
+                else -> emptyList()
+            }
             val attempt = PronunciationGrader.grade(
                 target = input.target,
                 heard = call.learnerUtterance,
                 modelSaidCorrect = (call.args["verdict"] as? String)?.trim()?.equals("correct", ignoreCase = true) == true,
-                modelProblemWords = (call.args["problem_words"] as? List<*>)?.mapNotNull { it?.toString() }.orEmpty(),
+                modelProblemWords = parsedProblemWords,
                 modelNotes = call.args["problem_notes"] as? String ?: "",
                 attemptNumber = input.attemptNumber,
                 timestamp = clock(),

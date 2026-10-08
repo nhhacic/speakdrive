@@ -43,6 +43,27 @@ class VoiceSettingsToolsTest {
     }
 
     @Test
+    fun `checkAttemptTool can be converted to FunctionDeclaration with string parameters`() {
+        val tool = com.speakdrive.ai.pronunciation.PronunciationDrill.checkAttemptTool
+        val decl = com.google.firebase.ai.type.FunctionDeclaration(
+            name = tool.name,
+            description = tool.description,
+            parameters = tool.parameters.associate { param ->
+                param.name to when (param.type) {
+                    com.speakdrive.ai.live.LiveToolParam.Type.STRING -> com.google.firebase.ai.type.Schema.string(description = param.description)
+                    com.speakdrive.ai.live.LiveToolParam.Type.BOOLEAN -> com.google.firebase.ai.type.Schema.boolean(description = param.description)
+                    com.speakdrive.ai.live.LiveToolParam.Type.STRING_LIST -> com.google.firebase.ai.type.Schema.array(com.google.firebase.ai.type.Schema.string(), description = param.description)
+                }
+            },
+            optionalParameters = tool.parameters.filter { it.optional }.map { it.name }
+        )
+        assertThat(decl).isNotNull()
+        // Confirm problem_words parameter is now primitive STRING for Live API compatibility
+        val problemWordsParam = tool.parameters.first { it.name == "problem_words" }
+        assertThat(problemWordsParam.type).isEqualTo(com.speakdrive.ai.live.LiveToolParam.Type.STRING)
+    }
+
+    @Test
     fun `parseAutoPauseWhenUnfocused resolves boolean and string inputs`() {
         // Boolean inputs
         assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused(true)).isTrue()

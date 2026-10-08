@@ -25,8 +25,8 @@ object PronunciationDrill {
             ),
             LiveToolParam(
                 "problem_words",
-                LiveToolParam.Type.STRING_LIST,
-                "List of exact target words from target_sentence that were mispronounced, missing, changed or unclear. Always list the target words as spelled in target_sentence. Empty only if the verdict is correct.",
+                LiveToolParam.Type.STRING,
+                "Comma-separated list of exact target words from target_sentence that were mispronounced, missing, changed or unclear (e.g. \"word1, word2\"). Always list the target words as spelled in target_sentence. Empty only if the verdict is correct.",
                 optional = true
             ),
             LiveToolParam(
