@@ -218,7 +218,11 @@ def is_project_entry(entry):
 # ==================== SYNC WORKFLOW ====================
 def run_cmd(cmd, check=True, cwd=None):
     print(f"  [RUN] {cmd}")
-    res = subprocess.run(cmd, shell=True, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    res = subprocess.run(
+        cmd, shell=True, cwd=cwd,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding='utf-8', errors='replace'
+    )
     if check and res.returncode != 0:
         raise RuntimeError(f"Command failed (exit {res.returncode}):\n{res.stderr}")
     return res.stdout.strip()
