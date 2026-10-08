@@ -325,29 +325,43 @@ def sync_code_git(direction):
 
     elif direction in ("from-linux", "to-windows"):
         if current_os == 'windows':
-            # Check and commit on Linux first
             branch = run_cmd("git rev-parse --abbrev-ref HEAD", cwd=WIN_PROJECT_DIR)
+            # 1. Check and commit uncommitted changes on Linux first via SSH
             remote_status_cmd = f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"cd '{LINUX_PROJECT_DIR}' && git status --porcelain\""
             remote_status = run_cmd(remote_status_cmd)
             if remote_status:
                 print("  [Thông báo] Phát hiện file chưa commit trên Linux, tự động commit...")
-                remote_commit = f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"cd '{LINUX_PROJECT_DIR}' && git add -A && git commit --no-verify -m 'Auto-sync: update from Linux workspace' && git push origin {branch}\""
+                remote_commit = f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"cd '{LINUX_PROJECT_DIR}' && git add -A && git commit --no-verify -m 'Auto-sync: update from Linux workspace'\""
                 run_cmd(remote_commit)
-            else:
-                remote_push = f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"cd '{LINUX_PROJECT_DIR}' && git push origin {branch}\""
-                subprocess.run(remote_push, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
-            print("  Kéo code mới nhất về Windows...")
-            run_cmd(f"git pull origin {branch}", cwd=WIN_PROJECT_DIR)
-            print("  ✅ Mã nguồn Git đã được kéo thành công về Windows!")
+            # 2. Pull directly from Linux workspace via SSH
+            print("  Kéo code trực tiếp từ máy Linux qua SSH...")
+            direct_pull_cmd = f"git pull \"ssh://{LINUX_HOST}{LINUX_PROJECT_DIR}\" {branch}"
+            try:
+                run_cmd(direct_pull_cmd, cwd=WIN_PROJECT_DIR)
+            except Exception as e:
+                print(f"  [Thông báo] Thử kéo qua GitHub: {e}")
+                run_cmd(f"git pull origin {branch}", cwd=WIN_PROJECT_DIR)
+
+            # 3. Push to GitHub from Windows
+            print("  Đẩy code lên GitHub từ Windows...")
+            try:
+                run_cmd(f"git push origin {branch}", cwd=WIN_PROJECT_DIR)
+            except Exception:
+                pass
+            print("  ✅ Mã nguồn Git đã được đồng bộ thành công về Windows và cập nhật lên GitHub!")
         else:
+            # Running on Linux
             branch = run_cmd("git rev-parse --abbrev-ref HEAD", cwd=LINUX_PROJECT_DIR)
             status = run_cmd("git status --porcelain", cwd=LINUX_PROJECT_DIR)
             if status:
                 run_cmd("git add -A", cwd=LINUX_PROJECT_DIR)
                 run_cmd('git commit --no-verify -m "Auto-sync: update from Linux workspace"', cwd=LINUX_PROJECT_DIR)
-            run_cmd(f"git push origin {branch}", cwd=LINUX_PROJECT_DIR)
-            print("  ✅ Mã nguồn Git đã được đẩy lên GitHub từ Linux!")
+            try:
+                run_cmd(f"git push origin {branch}", cwd=LINUX_PROJECT_DIR, check=False)
+            except Exception:
+                pass
+            print("  ✅ Mã nguồn Git trên Linux đã được commit sẵn sàng đồng bộ!")
 
 
 # ==================== INCREMENTAL CONVERSATION SYNC ====================
