@@ -119,11 +119,11 @@ class VocabularyViewModelTest {
         repository.observeAllWords().first { it.isNotEmpty() }
         advanceUntilIdle()
 
+        // Room delivers table changes on its own executor, so the view model may see a write a
+        // moment after the repository does: wait for the filtered list instead of reading it once.
         // Brand new word is in learning stage
         viewModel.setFilter(VocabFilter.LEARNING)
-        advanceUntilIdle()
-        assertThat(viewModel.words.value).isNotNull()
-        assertThat(viewModel.words.value).hasSize(1)
+        assertThat(viewModel.words.first { it?.size == 1 }).hasSize(1)
 
         // Reset review schedule to make it due
         viewModel.resetReview(wordId)
@@ -131,9 +131,7 @@ class VocabularyViewModelTest {
         advanceUntilIdle()
 
         viewModel.setFilter(VocabFilter.DUE)
-        advanceUntilIdle()
-        assertThat(viewModel.words.value).isNotNull()
-        assertThat(viewModel.words.value).hasSize(1)
+        assertThat(viewModel.words.first { it?.size == 1 }).hasSize(1)
 
         // Mark it mastered (reviewCount = 5, scheduled far future)
         viewModel.markMastered(wordId)
@@ -141,14 +139,10 @@ class VocabularyViewModelTest {
         advanceUntilIdle()
 
         viewModel.setFilter(VocabFilter.MASTERED)
-        advanceUntilIdle()
-        assertThat(viewModel.words.value).isNotNull()
-        assertThat(viewModel.words.value).hasSize(1)
+        assertThat(viewModel.words.first { it?.size == 1 }).hasSize(1)
 
         viewModel.setFilter(VocabFilter.DUE)
-        advanceUntilIdle()
-        assertThat(viewModel.words.value).isNotNull()
-        assertThat(viewModel.words.value).isEmpty()
+        assertThat(viewModel.words.first { it != null && it.isEmpty() }).isEmpty()
     }
 
     @Test

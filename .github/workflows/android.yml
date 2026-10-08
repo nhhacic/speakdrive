@@ -5,21 +5,27 @@ on:
     branches: [main, "feature/**"]
   pull_request:
 
+# Auto-sync pushes arrive in bursts; only the newest commit of a branch needs a full run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
 
       - name: Unit, Robolectric and UI tests
+        timeout-minutes: 25
         run: ./gradlew testDebugUnitTest --stacktrace
 
       - name: Lint
@@ -30,7 +36,7 @@ jobs:
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: reports
           path: |

@@ -16,3 +16,7 @@ keystore.properties
 *.log
 *.apk
 *.exe
+
+# Python
+__pycache__/
+*.pyc

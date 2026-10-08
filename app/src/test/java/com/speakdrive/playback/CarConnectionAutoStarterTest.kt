@@ -144,7 +144,9 @@ class CarConnectionAutoStarterTest {
         announcer = DummyAnnouncer(),
         micPermission = MicPermissionChecker { true },
         pronunciationAssessor = DummyPronunciationAssessor(),
-        dispatcher = testDispatcher
+        // The engine's own coroutines (settings collector, watchdogs) must not share the scheduler the
+        // test advances: advanceUntilIdle() would otherwise spin forever on the engine's periodic loops.
+        dispatcher = StandardTestDispatcher()
     ) {
         var resumeCalled: Boolean = false
         override val state: StateFlow<ConversationState> = engineStateFlow

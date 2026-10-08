@@ -229,7 +229,8 @@ class EnglishUiTest {
             }
         }
 
-        compose.onNodeWithText("Barge-in: On").assertIsDisplayed().performClick()
+        // The barge-in control is an icon toggle; its state is announced through the content description.
+        compose.onNodeWithContentDescription("Barge-in: On").assertIsDisplayed().performClick()
         assertThat(toggled).isTrue()
     }
 }
