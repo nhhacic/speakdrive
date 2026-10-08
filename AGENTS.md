@@ -35,5 +35,11 @@ Mỗi khi hoàn thành phiên làm việc có tạo hoặc build file APK (`:app
   `https://github.com/nhhacic/speakdrive/releases/download/<tag>/<filename>`  
   để người dùng bấm vào là tải file APK về điện thoại ngay lập tức (không có quảng cáo, tốc độ cao qua CDN GitHub, không bị chặn bởi nhà mạng Việt Nam).
 - Tuyệt đối không dùng các dịch vụ chia sẻ file có quảng cáo, đếm ngược hoặc dễ bị nhà mạng Việt Nam chặn.
-
-
+## 4. Bắt buộc: Tự động đồng bộ hóa Code & Phiên làm việc sang máy đối tác (Multi-Machine Sync)
+Dự án SpeakDrive được phát triển song song trên cả 2 máy tính (Máy Windows và máy trạm Linux DGX qua Tailscale).
+Để đảm bảo hai máy luôn có dữ liệu đồng nhất:
+- **Tự động chạy sau mỗi nhiệm vụ**: Sau khi hoàn thành bất kỳ tính năng, sửa lỗi hoặc thay đổi nào (đặc biệt là sau khi commit code), AI agent **BẮT BUỘC PHẢI TỰ ĐỘNG CHẠY SCRIPT ĐỒNG BỘ**:
+  `python scripts/sync_workspace.py --direction to-linux` (nếu đang ở Windows) hoặc
+  `python3 scripts/sync_workspace.py --direction to-windows` (nếu đang ở Linux).
+- **Phạm vi đồng bộ**: Tự động push/pull Git code, đồng bộ toàn bộ file phiên hội thoại (`conversations/`), thư mục não bộ (`brain/`), cập nhật cơ sở dữ liệu `conversation_summaries.db` và tái tạo cache Protobuf `agyhub_summaries_proto.pb`.
+- **Thông báo cho người dùng**: Trong phản hồi cuối cùng, luôn xác nhận rõ ràng tình trạng đồng bộ hóa giữa hai máy.
