@@ -48,6 +48,7 @@ import com.speakdrive.ai.summary.SummaryGenerator
 import com.speakdrive.ai.summary.SummaryParser
 import com.speakdrive.ai.util.suspendRunCatching
 import com.speakdrive.ai.live.LiveToolHandler
+import com.speakdrive.ai.model.LearnerMemory
 import com.speakdrive.ai.model.LevelAdjustmentDirection
 import com.speakdrive.ai.model.LevelRecommendation
 import com.speakdrive.audio.AudioFocus
@@ -600,8 +601,20 @@ open class ConversationEngine @Inject constructor(
         } else {
             emptyList()
         }
+        val reviewMistakes = if (request.mode == SessionMode.MISTAKE_REVIEW) {
+            val due = suspendRunCatching { sessionStore.mistakesDueForReview(MAX_REVIEW_MISTAKES) }.getOrDefault(emptyList())
+            due.ifEmpty { suspendRunCatching { sessionStore.recentMistakes(MAX_REVIEW_MISTAKES) }.getOrDefault(emptyList()) }
+        } else {
+            emptyList()
+        }
+        val learnerMemory = if (prefs.rememberLearner) {
+            suspendRunCatching { sessionStore.learnerMemory() }.getOrDefault(LearnerMemory.EMPTY)
+        } else {
+            null
+        }
         val mode = when {
             request.mode == SessionMode.VOCAB_REVIEW && reviewWords.isEmpty() -> SessionMode.FREE_TALK
+            request.mode == SessionMode.MISTAKE_REVIEW && reviewMistakes.isEmpty() -> SessionMode.FREE_TALK
             request.mode == SessionMode.ROLEPLAY && scenarioMatch == null && topic.scenarios.isEmpty() -> SessionMode.FREE_TALK
             else -> request.mode
         }
@@ -625,7 +638,9 @@ open class ConversationEngine @Inject constructor(
             reviewWords = reviewWords,
             voiceId = chosenVoice,
             resumeStoryContext = request.resumeStoryContext,
-            resumeStoryTitle = request.resumeStoryTitle
+            resumeStoryTitle = request.resumeStoryTitle,
+            reviewMistakes = if (mode == SessionMode.MISTAKE_REVIEW) reviewMistakes else emptyList(),
+            learnerMemory = learnerMemory
         )
     }
 
@@ -714,6 +729,9 @@ open class ConversationEngine @Inject constructor(
         VoiceSettingsTools.SET_AI_VOLUME_FUNCTION -> handleSetAiVolume(call)
         VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION -> handleSetAutoPauseWhenUnfocused(call)
         VoiceSettingsTools.SET_TRANSLATION_SUBTITLES_FUNCTION -> handleSetTranslationSubtitles(call)
+        VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION -> handleSetLearnerMemory(call)
+        VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION -> handleSetPracticeReminder(call)
+        VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION -> handleSetStreakFreeze(call)
         VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION -> handleSwitchSessionMode(call)
         else -> mapOf("status" to "unknown function")
     }
@@ -753,6 +771,7 @@ open class ConversationEngine @Inject constructor(
                 SessionMode.STORY_LISTENING -> if (isVi) "Bạn đang ở chế độ nghe kể chuyện rồi." else "You are already in story listening mode."
                 SessionMode.ROLEPLAY -> if (isVi) "Bạn đang ở chế độ nhập vai rồi." else "You are already in roleplay mode."
                 SessionMode.VOCAB_REVIEW -> if (isVi) "Bạn đang ở chế độ ôn tập từ vựng rồi." else "You are already in vocabulary review mode."
+                SessionMode.MISTAKE_REVIEW -> if (isVi) "Bạn đang ở chế độ ôn lỗi sai rồi." else "You are already in mistake review mode."
             }
             announcer.announce(alreadyMsg)
             return mapOf("status" to "already_active", "mode" to newMode.name)
@@ -764,6 +783,7 @@ open class ConversationEngine @Inject constructor(
             SessionMode.STORY_LISTENING -> if (isVi) "Đã chuyển sang chế độ luyện nghe kể chuyện." else "Switched to story listening mode."
             SessionMode.ROLEPLAY -> if (isVi) "Đã chuyển sang chế độ nhập vai." else "Switched to roleplay mode."
             SessionMode.VOCAB_REVIEW -> if (isVi) "Đã chuyển sang chế độ ôn tập từ vựng." else "Switched to vocabulary review mode."
+            SessionMode.MISTAKE_REVIEW -> if (isVi) "Đã chuyển sang chế độ ôn lỗi sai." else "Switched to mistake review mode."
         }
         announcer.announce(confirmationMsg)
 
@@ -1026,6 +1046,109 @@ open class ConversationEngine @Inject constructor(
             "translation_subtitles" to enabled,
             "instruction" to "Translation subtitles have been ${if (enabled) "enabled" else "disabled"}. " +
                 "Confirm warmly in one short sentence (e.g. \"${if (enabled) "Translation subtitles enabled!" else "Subtitles hidden, challenge mode on!"}\") and continue."
+        )
+    }
+
+    private fun handleSetLearnerMemory(call: LiveToolCall): Map<String, Any> {
+        val enabledArg = call.args["enabled"]
+        val parsed = VoiceSettingsTools.parseLearnerMemory(enabledArg)
+            ?: return argumentError("enabled", enabledArg, "true, false")
+        return applyLearnerMemoryChange(parsed)
+    }
+
+    /**
+     * Turns the AI's memory of the learner on or off. Off takes effect at once: the current lesson stops
+     * collecting personal facts. Already stored notes are kept until the learner deletes them in the app.
+     */
+    internal fun applyLearnerMemoryChange(enabled: Boolean): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(rememberLearner = enabled)
+        persist("learner memory") { settings.setRememberLearner(enabled) }
+        Log.i(TAG, "Switched rememberLearner to $enabled")
+        _lesson.value?.let { current ->
+            _lesson.value = current.copy(learnerMemory = if (enabled) current.learnerMemory ?: LearnerMemory.EMPTY else null)
+        }
+
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val confirmation = if (isVi) {
+            if (enabled) "Đã bật ghi nhớ. Từ buổi sau, gia sư sẽ nhớ lỗi sai và những điều bạn kể."
+            else "Đã tắt ghi nhớ. Gia sư sẽ không ghi nhớ thêm gì về bạn."
+        } else {
+            if (enabled) "Memory is on. From the next lesson your tutor will remember your mistakes and what you share."
+            else "Memory is off. Your tutor will not remember anything new about you."
+        }
+        announcer.announce(confirmation)
+
+        return mapOf(
+            "status" to "success",
+            "remember_learner" to enabled,
+            "instruction" to if (enabled) {
+                "Memory has been turned on. Confirm warmly in one short sentence and continue."
+            } else {
+                "Memory has been turned off. Confirm in one short sentence, do not mention any personal details about the learner " +
+                    "for the rest of this lesson, and continue."
+            }
+        )
+    }
+
+    private fun handleSetPracticeReminder(call: LiveToolCall): Map<String, Any> {
+        val enabledArg = call.args["enabled"]
+        val timeArg = call.args["time"]
+        val minute = VoiceSettingsTools.parseReminderTime(timeArg)
+        if (timeArg != null && timeArg.toString().isNotBlank() && minute == null) {
+            return argumentError("time", timeArg, "HH:MM in 24-hour time, or auto")
+        }
+        // A time without "enabled" means the learner wants the reminder at that time.
+        val enabled = booleanArg(enabledArg) ?: if (minute != null) true else return argumentError("enabled", enabledArg, "true, false")
+        return applyPracticeReminderChange(enabled, minute)
+    }
+
+    /** Turns the daily reminder on or off or moves it; the app reschedules it when the setting changes. */
+    internal fun applyPracticeReminderChange(enabled: Boolean, minuteOfDay: Int?): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(
+            practiceReminderEnabled = enabled,
+            practiceReminderMinute = minuteOfDay ?: learnerSettings.practiceReminderMinute
+        )
+        persist("practice reminder") { settings.setPracticeReminder(enabled, minuteOfDay) }
+        Log.i(TAG, "Practice reminder enabled=$enabled minute=$minuteOfDay")
+
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val time = learnerSettings.practiceReminderMinute
+            .takeIf { it != LearnerSettings.REMINDER_AUTO }
+            ?.let { "%d:%02d".format(it / 60, it % 60) }
+        val confirmation = when {
+            !enabled -> if (isVi) "Đã tắt nhắc luyện tập hằng ngày." else "Daily practice reminders are off."
+            time != null -> if (isVi) "Đã đặt nhắc luyện tập lúc $time mỗi ngày." else "Daily practice reminder set for $time."
+            else -> if (isVi) "Đã bật nhắc luyện tập, tự động theo giờ bạn hay luyện." else "Daily practice reminder on, timed to when you usually practise."
+        }
+        announcer.announce(confirmation)
+        return mapOf(
+            "status" to "success",
+            "reminder_enabled" to enabled,
+            "reminder_time" to (time ?: if (enabled) "auto" else "off"),
+            "instruction" to "The practice reminder setting was updated. Confirm in one short sentence and continue the lesson."
+        )
+    }
+
+    private fun handleSetStreakFreeze(call: LiveToolCall): Map<String, Any> {
+        val enabledArg = call.args["enabled"]
+        val enabled = booleanArg(enabledArg) ?: return argumentError("enabled", enabledArg, "true, false")
+        return applyStreakFreezeChange(enabled)
+    }
+
+    internal fun applyStreakFreezeChange(enabled: Boolean): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(streakFreezeEnabled = enabled)
+        persist("streak freeze") { settings.setStreakFreeze(enabled) }
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val confirmation = if (isVi) {
+            if (enabled) "Đã bật bảo toàn chuỗi ngày học." else "Đã tắt bảo toàn chuỗi ngày học."
+        } else {
+            if (enabled) "Streak freezes are on." else "Streak freezes are off."
+        }
+        announcer.announce(confirmation)
+        return mapOf(
+            "status" to "success",
+            "streak_freeze" to enabled,
+            "instruction" to "Streak freezes were turned ${if (enabled) "on" else "off"}. Confirm in one short sentence and continue the lesson."
         )
     }
 
@@ -1854,8 +1977,15 @@ open class ConversationEngine @Inject constructor(
             // A story counts as finished only when the AI actually told its ending (end marker), not
             // when someone happened to say "the end" or "moral".
             val completedStatus = if (lesson.mode == SessionMode.STORY_LISTENING) storyCompleted else true
-            sessionStore.saveSession(draft.copy(summary = graded, isCompleted = completedStatus))
+            val reviewedIds = lesson.reviewMistakes.mapTo(mutableSetOf()) { it.id }
+            val stored = graded.copy(
+                // The learner may have turned memory off during the lesson.
+                learnerFacts = if (lesson.learnerMemory != null && learnerSettings.rememberLearner) graded.learnerFacts else emptyList(),
+                mistakeResults = graded.mistakeResults.filter { it.mistakeId in reviewedIds }.distinctBy { it.mistakeId }
+            )
+            sessionStore.saveSession(draft.copy(summary = stored, isCompleted = completedStatus))
             if (lesson.mode == SessionMode.VOCAB_REVIEW) sessionStore.markWordsReviewed(draft.reviewedWords)
+            if (stored.mistakeResults.isNotEmpty()) sessionStore.recordMistakeReviews(stored.mistakeResults)
             graded.levelRecommendation
                 ?.takeIf { it.direction != LevelAdjustmentDirection.KEEP && learnerSettings.adaptiveLevelRecommendation }
                 ?.let { pendingLevelRecommendation = it }
@@ -2214,6 +2344,35 @@ open class ConversationEngine @Inject constructor(
             is VoiceCommand.SetAdaptiveLevel -> applyAdaptiveLevelChange(command.enabled)
             is VoiceCommand.SetVolume -> applyAiVolume(command.volume)
             is VoiceCommand.SetAutoPause -> applyAutoPauseWhenUnfocusedChange(command.enabled)
+            is VoiceCommand.SetLearnerMemory -> {
+                val enabled = command.enabled
+                applyLearnerMemoryChange(enabled)
+                notifyModel(
+                    if (enabled) {
+                        "System: The learner turned memory on. Confirm warmly in one short sentence and continue."
+                    } else {
+                        "System: The learner turned memory off. Confirm in one short sentence, do not mention any personal details " +
+                            "about the learner for the rest of this lesson, and continue."
+                    },
+                    aiAnswering
+                )
+            }
+            is VoiceCommand.SetPracticeReminder -> {
+                applyPracticeReminderChange(command.enabled, command.minuteOfDay)
+                notifyModel(
+                    "System: The learner changed the daily practice reminder. It is already confirmed by the app; " +
+                        "just say one short friendly sentence and continue.",
+                    aiAnswering
+                )
+            }
+            is VoiceCommand.SetStreakFreeze -> {
+                applyStreakFreezeChange(command.enabled)
+                notifyModel(
+                    "System: The learner turned streak freezes ${if (command.enabled) "on" else "off"}. " +
+                        "Confirm in one short sentence and continue.",
+                    aiAnswering
+                )
+            }
             is VoiceCommand.SetSubtitles -> {
                 val enabled = command.enabled
                 applyTranslationSubtitlesChange(enabled)
@@ -2334,6 +2493,7 @@ open class ConversationEngine @Inject constructor(
 
         const val RECENT_TOPICS_FOR_SUGGESTION = 3
         const val MAX_REVIEW_WORDS = 8
+        const val MAX_REVIEW_MISTAKES = 5
         const val MAX_RECONNECT_ATTEMPTS = 3
         const val RECONNECT_BACKOFF_MS = 1_500L
         const val GO_AWAY_WAIT_MS = 40_000L

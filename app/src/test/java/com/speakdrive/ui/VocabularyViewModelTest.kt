@@ -58,7 +58,7 @@ class VocabularyViewModelTest {
             ApplicationProvider.getApplicationContext(),
             AppDatabase::class.java
         ).allowMainThreadQueries().build()
-        repository = SessionRepository(db.sessionDao(), db.wordDao()).also { it.clock = { now } }
+        repository = SessionRepository(db.sessionDao(), db.wordDao(), db.memoryDao()).also { it.clock = { now } }
         viewModel = VocabularyViewModel(repository, announcer, evaluator).also { it.clock = { now } }
     }
 

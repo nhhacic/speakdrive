@@ -49,11 +49,14 @@ class MediaContentProviderTest {
     }
 
     @Test
-    fun `home tab offers resume, stories, random, pronunciation, review and the level picker`() = runTest {
+    fun `home tab offers resume, stories, random, pronunciation, reviews and the level picker`() = runTest {
         val home = provider.children(MediaIds.HOME)
 
         assertThat(home.map { it.mediaId })
-            .containsExactly(MediaIds.RESUME, MediaIds.STORY_RECOMMENDED, MediaIds.RANDOM, MediaIds.PRONUNCIATION, MediaIds.REVIEW, MediaIds.LEVELS)
+            .containsExactly(
+                MediaIds.RESUME, MediaIds.STORY_RECOMMENDED, MediaIds.RANDOM, MediaIds.PRONUNCIATION, MediaIds.REVIEW,
+                MediaIds.MISTAKES, MediaIds.LEVELS
+            )
             .inOrder()
         assertThat(home.dropLast(1).all { it.mediaMetadata.isPlayable == true }).isTrue()
         assertThat(home.last().mediaMetadata.isBrowsable).isTrue()

@@ -101,10 +101,15 @@ class FakeSummaryGenerator : SummaryGenerator {
     var fail = false
     var calls = 0
     var nextRecommendation: com.speakdrive.ai.model.LevelRecommendation? = null
+    var learnerFacts = listOf<String>()
+    var mistakeResults = listOf<com.speakdrive.ai.model.MistakeReviewResult>()
+    var lastLesson: ActiveLesson? = null
     val summary: SessionSummary
         get() = SessionSummary(
             7, 6, 8, emptyList(), emptyList(), "Tốt lắm", "Luyện thêm thì quá khứ",
-            levelRecommendation = nextRecommendation
+            levelRecommendation = nextRecommendation,
+            learnerFacts = learnerFacts,
+            mistakeResults = mistakeResults
         )
 
     override suspend fun summarize(
@@ -113,6 +118,7 @@ class FakeSummaryGenerator : SummaryGenerator {
         attempts: List<PronunciationAttempt>
     ): SessionSummary {
         calls++
+        lastLesson = lesson
         if (fail) error("network down")
         return summary
     }
@@ -141,6 +147,26 @@ class FakeSessionStore : SessionStore {
     }
     override suspend fun markWordsReviewed(words: List<String>) {
         reviewed += words
+    }
+
+    var dueMistakes = listOf<com.speakdrive.ai.model.ReviewMistake>()
+    var recentMistakeList = listOf<com.speakdrive.ai.model.ReviewMistake>()
+    val mistakeReviews = mutableListOf<List<com.speakdrive.ai.model.MistakeReviewResult>>()
+    var memory = com.speakdrive.ai.model.LearnerMemory.EMPTY
+    var memoryReads = 0
+
+    override suspend fun mistakesDueForReview(limit: Int) = dueMistakes.take(limit)
+
+    override suspend fun recentMistakes(limit: Int) = recentMistakeList.take(limit)
+
+    override suspend fun recordMistakeReviews(results: List<com.speakdrive.ai.model.MistakeReviewResult>) {
+        mistakeReviews += results
+    }
+
+    override suspend fun learnerMemory(): com.speakdrive.ai.model.LearnerMemory {
+        memoryReads++
+        if (failReads) error("database unavailable")
+        return memory
     }
 }
 
@@ -229,6 +255,21 @@ class FakeSettings(settings: LearnerSettings = LearnerSettings()) : LearningSett
 
     override suspend fun setShowTranslationSubtitle(enabled: Boolean) {
         settings = settings.copy(showTranslationSubtitle = enabled)
+    }
+
+    override suspend fun setRememberLearner(enabled: Boolean) {
+        settings = settings.copy(rememberLearner = enabled)
+    }
+
+    override suspend fun setPracticeReminder(enabled: Boolean, minuteOfDay: Int?) {
+        settings = settings.copy(
+            practiceReminderEnabled = enabled,
+            practiceReminderMinute = minuteOfDay ?: settings.practiceReminderMinute
+        )
+    }
+
+    override suspend fun setStreakFreeze(enabled: Boolean) {
+        settings = settings.copy(streakFreezeEnabled = enabled)
     }
 }
 

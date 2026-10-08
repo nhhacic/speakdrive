@@ -94,8 +94,14 @@ interface SessionDao {
     @Query("SELECT startedAt FROM sessions ORDER BY startedAt DESC")
     fun observeSessionStartTimes(): Flow<List<Long>>
 
+    @Query("SELECT startedAt FROM sessions WHERE startedAt >= :since ORDER BY startedAt DESC")
+    suspend fun sessionStartTimesSince(since: Long): List<Long>
+
     @Query("SELECT topicId, COUNT(*) AS count FROM sessions WHERE isCompleted = 1 GROUP BY topicId")
     fun observeTopicCounts(): Flow<List<TopicCount>>
+
+    @Query("SELECT sessionId, COUNT(*) AS count FROM corrections GROUP BY sessionId")
+    fun observeCorrectionCounts(): Flow<List<SessionCorrectionCount>>
 
     @Query("SELECT COUNT(*) FROM sessions WHERE isCompleted = 1")
     fun observeCompletedCount(): Flow<Int>
@@ -111,3 +117,5 @@ interface SessionDao {
 data class PracticeEntry(val startedAt: Long, val activeDurationMs: Long)
 
 data class TopicCount(val topicId: String, val count: Int)
+
+data class SessionCorrectionCount(val sessionId: String, val count: Int)

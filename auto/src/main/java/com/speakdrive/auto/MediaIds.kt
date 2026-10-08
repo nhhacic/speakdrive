@@ -7,7 +7,7 @@ import com.speakdrive.ai.model.DifficultyLevel
  *
  * ```
  * root
- * ├── home      Bắt đầu       → resume, random, pronunciation, review
+ * ├── home      Bắt đầu       → resume, random, pronunciation, review, mistakes
  * ├── topics    Chủ đề         → topic:<id>
  * ├── roleplay  Nhập vai       → roleplay_topic:<id> → scenario:<id>
  * └── levels    Độ khó         → level:<LEVEL>
@@ -24,6 +24,9 @@ object MediaIds {
     const val RESUME = "resume"
     const val RANDOM = "random"
     const val REVIEW = "review"
+
+    /** Mistake review: the learner's own earlier mistakes, said correctly this time. */
+    const val MISTAKES = "mistakes"
 
     /** Repeat-after-me drill on the last topic; [pronunciation] targets a specific topic. */
     const val PRONUNCIATION = "pronunciation"
@@ -72,6 +75,7 @@ object MediaIds {
         mediaId == RESUME -> MediaTarget.Resume
         mediaId == RANDOM -> MediaTarget.Random
         mediaId == REVIEW -> MediaTarget.Review
+        mediaId == MISTAKES -> MediaTarget.Mistakes
         mediaId.startsWith(VOCAB_PREFIX) -> {
             val rest = mediaId.removePrefix(VOCAB_PREFIX)
             when {
@@ -115,6 +119,7 @@ sealed interface MediaTarget {
     data object Resume : MediaTarget
     data object Random : MediaTarget
     data object Review : MediaTarget
+    data object Mistakes : MediaTarget
     data class Vocab(val word: String?, val mode: String?) : MediaTarget
     data object StoryRecommended : MediaTarget
     data object StoryResume : MediaTarget

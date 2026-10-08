@@ -376,7 +376,10 @@ enum class SessionMode {
     REPEAT_AFTER_ME,
 
     /** The AI narrates engaging short stories for listening comprehension. */
-    STORY_LISTENING
+    STORY_LISTENING,
+
+    /** The AI brings back sentences the learner got wrong in earlier lessons and has them say them correctly. */
+    MISTAKE_REVIEW
 }
 
 enum class ConversationState {
@@ -451,11 +454,16 @@ data class ActiveLesson(
     val reviewWords: List<ReviewWord>,
     val voiceId: String = AiVoice.DEFAULT.id,
     val resumeStoryContext: String? = null,
-    val resumeStoryTitle: String? = null
+    val resumeStoryTitle: String? = null,
+    /** Earlier mistakes to practise in a [SessionMode.MISTAKE_REVIEW] lesson. */
+    val reviewMistakes: List<ReviewMistake> = emptyList(),
+    /** What the AI remembers about the learner; null when the learner turned memory off. */
+    val learnerMemory: LearnerMemory? = null
 ) {
     val titleVi: String
         get() = when (mode) {
             SessionMode.VOCAB_REVIEW -> "Ôn tập từ vựng"
+            SessionMode.MISTAKE_REVIEW -> "Ôn lỗi sai"
             SessionMode.REPEAT_AFTER_ME -> "Luyện phát âm: ${topic.titleVi}"
             SessionMode.ROLEPLAY -> "Nhập vai: ${scenario?.titleVi ?: topic.titleVi}"
             SessionMode.STORY_LISTENING -> "Luyện nghe kể chuyện: ${scenario?.titleVi ?: topic.titleVi}"
@@ -465,6 +473,7 @@ data class ActiveLesson(
     val titleEn: String
         get() = when (mode) {
             SessionMode.VOCAB_REVIEW -> "Vocabulary Review"
+            SessionMode.MISTAKE_REVIEW -> "Mistake Review"
             SessionMode.REPEAT_AFTER_ME -> "Pronunciation Drill: ${topic.titleEn}"
             SessionMode.ROLEPLAY -> "Roleplay: ${scenario?.titleEn ?: topic.titleEn}"
             SessionMode.STORY_LISTENING -> "Story Listening: ${scenario?.titleEn ?: topic.titleEn}"
@@ -479,6 +488,31 @@ data class ReviewWord(val word: String, val meaning: String)
 data class NewWord(val word: String, val meaning: String, val example: String)
 
 data class Correction(val original: String, val corrected: String, val explanation: String)
+
+/** A stored mistake brought back for spaced-repetition review. [id] is its row in the mistakes table. */
+data class ReviewMistake(val id: Long, val original: String, val corrected: String, val explanation: String)
+
+/** Whether the learner said a reviewed mistake correctly this time. */
+data class MistakeReviewResult(val mistakeId: Long, val fixed: Boolean)
+
+/**
+ * What the AI remembers about the learner across lessons, built from earlier summaries and drills.
+ * Everything stays on the device; it is only sent to Gemini as part of the lesson instructions.
+ */
+data class LearnerMemory(
+    /** Mistakes the learner made most often or most recently. */
+    val recurringMistakes: List<Correction> = emptyList(),
+    /** Words the learner keeps mispronouncing in drills. */
+    val weakWords: List<String> = emptyList(),
+    /** Short facts the learner shared about themselves ("Works as a nurse in Da Nang"). */
+    val facts: List<String> = emptyList()
+) {
+    val isEmpty: Boolean get() = recurringMistakes.isEmpty() && weakWords.isEmpty() && facts.isEmpty()
+
+    companion object {
+        val EMPTY = LearnerMemory()
+    }
+}
 
 enum class LevelAdjustmentDirection {
     KEEP,
@@ -505,7 +539,11 @@ data class SessionSummary(
     /** Share of drill sentences passed, 0–100. Only for repeat-after-me lessons. */
     val pronunciationScore: Int? = null,
     /** Recommendation for leveling up, down, or maintaining current difficulty. */
-    val levelRecommendation: LevelRecommendation? = null
+    val levelRecommendation: LevelRecommendation? = null,
+    /** New personal facts the learner shared, for the AI to remember next time. */
+    val learnerFacts: List<String> = emptyList(),
+    /** Outcome for each mistake practised in a mistake review lesson. */
+    val mistakeResults: List<MistakeReviewResult> = emptyList()
 )
 
 data class CompletedSession(
@@ -557,8 +595,20 @@ data class LearnerSettings(
     /** Automatically pause practice when app loses focus or screen turns off (outside Android Auto). Default is true. */
     val autoPauseWhenUnfocused: Boolean = true,
     /** Show translation subtitles under drill sentences on car and phone screen. Default is true. */
-    val showTranslationSubtitle: Boolean = true
-)
+    val showTranslationSubtitle: Boolean = true,
+    /** Let the AI remember the learner's mistakes and personal details across lessons. Default is true. */
+    val rememberLearner: Boolean = true,
+    /** Daily notification when the learner has not practised yet. */
+    val practiceReminderEnabled: Boolean = true,
+    /** Minutes after midnight for the reminder, or [REMINDER_AUTO] to follow the learner's usual practice time. */
+    val practiceReminderMinute: Int = REMINDER_AUTO,
+    /** A missed day uses an earned streak freeze instead of breaking the streak. */
+    val streakFreezeEnabled: Boolean = true
+) {
+    companion object {
+        const val REMINDER_AUTO = -1
+    }
+}
 
 /** App interface language option for multilingual support. */
 enum class AppLanguage(

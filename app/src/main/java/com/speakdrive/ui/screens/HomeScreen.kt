@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radio
@@ -196,8 +197,10 @@ fun HomeContent(
                 SpecialModesRow(
                     lastTopic = state.lastTopic,
                     dueWordCount = state.stats.dueWordCount,
+                    dueMistakeCount = state.stats.dueMistakeCount,
                     onPronunciation = { onStartLesson(MediaIds.pronunciation(state.lastTopic?.id)) },
-                    onReview = { onStartLesson(MediaIds.REVIEW) }
+                    onReview = { onStartLesson(MediaIds.REVIEW) },
+                    onMistakes = { onStartLesson(MediaIds.MISTAKES) }
                 )
             }
 
@@ -436,7 +439,8 @@ private fun DailyGoalSection(
 
         // 3 KPI metric tiles
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("🔥 ${state.stats.streakDays}", stringResource(R.string.home_streak_label), Modifier.weight(1f))
+            val freezes = if (state.stats.streakFreezes > 0) "  " + stringResource(R.string.home_streak_freezes, state.stats.streakFreezes) else ""
+            StatTile("🔥 ${state.stats.streakDays}$freezes", stringResource(R.string.home_streak_label), Modifier.weight(1f))
             StatTile("${state.stats.minutesToday}", stringResource(R.string.home_minutes_today_label), Modifier.weight(1f))
             StatTile("${state.stats.wordsToday}", stringResource(R.string.home_new_words_label), Modifier.weight(1f))
         }
@@ -573,8 +577,10 @@ private fun QuickStartHeroCard(
 private fun SpecialModesRow(
     lastTopic: Topic?,
     dueWordCount: Int,
+    dueMistakeCount: Int,
     onPronunciation: () -> Unit,
-    onReview: () -> Unit
+    onReview: () -> Unit,
+    onMistakes: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         // Pronunciation Shadowing Drill Card
@@ -653,6 +659,51 @@ private fun SpecialModesRow(
                                 Icons.AutoMirrored.Filled.MenuBook,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
+                )
+            }
+        }
+
+        // Mistake review: the learner's own earlier mistakes, due for spaced repetition
+        if (dueMistakeCount > 0) {
+            Card(
+                onClick = onMistakes,
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        shape = RoundedCornerShape(18.dp)
+                    )
+            ) {
+                ListItem(
+                    headlineContent = {
+                        Text(stringResource(R.string.home_mistake_review_card_title, dueMistakeCount), fontWeight = FontWeight.SemiBold)
+                    },
+                    supportingContent = {
+                        Text(stringResource(R.string.home_mistake_review_card_desc))
+                    },
+                    leadingContent = {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.errorContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Filled.Replay,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(20.dp)
                             )
                         }

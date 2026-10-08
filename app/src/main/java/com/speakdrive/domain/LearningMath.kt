@@ -16,6 +16,22 @@ object SpacedRepetition {
     }
 }
 
+/** Keys used to recognise the same mistake or personal fact when it comes up again. */
+object MemoryText {
+    /** Stripped from both ends before comparing; the v6 migration uses the same set in SQL. */
+    const val TRIM_CHARS = " .!?,;:\""
+
+    fun normalize(text: String): String = text.trim { it.isWhitespace() || it in TRIM_CHARS }.lowercase()
+}
+
+data class StreakStatus(
+    val days: Int,
+    /** Freezes in reserve that will cover the next missed days. */
+    val freezesLeft: Int,
+    /** Missed days covered by a freeze in the current streak. */
+    val frozenDays: Set<LocalDate> = emptySet()
+)
+
 object StreakCalculator {
 
     /**
@@ -34,6 +50,51 @@ object StreakCalculator {
             day = day.minusDays(1)
         }
         return streak
+    }
+
+    /** Practising this many days in a row earns one streak freeze. */
+    const val DAYS_PER_FREEZE = 7
+
+    /** Freezes a learner can keep in reserve. */
+    const val MAX_FREEZES = 2
+
+    /**
+     * Streak where a missed day is covered by a freeze earned earlier (one per [DAYS_PER_FREEZE] practice
+     * days in a row, at most [MAX_FREEZES] kept). Frozen days keep the streak alive but do not add to it.
+     * Today does not count as missed until it is over. Everything is derived from the practice history,
+     * so nothing extra has to be stored.
+     */
+    fun streakWithFreezes(practiceDays: Set<LocalDate>, today: LocalDate, freezesEnabled: Boolean = true): StreakStatus {
+        if (!freezesEnabled) return StreakStatus(days = currentStreak(practiceDays, today), freezesLeft = 0)
+        val first = practiceDays.filter { !it.isAfter(today) }.minOrNull() ?: return StreakStatus(0, 0)
+        var streak = 0
+        var freezes = 0
+        var practicedInRow = 0
+        val frozen = mutableSetOf<LocalDate>()
+        var day: LocalDate = first
+        while (!day.isAfter(today)) {
+            when {
+                day in practiceDays -> {
+                    streak++
+                    practicedInRow++
+                    if (practicedInRow % DAYS_PER_FREEZE == 0 && freezes < MAX_FREEZES) freezes++
+                }
+                day == today -> Unit
+                streak > 0 && freezes > 0 -> {
+                    freezes--
+                    frozen += day
+                    practicedInRow = 0
+                }
+                else -> {
+                    streak = 0
+                    freezes = 0
+                    practicedInRow = 0
+                    frozen.clear()
+                }
+            }
+            day = day.plusDays(1)
+        }
+        return StreakStatus(days = streak, freezesLeft = freezes, frozenDays = frozen)
     }
 
     fun toLocalDates(timestamps: Collection<Long>, zone: ZoneId = ZoneId.systemDefault()): Set<LocalDate> =

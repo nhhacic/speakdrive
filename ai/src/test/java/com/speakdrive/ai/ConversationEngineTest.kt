@@ -4,6 +4,11 @@ import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.live.LiveEvent
 import com.speakdrive.ai.live.LiveToolCall
 import com.speakdrive.ai.model.AiVoice
+import com.speakdrive.ai.model.Correction
+import com.speakdrive.ai.model.LearnerMemory
+import com.speakdrive.ai.model.LearnerSettings
+import com.speakdrive.ai.model.MistakeReviewResult
+import com.speakdrive.ai.model.ReviewMistake
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.DrillSentenceLength
@@ -1880,6 +1885,244 @@ class ConversationEngineTest {
         runCurrent()
 
         assertThat(store.saved.last().isCompleted).isFalse()
+    }
+
+    // endregion
+
+    // region Learner memory, mistake review, reminders
+
+    private val goMistake = ReviewMistake(7, "I go there yesterday", "I went there yesterday", "Quá khứ của go là went.")
+    private val dontMistake = ReviewMistake(9, "She don't like it", "She doesn't like it", "")
+
+    @Test
+    fun `mistake review practises due mistakes and records which were fixed`(): TestResult = engineTest {
+        store.dueMistakes = listOf(goMistake, dontMistake)
+        // Results for mistakes outside the lesson are ignored.
+        summaries.mistakeResults = listOf(
+            MistakeReviewResult(7, true),
+            MistakeReviewResult(9, false),
+            MistakeReviewResult(42, true)
+        )
+        val engine = createEngine()
+
+        engine.start(LessonRequest(mode = SessionMode.MISTAKE_REVIEW))
+
+        assertThat(engine.lesson.value?.mode).isEqualTo(SessionMode.MISTAKE_REVIEW)
+        assertThat(engine.lesson.value?.reviewMistakes).containsExactly(goMistake, dontMistake).inOrder()
+        val instruction = live.connects.single().systemInstruction
+        assertThat(instruction).contains("MISTAKE REVIEW COACH")
+        assertThat(instruction).contains("I went there yesterday")
+        assertThat(live.sentTexts.single()).contains("Last time you said: I go there yesterday")
+
+        say(Speaker.USER, "I went there yesterday")
+        engine.end()
+        runCurrent()
+
+        assertThat(store.mistakeReviews)
+            .containsExactly(listOf(MistakeReviewResult(7, true), MistakeReviewResult(9, false)))
+        assertThat(summaries.lastLesson?.reviewMistakes).hasSize(2)
+    }
+
+    @Test
+    fun `mistake review uses recent mistakes when none are due`(): TestResult = engineTest {
+        store.recentMistakeList = listOf(dontMistake)
+        val engine = createEngine()
+
+        engine.start(LessonRequest(mode = SessionMode.MISTAKE_REVIEW))
+
+        assertThat(engine.lesson.value?.mode).isEqualTo(SessionMode.MISTAKE_REVIEW)
+        assertThat(engine.lesson.value?.reviewMistakes).containsExactly(dontMistake)
+    }
+
+    @Test
+    fun `mistake review without any saved mistake becomes free talk`(): TestResult = engineTest {
+        val engine = createEngine()
+
+        engine.start(LessonRequest(mode = SessionMode.MISTAKE_REVIEW))
+
+        assertThat(engine.lesson.value?.mode).isEqualTo(SessionMode.FREE_TALK)
+        assertThat(engine.lesson.value?.reviewMistakes).isEmpty()
+    }
+
+    @Test
+    fun `the AI remembers the learner from earlier lessons`(): TestResult = engineTest {
+        store.memory = LearnerMemory(
+            recurringMistakes = listOf(Correction("I goed to Hue", "I went to Hue", "")),
+            weakWords = listOf("comfortable"),
+            facts = listOf("Works as a nurse in Da Nang")
+        )
+        val engine = createEngine()
+
+        engine.start(LessonRequest(topicId = "travel"))
+
+        val instruction = live.connects.single().systemInstruction
+        assertThat(instruction).contains("WHAT YOU REMEMBER FROM EARLIER LESSONS")
+        assertThat(instruction).contains("Works as a nurse in Da Nang")
+        assertThat(instruction).contains("I goed to Hue")
+        assertThat(instruction).contains("comfortable")
+    }
+
+    @Test
+    fun `new facts from the summary are kept while memory is on`(): TestResult = engineTest {
+        summaries.learnerFacts = listOf("Has two kids")
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "daily"))
+        say(Speaker.USER, "I have two kids")
+
+        engine.end()
+        runCurrent()
+
+        assertThat(summaries.lastLesson?.learnerMemory).isNotNull()
+        assertThat(store.saved.last().summary?.learnerFacts).containsExactly("Has two kids")
+    }
+
+    @Test
+    fun `with memory off nothing is loaded and no new facts are kept`(): TestResult = engineTest {
+        settings.settings = settings.settings.copy(rememberLearner = false)
+        store.memory = LearnerMemory(facts = listOf("Works as a nurse in Da Nang"))
+        summaries.learnerFacts = listOf("Has two kids")
+        val engine = createEngine()
+
+        engine.start(LessonRequest(topicId = "daily"))
+        say(Speaker.USER, "I have two kids")
+        engine.end()
+        runCurrent()
+
+        assertThat(store.memoryReads).isEqualTo(0)
+        assertThat(live.connects.single().systemInstruction).doesNotContain("nurse")
+        assertThat(summaries.lastLesson?.learnerMemory).isNull()
+        assertThat(store.saved.last().summary?.learnerFacts).isEmpty()
+    }
+
+    @Test
+    fun `a broken memory store does not stop the lesson`(): TestResult = engineTest {
+        store.failReads = true
+        val engine = createEngine()
+
+        assertThat(engine.start(LessonRequest(topicId = "travel"))).isTrue()
+        assertThat(engine.lesson.value?.learnerMemory).isEqualTo(LearnerMemory.EMPTY)
+    }
+
+    @Test
+    fun `turning memory off during a lesson drops the facts of that lesson`(): TestResult = engineTest {
+        summaries.learnerFacts = listOf("Has two kids")
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "daily"))
+        val config = live.connects.single()
+
+        val result = config.toolHandler!!.handle(
+            LiveToolCall(VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION, mapOf("enabled" to false))
+        )
+        runCurrent()
+        say(Speaker.USER, "I have two kids")
+        engine.end()
+        runCurrent()
+
+        assertThat(result["status"]).isEqualTo("success")
+        assertThat(settings.settings.rememberLearner).isFalse()
+        assertThat(announcer.announced.last()).contains("tắt ghi nhớ")
+        assertThat(store.saved.last().summary?.learnerFacts).isEmpty()
+    }
+
+    @Test
+    fun `memory can be turned off and on by voice in Vietnamese and English`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+
+        sayCommand("tắt ghi nhớ")
+        assertThat(settings.settings.rememberLearner).isFalse()
+        assertThat(engine.lesson.value?.learnerMemory).isNull()
+
+        sayCommand("turn on memory")
+        assertThat(settings.settings.rememberLearner).isTrue()
+        assertThat(engine.lesson.value?.learnerMemory).isNotNull()
+    }
+
+    @Test
+    fun `practice reminder can be set by the tool`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        val handler = live.connects.single().toolHandler!!
+
+        val set = handler.handle(
+            LiveToolCall(VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION, mapOf("enabled" to true, "time" to "07:30"))
+        )
+        runCurrent()
+        assertThat(set["status"]).isEqualTo("success")
+        assertThat(settings.settings.practiceReminderEnabled).isTrue()
+        assertThat(settings.settings.practiceReminderMinute).isEqualTo(7 * 60 + 30)
+        assertThat(announcer.announced.last()).contains("7:30")
+
+        handler.handle(LiveToolCall(VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION, mapOf("enabled" to true, "time" to "auto")))
+        runCurrent()
+        assertThat(settings.settings.practiceReminderMinute).isEqualTo(LearnerSettings.REMINDER_AUTO)
+
+        handler.handle(LiveToolCall(VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION, mapOf("enabled" to false)))
+        runCurrent()
+        assertThat(settings.settings.practiceReminderEnabled).isFalse()
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `an unreadable reminder time changes nothing`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+
+        val result = live.connects.single().toolHandler!!.handle(
+            LiveToolCall(VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION, mapOf("enabled" to true, "time" to "whenever"))
+        )
+
+        assertThat(result["status"]).isEqualTo("error")
+        assertThat(settings.settings.practiceReminderMinute).isEqualTo(LearnerSettings.REMINDER_AUTO)
+    }
+
+    @Test
+    fun `practice reminder can be changed by voice`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+
+        sayCommand("tắt nhắc học")
+        assertThat(settings.settings.practiceReminderEnabled).isFalse()
+
+        sayCommand("nhắc học lúc 8 giờ tối")
+        assertThat(settings.settings.practiceReminderEnabled).isTrue()
+        assertThat(settings.settings.practiceReminderMinute).isEqualTo(20 * 60)
+
+        sayCommand("turn off reminders")
+        assertThat(settings.settings.practiceReminderEnabled).isFalse()
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `streak freeze can be changed by voice and by the tool`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+
+        sayCommand("tắt bảo toàn chuỗi")
+        assertThat(settings.settings.streakFreezeEnabled).isFalse()
+        assertThat(announcer.announced.last()).contains("bảo toàn chuỗi")
+
+        // Later than the window in which a tool call repeating the fallback's change is ignored.
+        advanceTimeBy(10_000)
+        live.connects.single().toolHandler!!.handle(
+            LiveToolCall(VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION, mapOf("enabled" to true))
+        )
+        runCurrent()
+        assertThat(settings.settings.streakFreezeEnabled).isTrue()
+    }
+
+    @Test
+    fun `switching to mistake review by voice starts a mistake review lesson`(): TestResult = engineTest {
+        store.dueMistakes = listOf(goMistake)
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        say(Speaker.USER, "Hello")
+
+        sayCommand("chuyển sang ôn lỗi sai")
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        assertThat(engine.lesson.value?.mode).isEqualTo(SessionMode.MISTAKE_REVIEW)
     }
 
     // endregion

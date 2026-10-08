@@ -128,4 +128,38 @@ class LevelEvaluatorTest {
         assertThat(result.direction).isEqualTo(LevelAdjustmentDirection.LEVEL_DOWN)
         assertThat(result.targetLevel).isEqualTo(DifficultyLevel.INTERMEDIATE)
     }
+
+    @Test
+    fun `many corrections with good scores do not push the learner down`() {
+        val result = LevelEvaluator.evaluateTrend(
+            currentLevel = DifficultyLevel.INTERMEDIATE,
+            recentAverages = listOf(7.5, 7.0, 7.8),
+            recentCorrections = listOf(5, 5, 4)
+        )
+
+        assertThat(result.direction).isEqualTo(LevelAdjustmentDirection.KEEP)
+    }
+
+    @Test
+    fun `many corrections with mediocre scores recommend an easier level`() {
+        val result = LevelEvaluator.evaluateTrend(
+            currentLevel = DifficultyLevel.INTERMEDIATE,
+            recentAverages = listOf(6.0, 5.5, 6.2),
+            recentCorrections = listOf(5, 4, 5)
+        )
+
+        assertThat(result.direction).isEqualTo(LevelAdjustmentDirection.LEVEL_DOWN)
+        assertThat(result.targetLevel).isEqualTo(DifficultyLevel.PRE_INTERMEDIATE)
+    }
+
+    @Test
+    fun `excellent scores with several corrections per lesson do not level up`() {
+        val result = LevelEvaluator.evaluateTrend(
+            currentLevel = DifficultyLevel.INTERMEDIATE,
+            recentAverages = listOf(8.5, 8.6, 8.4),
+            recentCorrections = listOf(4, 3, 4)
+        )
+
+        assertThat(result.direction).isEqualTo(LevelAdjustmentDirection.KEEP)
+    }
 }

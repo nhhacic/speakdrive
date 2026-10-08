@@ -8,6 +8,7 @@ import com.speakdrive.data.local.AppDatabase
 import com.speakdrive.data.local.MIGRATION_2_3
 import com.speakdrive.data.local.MIGRATION_3_4
 import com.speakdrive.data.local.MIGRATION_4_5
+import com.speakdrive.data.local.MIGRATION_5_6
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -102,6 +103,44 @@ class MigrationTest {
     }
 
     /** Room's driver compares full paths, which differ from the bare name under Robolectric. */
+    @Test
+    fun `5 to 6 adds memory tables and turns earlier corrections into mistakes to review`() {
+        helper.createDatabase(dbPath, 5).apply {
+            listOf(
+                Triple("s1", "FREE_TALK", 1000L),
+                Triple("s2", "ROLEPLAY", 3000L),
+                Triple("d1", "REPEAT_AFTER_ME", 5000L)
+            ).forEach { (id, mode, startedAt) ->
+                execSQL(
+                    "INSERT INTO sessions (id, topicId, scenarioId, level, mode, startedAt, endedAt, activeDurationMs, " +
+                        "fluencyScore, grammarScore, vocabularyScore, encouragement, nextSuggestion, isCompleted) " +
+                        "VALUES ('$id', 'travel', NULL, 'BEGINNER', '$mode', $startedAt, ${startedAt + 1000}, 60000, 7, 6, 5, 'ok', 'next', 1)"
+                )
+            }
+            execSQL("INSERT INTO corrections (sessionId, original, corrected, explanation) VALUES ('s1', 'I goed to Hue.', 'I went to Hue', 'old')")
+            execSQL("INSERT INTO corrections (sessionId, original, corrected, explanation) VALUES ('s2', 'i goed to hue', 'I went to Hue', 'new')")
+            execSQL("INSERT INTO corrections (sessionId, original, corrected, explanation) VALUES ('s2', 'He go', 'He goes', '')")
+            execSQL("INSERT INTO corrections (sessionId, original, corrected, explanation) VALUES ('d1', 'tree tickets', 'three tickets', '')")
+            execSQL("INSERT INTO corrections (sessionId, original, corrected, explanation) VALUES ('s1', '  ', 'nothing', '')")
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(dbPath, 6, true, MIGRATION_5_6)
+
+        db.query("SELECT original, normalizedOriginal, explanation, timesMade, sessionId, nextReviewAt FROM mistakes ORDER BY original").use { cursor ->
+            val rows = mutableListOf<List<Any?>>()
+            while (cursor.moveToNext()) {
+                rows += listOf(cursor.getString(0), cursor.getString(1), cursor.getString(2), cursor.getInt(3), cursor.getString(4), cursor.getLong(5))
+            }
+            assertThat(rows).containsExactly(
+                listOf("He go", "he go", "", 1, "s2", 4000L + 86_400_000L),
+                // The newest lesson's correction wins; it was made in two lessons.
+                listOf("i goed to hue", "i goed to hue", "new", 2, "s2", 4000L + 86_400_000L)
+            )
+        }
+        db.execSQL("INSERT INTO learner_facts (fact, normalizedFact, sessionId, createdAt) VALUES ('Works as a nurse', 'works as a nurse', 's1', 1)")
+    }
+
     private val dbPath: String = InstrumentationRegistry.getInstrumentation().targetContext
         .getDatabasePath("migration-test").absolutePath
 }

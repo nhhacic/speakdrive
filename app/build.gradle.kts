@@ -190,6 +190,9 @@ dependencies {
     // DataStore
     implementation(libs.datastore.preferences)
 
+    // Daily practice reminder
+    implementation(libs.androidx.work.runtime.ktx)
+
     // Coroutines / serialization
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
@@ -198,6 +201,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.truth)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.androidx.work.testing)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.test.ext.junit)

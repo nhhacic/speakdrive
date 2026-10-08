@@ -164,6 +164,7 @@ class MediaContentProvider @Inject constructor(
         val snapshot = settings.snapshot()
         val lastTopic = topicManager.getTopicById(snapshot.lastTopicId)
         val dueCount = sessionStore.wordsDueForReview(limit = 50).size
+        val dueMistakes = sessionStore.mistakesDueForReview(limit = 50).size
         val resumeSubtitle = when (snapshot.lastSessionMode) {
             SessionMode.REPEAT_AFTER_ME ->
                 "🗣️ Luyện phát âm (Shadowing)" + (lastTopic?.let { " • ${it.titleVi}" } ?: "")
@@ -175,6 +176,7 @@ class MediaContentProvider @Inject constructor(
             }
             SessionMode.VOCAB_REVIEW ->
                 "📚 Ôn tập từ vựng" + (lastTopic?.let { " • ${it.titleVi}" } ?: "")
+            SessionMode.MISTAKE_REVIEW -> "🔁 Ôn lỗi sai"
             SessionMode.STORY_LISTENING ->
                 "🎧 Luyện nghe kể chuyện" + (lastTopic?.let { " • ${it.titleVi}" } ?: "")
             SessionMode.FREE_TALK ->
@@ -202,13 +204,18 @@ class MediaContentProvider @Inject constructor(
                 "Ôn tập từ vựng",
                 if (dueCount > 0) "$dueCount từ đến hạn ôn" else "Chưa có từ cần ôn — AI sẽ trò chuyện tự do"
             ),
+            playable(
+                MediaIds.MISTAKES,
+                "Ôn lỗi sai",
+                if (dueMistakes > 0) "$dueMistakes câu sai đến hạn nói lại" else "Nói lại đúng những câu từng sai"
+            ),
             browsable(MediaIds.LEVELS, "Độ khó: ${snapshot.level.displayName}", "Chọn cấp độ từ A1 đến C2")
         )
     }
 
     /** Resolves any media id Android Auto or the phone may send back to us. */
     suspend fun item(mediaId: String): MediaItem? = when (val target = MediaIds.parse(mediaId)) {
-        MediaTarget.Resume, MediaTarget.Random, MediaTarget.Review -> homeItems().find { it.mediaId == mediaId }
+        MediaTarget.Resume, MediaTarget.Random, MediaTarget.Review, MediaTarget.Mistakes -> homeItems().find { it.mediaId == mediaId }
         is MediaTarget.Vocab -> {
             val title = if (target.word != null) "Học từ: ${target.word}" else "Luyện tập từ vựng"
             val sub = when (target.mode) {

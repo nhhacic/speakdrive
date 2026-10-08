@@ -116,4 +116,13 @@ class VoiceCommandHandlerTest {
         val target = MediaIds.parse(resolved)
         assertThat(target).isInstanceOf(MediaTarget.Story::class.java)
     }
+
+    @Test
+    fun `mistake review queries open mistake review, not vocabulary`() {
+        assertThat(handler.resolve("review my mistakes")).isEqualTo(MediaIds.MISTAKES)
+        assertThat(handler.resolve("ôn lỗi sai")).isEqualTo(MediaIds.MISTAKES)
+        assertThat(handler.resolve("on lai loi cu")).isEqualTo(MediaIds.MISTAKES)
+        assertThat(handler.resolve("review vocabulary")).isEqualTo(MediaIds.REVIEW)
+        assertThat(handler.resolve("ôn tập từ vựng")).isEqualTo(MediaIds.REVIEW)
+    }
 }

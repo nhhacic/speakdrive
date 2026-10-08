@@ -1,5 +1,6 @@
 package com.speakdrive.ai.summary
 
+import com.speakdrive.ai.model.MistakeReviewResult
 import com.google.common.truth.Truth.assertThat
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -205,5 +206,28 @@ class SummaryParserTest {
         assertThat(summary.encouragement).contains("Du lịch")
         assertThat(summary.levelRecommendation).isNotNull()
     }
-}
 
+    @Test
+    fun `parses learner facts and mistake review results`() {
+        val summary = SummaryParser.parse(
+            """
+            {
+              "fluency_score": 7,
+              "learner_facts": ["Works as a nurse in Da Nang.", "works as a nurse in da nang", " ", "Has two kids", "Plays tennis", "Likes jazz"],
+              "mistake_results": [{"id": 3, "fixed": true}, {"id": 4, "fixed": false}, {"id": 5}, {"fixed": true}]
+            }
+            """.trimIndent()
+        )
+
+        assertThat(summary.learnerFacts).containsExactly("Works as a nurse in Da Nang", "Has two kids", "Plays tennis").inOrder()
+        assertThat(summary.mistakeResults).containsExactly(MistakeReviewResult(3, true), MistakeReviewResult(4, false)).inOrder()
+    }
+
+    @Test
+    fun `older summaries without the new fields still parse`() {
+        val summary = SummaryParser.parse("{\"fluency_score\": 6}")
+
+        assertThat(summary.learnerFacts).isEmpty()
+        assertThat(summary.mistakeResults).isEmpty()
+    }
+}

@@ -6,6 +6,7 @@ import com.speakdrive.ai.model.Correction
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.LevelAdjustmentDirection
 import com.speakdrive.ai.model.LevelRecommendation
+import com.speakdrive.ai.model.MistakeReviewResult
 import com.speakdrive.ai.model.NewWord
 import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.SessionSummary
@@ -81,9 +82,22 @@ object SummaryParser {
             encouragement = dto.encouragementVi.trim(),
             nextSuggestion = dto.nextSuggestionVi.trim(),
             pronunciationScore = pronunciationScore,
-            levelRecommendation = recommendation
+            levelRecommendation = recommendation,
+            learnerFacts = dto.learnerFacts
+                .map { it.trim().trimEnd('.') }
+                .filter { it.length in 3..MAX_FACT_LENGTH }
+                .distinctBy { it.lowercase() }
+                .take(MAX_NEW_FACTS),
+            mistakeResults = dto.mistakeResults.mapNotNull { r ->
+                val id = r.id ?: return@mapNotNull null
+                val fixed = r.fixed ?: return@mapNotNull null
+                MistakeReviewResult(id, fixed)
+            }
         )
     }
+
+    private const val MAX_NEW_FACTS = 3
+    private const val MAX_FACT_LENGTH = 120
 
     /** Summary used when the lesson was too short or the AI could not be reached. */
     fun fallback(reasonVi: String, currentLevel: DifficultyLevel = DifficultyLevel.INTERMEDIATE) = SessionSummary(
@@ -238,7 +252,15 @@ object SummaryParser {
         @SerialName("level_recommendation_direction") val levelRecommendationDirection: String? = null,
         @SerialName("recommended_level") val recommendedLevel: String? = null,
         @SerialName("level_recommendation_reason_vi") val levelRecommendationReasonVi: String? = null,
-        @SerialName("level_recommendation_reason_en") val levelRecommendationReasonEn: String? = null
+        @SerialName("level_recommendation_reason_en") val levelRecommendationReasonEn: String? = null,
+        @SerialName("learner_facts") val learnerFacts: List<String> = emptyList(),
+        @SerialName("mistake_results") val mistakeResults: List<MistakeResultDto> = emptyList()
+    )
+
+    @Serializable
+    private data class MistakeResultDto(
+        val id: Long? = null,
+        val fixed: Boolean? = null
     )
 
     @Serializable

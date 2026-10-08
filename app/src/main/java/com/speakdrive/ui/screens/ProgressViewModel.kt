@@ -7,6 +7,7 @@ import com.speakdrive.ai.evaluation.LevelEvaluator
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.LevelRecommendation
 import com.speakdrive.ai.model.SessionMode
+import com.speakdrive.data.local.entity.SessionEntity
 import com.speakdrive.data.repository.ProgressRepository
 import com.speakdrive.data.repository.ProgressStats
 import com.speakdrive.data.repository.SessionRepository
@@ -55,6 +56,29 @@ data class ProgressUiState(
     val topicRows: List<TopicStatRow> = emptyList()
 )
 
+/** Scores and correction counts of the same recent sessions, newest first. */
+data class TrendInputs(val averages: List<Double>, val corrections: List<Int>)
+
+/**
+ * Takes the [limit] most recent completed sessions that have scores, so each average lines up with
+ * the number of mistakes corrected in that same session.
+ */
+fun recentTrend(sessions: List<SessionEntity>, correctionCounts: Map<String, Int>, limit: Int = 5): TrendInputs {
+    val scored = sessions.asSequence()
+        .filter { it.isCompleted }
+        .mapNotNull { s ->
+            val scores = s.pronunciationScore?.let { listOf((it + 5) / 10.0) }
+                ?: listOfNotNull(s.fluencyScore?.toDouble(), s.grammarScore?.toDouble(), s.vocabularyScore?.toDouble())
+            if (scores.isEmpty()) null else s to scores.average()
+        }
+        .take(limit)
+        .toList()
+    return TrendInputs(
+        averages = scored.map { it.second },
+        corrections = scored.map { correctionCounts[it.first.id] ?: 0 }
+    )
+}
+
 @HiltViewModel
 class ProgressViewModel @Inject constructor(
     progressRepository: ProgressRepository,
@@ -66,21 +90,15 @@ class ProgressViewModel @Inject constructor(
     val uiState: StateFlow<ProgressUiState> = combine(
         progressRepository.observeStats(),
         sessionRepository.observeHistory(),
+        sessionRepository.observeCorrectionCounts(),
         preferencesRepository.preferences
-    ) { stats, sessions, prefs ->
+    ) { stats, sessions, correctionCounts, prefs ->
         val currentLevel = prefs.learner.level
         val isAdaptive = prefs.learner.adaptiveLevelRecommendation
 
-        val completedSessions = sessions.filter { it.isCompleted }
-        val recentAverages = completedSessions.take(5).mapNotNull { s ->
-            val scores = s.pronunciationScore?.let { listOf((it + 5) / 10.0) }
-                ?: listOfNotNull(s.fluencyScore?.toDouble(), s.grammarScore?.toDouble(), s.vocabularyScore?.toDouble())
-            if (scores.isNotEmpty()) scores.average() else null
-        }
-        val recentCorrections = completedSessions.take(5).map { 1 }
-
         val roadmapRecommendation = if (isAdaptive) {
-            LevelEvaluator.evaluateTrend(currentLevel, recentAverages, recentCorrections)
+            val trend = recentTrend(sessions, correctionCounts)
+            LevelEvaluator.evaluateTrend(currentLevel, trend.averages, trend.corrections)
         } else null
 
         ProgressUiState(

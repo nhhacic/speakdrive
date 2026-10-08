@@ -25,6 +25,9 @@ data object ProgressRoute
 data object VocabularyRoute
 
 @Serializable
+data object LearnerMemoryRoute
+
+@Serializable
 data object PrivacyRoute
 
 @Serializable

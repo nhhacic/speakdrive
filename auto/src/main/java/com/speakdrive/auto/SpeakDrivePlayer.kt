@@ -74,6 +74,8 @@ class SpeakDrivePlayer(
                 lesson.mode == SessionMode.STORY_LISTENING
             MediaTarget.Review ->
                 lesson.mode == SessionMode.VOCAB_REVIEW
+            MediaTarget.Mistakes ->
+                lesson.mode == SessionMode.MISTAKE_REVIEW
             else -> false
         }
     }
@@ -241,12 +243,14 @@ class SpeakDrivePlayer(
                 SessionMode.REPEAT_AFTER_ME -> LessonRequest(topicId = topicId, mode = SessionMode.REPEAT_AFTER_ME)
                 SessionMode.ROLEPLAY -> LessonRequest(topicId = topicId, scenarioId = snapshot.lastScenarioId, mode = SessionMode.ROLEPLAY)
                 SessionMode.VOCAB_REVIEW -> LessonRequest(topicId = topicId, mode = SessionMode.VOCAB_REVIEW)
+                SessionMode.MISTAKE_REVIEW -> LessonRequest(topicId = topicId, mode = SessionMode.MISTAKE_REVIEW)
                 SessionMode.STORY_LISTENING -> LessonRequest(topicId = topicId, scenarioId = snapshot.lastScenarioId, mode = SessionMode.STORY_LISTENING)
                 SessionMode.FREE_TALK -> LessonRequest(topicId = topicId, mode = SessionMode.FREE_TALK)
             }
         }
         MediaTarget.Random -> LessonRequest(topicId = null)
         MediaTarget.Review -> LessonRequest(mode = SessionMode.VOCAB_REVIEW, topicId = settings.snapshot().lastTopicId)
+        MediaTarget.Mistakes -> LessonRequest(mode = SessionMode.MISTAKE_REVIEW, topicId = settings.snapshot().lastTopicId)
         is MediaTarget.Vocab -> {
             val words = if (!target.word.isNullOrBlank()) {
                 listOf(com.speakdrive.ai.model.ReviewWord(target.word, ""))

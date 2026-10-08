@@ -7,6 +7,7 @@ import com.speakdrive.ai.model.AppLanguage
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.DrillCategory
 import com.speakdrive.ai.model.DrillSentenceLength
+import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.StoryDuration
@@ -40,17 +41,68 @@ object VoiceSettingsTools {
     const val SET_AI_VOLUME_FUNCTION = "set_ai_volume"
     const val SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION = "set_auto_pause_when_unfocused"
     const val SET_TRANSLATION_SUBTITLES_FUNCTION = "set_translation_subtitles"
+    const val SET_LEARNER_MEMORY_FUNCTION = "set_learner_memory"
+    const val SET_PRACTICE_REMINDER_FUNCTION = "set_practice_reminder"
+    const val SET_STREAK_FREEZE_FUNCTION = "set_streak_freeze"
 
     val switchSessionModeTool = LiveTool(
         name = SWITCH_SESSION_MODE_FUNCTION,
         description = "Switches the current learning mode hands-free when requested by the learner in Vietnamese or English " +
-            "(e.g. \"luyện phát âm\", \"chuyển sang luyện phát âm\", \"tập phát âm\", \"luyện shadowing\", \"chuyển sang shadowing\", \"nhắc lại theo bạn\", \"luyện nói theo\", \"nói theo\", \"nhắc lại từng câu\", \"chuyển sang hội thoại\", \"nói chuyện tự do\", \"kể chuyện đi\", \"chuyển sang nghe kể chuyện\", \"nhập vai\", \"ôn từ vựng\", " +
-            "\"switch to shadowing\", \"practice pronunciation\", \"repeat after me\", \"shadowing mode\", \"switch to conversation\", \"free talk\", \"tell me a story\", \"story listening\", \"roleplay mode\", \"review vocabulary\").",
+            "(e.g. \"luyện phát âm\", \"chuyển sang luyện phát âm\", \"tập phát âm\", \"luyện shadowing\", \"chuyển sang shadowing\", \"nhắc lại theo bạn\", \"luyện nói theo\", \"nói theo\", \"nhắc lại từng câu\", \"chuyển sang hội thoại\", \"nói chuyện tự do\", \"kể chuyện đi\", \"chuyển sang nghe kể chuyện\", \"nhập vai\", \"ôn từ vựng\", \"ôn lỗi sai\", \"ôn lại lỗi cũ\", " +
+            "\"switch to shadowing\", \"practice pronunciation\", \"repeat after me\", \"shadowing mode\", \"switch to conversation\", \"free talk\", \"tell me a story\", \"story listening\", \"roleplay mode\", \"review vocabulary\", \"review my mistakes\").",
         parameters = listOf(
             LiveToolParam(
                 name = "mode",
                 type = LiveToolParam.Type.STRING,
-                description = "Target learning mode: REPEAT_AFTER_ME (Shadowing / Pronunciation drill), FREE_TALK (Open conversational English), STORY_LISTENING (Audio story listening), ROLEPLAY (Scenario roleplay), or VOCAB_REVIEW (Vocabulary flashcard drill)."
+                description = "Target learning mode: REPEAT_AFTER_ME (Shadowing / Pronunciation drill), FREE_TALK (Open conversational English), STORY_LISTENING (Audio story listening), ROLEPLAY (Scenario roleplay), VOCAB_REVIEW (Vocabulary flashcard drill), or MISTAKE_REVIEW (Practise the learner's own past mistakes again)."
+            )
+        )
+    )
+
+    val setLearnerMemoryTool = LiveTool(
+        name = SET_LEARNER_MEMORY_FUNCTION,
+        description = "Turns the AI's memory of the learner on or off (their past mistakes and the personal details they shared, used to personalise later lessons) " +
+            "when requested by the learner in Vietnamese or English " +
+            "(e.g. \"bật ghi nhớ\", \"nhớ về tôi nhé\", \"bật trí nhớ AI\", \"tắt ghi nhớ\", \"đừng ghi nhớ gì về tôi\", \"quên tôi đi\", \"tắt trí nhớ AI\", " +
+            "\"remember me\", \"turn on memory\", \"turn off memory\", \"don't remember anything about me\", \"forget about me\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "enabled",
+                type = LiveToolParam.Type.BOOLEAN,
+                description = "True to let the AI remember the learner across lessons, false to stop remembering."
+            )
+        )
+    )
+
+    val setPracticeReminderTool = LiveTool(
+        name = SET_PRACTICE_REMINDER_FUNCTION,
+        description = "Turns the daily practice reminder notification on or off, or sets its time, when requested by the learner in Vietnamese or English " +
+            "(e.g. \"bật nhắc học\", \"tắt nhắc học\", \"đừng nhắc tôi nữa\", \"nhắc tôi lúc 7 giờ sáng\", \"nhắc học lúc 8 giờ tối\", \"nhắc học tự động\", " +
+            "\"turn on reminders\", \"turn off reminders\", \"remind me at 6:30 pm\", \"remind me automatically\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "enabled",
+                type = LiveToolParam.Type.BOOLEAN,
+                description = "True to send the daily reminder, false to stop it."
+            ),
+            LiveToolParam(
+                name = "time",
+                type = LiveToolParam.Type.STRING,
+                description = "Optional reminder time in 24-hour HH:MM (e.g. \"07:00\", \"20:30\"), or \"auto\" to remind shortly before the learner's usual practice time. Leave out to keep the current time.",
+                optional = true
+            )
+        )
+    )
+
+    val setStreakFreezeTool = LiveTool(
+        name = SET_STREAK_FREEZE_FUNCTION,
+        description = "Turns streak freezes on or off (a missed day uses a freeze earned by 7 practice days in a row instead of breaking the streak) when requested by the learner in Vietnamese or English " +
+            "(e.g. \"bật bảo toàn chuỗi\", \"tắt bảo toàn chuỗi\", \"giữ chuỗi khi tôi bận\", \"turn on streak freeze\", \"turn off streak freeze\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "enabled",
+                type = LiveToolParam.Type.BOOLEAN,
+                description = "True to use streak freezes, false to turn them off."
             )
         )
     )
@@ -372,6 +424,9 @@ object VoiceSettingsTools {
         setAiVolumeTool,
         setAutoPauseWhenUnfocusedTool,
         setTranslationSubtitlesTool,
+        setLearnerMemoryTool,
+        setPracticeReminderTool,
+        setStreakFreezeTool,
         switchSessionModeTool
     )
 
@@ -393,6 +448,31 @@ object VoiceSettingsTools {
                 normalized.contains("true") || hasWord(normalized, "bat") || normalized.contains("enable") ||
                     hasWord(normalized, "on") || hasWord(normalized, "hien") || normalized.contains("show") ||
                     hasWord(normalized, "co") -> true
+                else -> null
+            }
+        }
+        else -> null
+    }
+
+    /** Resolves the reminder time argument: "auto", "07:30", "7 pm", "19h". Null when it cannot be read. */
+    fun parseReminderTime(value: Any?): Int? {
+        val text = (value as? String)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val normalized = TopicManager.normalize(text)
+        if (normalized.contains("auto") || normalized.contains("tu dong")) return LearnerSettings.REMINDER_AUTO
+        return VoiceCommandParser.parseTimeOfDay(text)
+    }
+
+    /** Resolves the learner memory toggle from Gemini Live tool calls ("true"/"false", "bật"/"tắt", "on"/"off"). */
+    fun parseLearnerMemory(value: Any?): Boolean? = when (value) {
+        is Boolean -> value
+        is String -> {
+            val normalized = TopicManager.normalize(value.trim())
+            when {
+                normalized.contains("false") || hasWord(normalized, "tat") || normalized.contains("disable") ||
+                    hasWord(normalized, "off") || hasWord(normalized, "khong") || hasWord(normalized, "dung") ||
+                    hasWord(normalized, "quen") || normalized.contains("forget") -> false
+                normalized.contains("true") || hasWord(normalized, "bat") || normalized.contains("enable") ||
+                    hasWord(normalized, "on") || hasWord(normalized, "nho") || normalized.contains("remember") -> true
                 else -> null
             }
         }
@@ -849,6 +929,9 @@ object VoiceSettingsTools {
             normalized.contains("nhap vai") || normalized.contains("dong vai") ||
                 normalized.contains("roleplay") || normalized.contains("role play") ||
                 normalized.contains("tinh huong") || normalized.contains("scenario") -> SessionMode.ROLEPLAY
+
+            normalized.contains("loi sai") || normalized.contains("loi cu") ||
+                normalized.contains("mistake") || normalized.contains("on loi") -> SessionMode.MISTAKE_REVIEW
 
             normalized.contains("on tu") || normalized.contains("tu vung") ||
                 normalized.contains("vocab") || normalized.contains("word") ||

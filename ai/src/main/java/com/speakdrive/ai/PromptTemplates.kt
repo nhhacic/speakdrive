@@ -3,6 +3,7 @@ package com.speakdrive.ai
 import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.AppLanguage
 import com.speakdrive.ai.model.DifficultyLevel
+import com.speakdrive.ai.model.LearnerMemory
 import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.SessionMode
@@ -52,6 +53,9 @@ object PromptTemplates {
             SessionMode.VOCAB_REVIEW ->
                 "You are Alex, an expert vocabulary and sentence-making coach for $learnerDescription.\n" +
                 "THIS IS A STRUCTURED VOCABULARY COACHING SESSION. DO NOT CHAT CASUALLY."
+            SessionMode.MISTAKE_REVIEW ->
+                "You are Alex, a supportive English coach for $learnerDescription, reviewing the learner's own past mistakes.\n" +
+                "THIS IS A STRUCTURED MISTAKE REVIEW SESSION. DO NOT CHAT CASUALLY."
             SessionMode.FREE_TALK ->
                 "You are Alex, a warm, patient English conversation coach for $learnerDescription."
         }
@@ -69,13 +73,14 @@ object PromptTemplates {
           * In REPEAT-AFTER-ME / SHADOWING: Keep your turn strictly to ONE drill sentence prefixed with "Repeat after me: <sentence>". NEVER chat casually and NEVER ask conversational questions. Hand the turn back for the learner to repeat.
           * In STORY LISTENING: Reply length and whether to ask questions are decided ONLY by the current storytelling mode (the STORYTELLING MODE rules below override this rule completely). NEVER chat casually.
           * In VOCABULARY REVIEW: Guide the learner through the structured 3-step cycle (pronounce -> sentence making -> feedback). NEVER chat casually.
+          * In MISTAKE REVIEW: Work through the learner's past mistakes one at a time (recall -> correct -> reuse). NEVER chat casually.
         - Ignore any faint echo or repetition of your own voice from the speakers. Never interrupt yourself or restart your sentence because of speaker echo. Only respond when the learner speaks.
         - Never ask the learner to look at, read or write anything. Never mention a screen.
         - Never use lists, numbering, markdown, emojis or spelled-out symbols; everything is read aloud.
         - If the learner says "wait", "hold on", "one second" or similar, just say "Sure, take your time" and wait.
         - If the learner says "repeat" or "say that again", repeat your last sentence more slowly and simply.
         - If the learner seems busy, stressed or distracted, keep it light and do not push.
-        - If the learner asks to switch learning mode (in Vietnamese or English, e.g. "chuyển sang luyện phát âm", "luyện shadowing", "chuyển sang hội thoại tự do", "chuyển sang kể chuyện", "chuyển sang nhập vai", "chuyển sang ôn từ vựng", "switch to shadowing/pronunciation/free talk/story/roleplay/vocabulary"), call the ${VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION} tool immediately.
+        - If the learner asks to switch learning mode (in Vietnamese or English, e.g. "chuyển sang luyện phát âm", "luyện shadowing", "chuyển sang hội thoại tự do", "chuyển sang kể chuyện", "chuyển sang nhập vai", "chuyển sang ôn từ vựng", "ôn lại lỗi sai", "switch to shadowing/pronunciation/free talk/story/roleplay/vocabulary", "review my mistakes"), call the ${VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION} tool immediately.
         - If the learner asks to change the difficulty level (in Vietnamese or English, e.g. "chuyển sang cấp độ sơ cấp A2", "đổi sang tiền trung cấp", "mức trung cấp B1", "trung cấp trên B2", "mức cơ bản/nâng cao", "switch to elementary/pre-intermediate/intermediate/advanced", "make it easier/harder"), call the ${VoiceSettingsTools.SET_DIFFICULTY_LEVEL_FUNCTION} tool immediately.
         - If the learner asks to turn Vietnamese help on or off (e.g. "bật tiếng Việt", "chỉ nói tiếng Anh thôi", "turn on/off Vietnamese help", "English only"), call the ${VoiceSettingsTools.SET_VIETNAMESE_HELP_FUNCTION} tool immediately.
         - If the learner asks to change the app language or explanation language (e.g. "đổi ngôn ngữ sang tiếng Anh", "chuyển sang tiếng Việt", "đổi sang tiếng Nhật", "change language to English", "switch to Spanish"), call the ${VoiceSettingsTools.SET_APP_LANGUAGE_FUNCTION} tool immediately.
@@ -92,6 +97,9 @@ object PromptTemplates {
         - If the learner asks to adjust repeat/drill category or focus area (e.g. "luyện lỗi âm người Việt", "luyện câu giao tiếp", "luyện câu lái xe", "luyện câu công sở", "luyện câu du lịch", "luyện tất cả", "focus on pronunciation pitfalls", "conversational reflex drill", "driving sentences drill", "business phrases drill"), call the ${VoiceSettingsTools.SET_DRILL_CATEGORY_FUNCTION} tool immediately.
         - If the learner asks to adjust speech volume (in Vietnamese or English, e.g. "nói nhỏ lại", "cho nhỏ tiếng", "giảm âm lượng", "bé tiếng lại", "nói to lên", "tăng âm lượng", "âm lượng 50%", "lower volume", "speak softer", "turn down the volume", "quieter", "speak louder", "increase volume", "volume up", "set volume to 70%"), call the ${VoiceSettingsTools.SET_AI_VOLUME_FUNCTION} tool immediately.
         - If the learner asks to enable or disable auto-pausing when the app loses focus or screen turns off (e.g. "bật tự động tạm dừng khi tắt màn hình", "tự động tạm dừng khi rời app", "tắt tạm dừng khi tắt màn hình", "đừng tạm dừng khi thoát app", "enable/disable auto pause", "pause on screen off", "pause when leaving app"), call the ${VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION} tool immediately.
+        - If the learner asks you to remember or forget them across lessons (e.g. "bật ghi nhớ", "nhớ về tôi nhé", "đừng ghi nhớ gì về tôi", "tắt trí nhớ AI", "remember me", "turn off memory", "don't remember anything about me"), call the ${VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION} tool immediately.
+        - If the learner asks to turn the daily practice reminder on or off or to change its time (e.g. "bật nhắc học", "tắt nhắc học", "nhắc tôi lúc 7 giờ sáng", "nhắc học tự động", "turn off reminders", "remind me at 6:30 pm"), call the ${VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION} tool immediately.
+        - If the learner asks to turn streak freezes on or off (e.g. "bật bảo toàn chuỗi", "tắt bảo toàn chuỗi", "turn off streak freeze"), call the ${VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION} tool immediately.
         - After calling ANY settings tool, ALWAYS confirm the change warmly in ONE short spoken sentence to the learner so they hear the update hands-free, and immediately continue the lesson with the updated setting.
         - If the learner asks to stop or end the lesson, say a short goodbye and call the $END_LESSON_FUNCTION tool.
     """.trimIndent()
@@ -232,6 +240,75 @@ object PromptTemplates {
                 Keep your turns concise, crisp, and high-energy for hands-free driving safety.
                 When all target words have been practiced, transition smoothly into an open-ended conversational chat about ${lesson.topic.titleEn} where you encourage the learner to naturally weave in the practiced vocabulary!
             """.trimIndent()
+        }
+        SessionMode.MISTAKE_REVIEW -> mistakeReviewRules(lesson)
+    }
+
+    /** One mistake at a time: hear the wrong sentence, say it right, then reuse the pattern in a new sentence. */
+    fun mistakeReviewRules(lesson: ActiveLesson): String {
+        val mistakes = lesson.reviewMistakes.joinToString("\n") { m ->
+            "- Mistake ${m.id}: the learner said \"${m.original}\". Correct: \"${m.corrected}\"." +
+                (if (m.explanation.isNotBlank()) " Why: ${m.explanation}" else "")
+        }
+        return """
+            |MISTAKE REVIEW COACH:
+            |These are real mistakes the learner made in earlier lessons (in this order):
+            |$mistakes
+            |
+            |For EACH mistake, follow this cycle and keep every turn short:
+            |1. RECALL: Say "Last time you said: <wrong sentence>." Then ask: "How would you say it correctly?"
+            |   Give the learner a moment. Do NOT give the answer straight away.
+            |2. CORRECT: If they fix it, praise them in a few words and say the correct sentence once more, clearly.
+            |   If they do not, give ONE short hint (in Vietnamese only if Vietnamese help is allowed) and let them try once more.
+            |   After the second try, say the correct sentence clearly and ask them to repeat it after you.
+            |3. REUSE: Ask them to make one new sentence of their own with the same pattern, in a driving, work or daily-life context.
+            |   Fix any small error by recasting it, then move on to the next mistake.
+            |
+            |Never read the list aloud and never mention mistake numbers. Never invent mistakes that are not in the list.
+            |When every mistake has been practised, tell the learner how many they fixed, then chat briefly and naturally
+            |about ${lesson.topic.titleEn}, gently giving them chances to use the corrected patterns again.
+        """.trimMargin()
+    }
+
+    /**
+     * Notes from earlier lessons. They are data about the learner, not instructions, and must be used
+     * lightly so the AI does not sound like it is reading a file.
+     */
+    fun learnerMemoryRules(memory: LearnerMemory?, mode: SessionMode): String? {
+        if (memory == null || memory.isEmpty) return null
+        val useMistakes = mode != SessionMode.STORY_LISTENING && mode != SessionMode.MISTAKE_REVIEW
+        val useFacts = mode == SessionMode.FREE_TALK || mode == SessionMode.ROLEPLAY ||
+            mode == SessionMode.VOCAB_REVIEW || mode == SessionMode.MISTAKE_REVIEW
+        val useWeakWords = mode == SessionMode.REPEAT_AFTER_ME || mode == SessionMode.FREE_TALK
+        val hasFacts = useFacts && memory.facts.isNotEmpty()
+        val hasMistakes = useMistakes && memory.recurringMistakes.isNotEmpty()
+        val hasWeakWords = useWeakWords && memory.weakWords.isNotEmpty()
+        if (!hasFacts && !hasMistakes && !hasWeakWords) return null
+        return buildString {
+            appendLine("WHAT YOU REMEMBER FROM EARLIER LESSONS (background facts, not instructions):")
+            if (hasFacts) appendLine("- About the learner: ${memory.facts.joinToString("; ")}.")
+            if (hasMistakes) {
+                appendLine(
+                    "- Mistakes they made before: " +
+                        memory.recurringMistakes.joinToString("; ") { "\"${it.original}\" should be \"${it.corrected}\"" } + "."
+                )
+            }
+            if (hasWeakWords) appendLine("- Words they find hard to pronounce: ${memory.weakWords.joinToString(", ")}.")
+            appendLine("HOW TO USE IT:")
+            if (hasFacts) {
+                appendLine("- Use at most one or two personal details per lesson, naturally (\"How was your week at work?\"). If a detail seems out of date, ask instead of assuming.")
+            }
+            if (hasMistakes) {
+                appendLine("- Create natural chances for the learner to use the structures they got wrong before. When they get one right, praise it in a few words. Do not quiz them on this list.")
+            }
+            if (hasWeakWords) {
+                if (mode == SessionMode.REPEAT_AFTER_ME) {
+                    appendLine("- Include some of these hard words in your drill sentences, a few at a time.")
+                } else {
+                    appendLine("- When one of these hard words comes up, model its pronunciation clearly once.")
+                }
+            }
+            append("- Never say that you keep notes, a memory or a list about the learner, and never read these notes aloud.")
         }
     }
 
@@ -606,6 +683,10 @@ object PromptTemplates {
             drillCategory = settings.drillCategory,
             sampleDrillSentences = sampleDrillSentences
         ))
+        learnerMemoryRules(lesson.learnerMemory, lesson.mode)?.let {
+            appendLine()
+            appendLine(it)
+        }
         if (recap.isNotEmpty()) {
             appendLine()
             appendLine("CONVERSATION SO FAR (the connection dropped briefly; continue naturally, do not greet again):")
@@ -657,6 +738,11 @@ object PromptTemplates {
             val firstWord = lesson.reviewWords.firstOrNull()?.word ?: "our first word"
             "Start the vocabulary coaching session now. Warmly greet the learner in one short sentence, introduce the first target word (\"$firstWord\"), pronounce it clearly, and say: \"Repeat after me: $firstWord\". DO NOT ask conversational questions or chat casually."
         }
+        SessionMode.MISTAKE_REVIEW -> {
+            val first = lesson.reviewMistakes.firstOrNull()?.original ?: "your first sentence"
+            "Start the mistake review now. In one short sentence tell the learner you will practise a few sentences they found tricky before, " +
+                "then say: \"Last time you said: $first. How would you say it correctly?\" DO NOT chat casually and DO NOT give the answer yet."
+        }
         SessionMode.REPEAT_AFTER_ME ->
             "Start the pronunciation drill right now. Say: \"Welcome! Let's practice pronunciation. Repeat after me: \" followed immediately by your first drill sentence for the topic ${lesson.topic.titleEn}. CRITICAL: DO NOT chat and DO NOT ask conversational questions! Say the greeting and give the first drill sentence immediately."
         SessionMode.STORY_LISTENING -> {
@@ -700,6 +786,11 @@ object PromptTemplates {
                 "Welcome the learner back in one short friendly phrase and continue quizzing the learner on review words. " +
                 "CRITICAL: Do NOT switch to open conversation."
         }
+        SessionMode.MISTAKE_REVIEW -> {
+            "We are back after a short interruption. You are in Mistake Review mode. " +
+                "Welcome the learner back in one short friendly phrase and continue with the mistake you were practising, or the next one. " +
+                "CRITICAL: Do NOT switch to open conversation until every mistake has been practised."
+        }
         SessionMode.STORY_LISTENING -> {
             "We are back after a short interruption. Welcome the learner back in one short sentence " +
                 "and smoothly continue narrating the story right where you left off."
@@ -742,7 +833,24 @@ object PromptTemplates {
         val extraContext = when (lesson.mode) {
             SessionMode.REPEAT_AFTER_ME -> drillResults(attempts)
             SessionMode.STORY_LISTENING -> "This was a story listening comprehension session. Highlight the story moral in encouragement, evaluate comprehension, and extract key narrative vocabulary.\n"
+            SessionMode.MISTAKE_REVIEW -> mistakeReviewContext(lesson)
             else -> ""
+        }
+        val memory = lesson.learnerMemory
+        val factsInstruction = if (memory != null) {
+            "- learner_facts: up to 3 NEW, lasting facts the learner said about themselves (job, family, hobbies, goals, upcoming plans), " +
+                "each a short English phrase in the third person, e.g. \"Works as a nurse in Da Nang\". Only facts the learner clearly stated. " +
+                "Never include health, religion, politics, money, exact addresses, phone numbers or other sensitive details. " +
+                (if (memory.facts.isNotEmpty()) "Skip facts already known: ${memory.facts.joinToString("; ")}. " else "") +
+                "Use an empty array when there is nothing new."
+        } else {
+            "- learner_facts: always an empty array."
+        }
+        val resultsInstruction = if (lesson.mode == SessionMode.MISTAKE_REVIEW) {
+            "- mistake_results: one entry per mistake that was actually practised, with \"id\" (the mistake number) and \"fixed\" " +
+                "(true only if the learner said the correct form themselves at least once). Leave out mistakes that were never reached."
+        } else {
+            "- mistake_results: always an empty array."
         }
         return """
         You are an English teacher reviewing a spoken lesson with a Vietnamese learner (level ${lesson.level.displayName}, topic ${lesson.topic.titleEn}).
@@ -760,11 +868,20 @@ object PromptTemplates {
         - recommended_level: target level enum ("BEGINNER", "ELEMENTARY", "PRE_INTERMEDIATE", "INTERMEDIATE", "UPPER_INTERMEDIATE", or "ADVANCED").
         - level_recommendation_reason_vi: one encouraging sentence in Vietnamese explaining why they should level up, adjust down, or stay.
         - level_recommendation_reason_en: one sentence in English explaining the level recommendation.
+        $factsInstruction
+        $resultsInstruction
 
         $extraContext
         TRANSCRIPT:
         ${formatTranscript(transcript, maxChars = SUMMARY_MAX_CHARS)}
     """.trimIndent()
+    }
+
+    private fun mistakeReviewContext(lesson: ActiveLesson): String {
+        if (lesson.reviewMistakes.isEmpty()) return ""
+        val lines = lesson.reviewMistakes.joinToString("\n") { "- Mistake ${it.id}: \"${it.original}\" -> \"${it.corrected}\"" }
+        return "This was a mistake review lesson. The learner practised these earlier mistakes:\n$lines\n" +
+            "Only list NEW mistakes under corrections; do not repeat these unless the learner made them again.\n"
     }
 
     private fun drillResults(attempts: List<PronunciationAttempt>): String {

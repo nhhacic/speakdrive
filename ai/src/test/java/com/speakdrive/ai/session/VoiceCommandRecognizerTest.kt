@@ -126,4 +126,36 @@ class VoiceCommandRecognizerTest {
             assertWithMessage(tool.name).that(CommandCategory.forTool(tool.name)).isNotNull()
         }
     }
+
+    @Test
+    fun `memory, reminder and streak freeze commands are recognised`() {
+        assertThat(recognize("tắt ghi nhớ")).isEqualTo(VoiceCommand.SetLearnerMemory(false))
+        assertThat(recognize("turn off memory")).isEqualTo(VoiceCommand.SetLearnerMemory(false))
+        assertThat(recognize("tắt nhắc học")).isEqualTo(VoiceCommand.SetPracticeReminder(false, null))
+        assertThat(recognize("nhắc học lúc 7 giờ sáng")).isEqualTo(VoiceCommand.SetPracticeReminder(true, 7 * 60))
+        assertThat(recognize("remind me to practice at 6 pm")).isEqualTo(VoiceCommand.SetPracticeReminder(true, 18 * 60))
+        assertThat(recognize("tắt bảo toàn chuỗi")).isEqualTo(VoiceCommand.SetStreakFreeze(false))
+        assertThat(recognize("chuyển sang ôn lỗi sai")).isEqualTo(VoiceCommand.SwitchMode(SessionMode.MISTAKE_REVIEW))
+    }
+
+    @Test
+    fun `settings that are already in place are not changed again`() {
+        // Defaults: memory on, reminder on and automatic, streak freeze on.
+        assertThat(recognize("bật ghi nhớ")).isNull()
+        assertThat(recognize("bật nhắc học")).isNull()
+        assertThat(recognize("nhắc học tự động")).isNull()
+        assertThat(recognize("bật bảo toàn chuỗi")).isNull()
+    }
+
+    @Test
+    fun `conversation about reminders and memories is not a command`() {
+        listOf(
+            "Can you remind me at 7 to call my mom",
+            "Tôi nhớ lại chuyến đi đó",
+            "Anh ấy vẫn còn nhớ về tôi",
+            "I made a mistake at work yesterday"
+        ).forEach { sentence ->
+            assertWithMessage(sentence).that(recognize(sentence)).isNull()
+        }
+    }
 }

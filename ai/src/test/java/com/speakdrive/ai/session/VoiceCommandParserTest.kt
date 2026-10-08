@@ -1,5 +1,6 @@
 package com.speakdrive.ai.session
 
+import com.speakdrive.ai.model.LearnerSettings
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.DrillCategory
@@ -1100,5 +1101,84 @@ class VoiceCommandParserTest {
         // Whole words only.
         assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("the video auto paused")).isNull()
         assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("there were no translations")).isNull()
+    }
+
+    @Test
+    fun `mistake review mode is recognised in Vietnamese and English`() {
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyển sang ôn lỗi sai")).isEqualTo(SessionMode.MISTAKE_REVIEW)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyen sang on loi sai")).isEqualTo(SessionMode.MISTAKE_REVIEW)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("ôn lại lỗi cũ")).isEqualTo(SessionMode.MISTAKE_REVIEW)
+        assertThat(VoiceCommandParser.parseSessionModeCommand("review my mistakes")).isEqualTo(SessionMode.MISTAKE_REVIEW)
+        // Vocabulary review is still vocabulary review.
+        assertThat(VoiceCommandParser.parseSessionModeCommand("chuyển sang ôn từ vựng")).isEqualTo(SessionMode.VOCAB_REVIEW)
+    }
+
+    @Test
+    fun `learner memory can be turned on and off`() {
+        assertThat(VoiceCommandParser.parseLearnerMemoryCommand("tắt ghi nhớ")).isFalse()
+        assertThat(VoiceCommandParser.parseLearnerMemoryCommand("tat ghi nho")).isFalse()
+        assertThat(VoiceCommandParser.parseLearnerMemoryCommand("đừng ghi nhớ gì về tôi")).isFalse()
+        assertThat(VoiceCommandParser.parseLearnerMemoryCommand("turn off memory")).isFalse()
+        assertThat(VoiceCommandParser.parseLearnerMemoryCommand("don't remember anything about me")).isFalse()
+        assertThat(VoiceCommandParser.parseLearnerMemoryCommand("bật ghi nhớ")).isTrue()
+        assertThat(VoiceCommandParser.parseLearnerMemoryCommand("hãy nhớ về tôi nhé")).isTrue()
+        assertThat(VoiceCommandParser.parseLearnerMemoryCommand("turn on memory")).isTrue()
+        assertThat(VoiceCommandParser.parseLearnerMemoryCommand("I remember my first car")).isNull()
+        assertThat(VoiceCommandParser.parseLearnerMemoryCommand("Tôi nhớ lại chuyến đi đó")).isNull()
+    }
+
+    @Test
+    fun `practice reminder requests in Vietnamese and English`() {
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("tắt nhắc học"))
+            .isEqualTo(VoiceCommandParser.PracticeReminderRequest(enabled = false))
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("tat nhac hoc"))
+            .isEqualTo(VoiceCommandParser.PracticeReminderRequest(enabled = false))
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("bật nhắc học"))
+            .isEqualTo(VoiceCommandParser.PracticeReminderRequest(enabled = true))
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("nhắc học lúc 7 giờ sáng"))
+            .isEqualTo(VoiceCommandParser.PracticeReminderRequest(enabled = true, minuteOfDay = 7 * 60))
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("đặt giờ nhắc 19h30"))
+            .isEqualTo(VoiceCommandParser.PracticeReminderRequest(enabled = true, minuteOfDay = 19 * 60 + 30))
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("nhắc học tự động"))
+            .isEqualTo(VoiceCommandParser.PracticeReminderRequest(enabled = true, minuteOfDay = LearnerSettings.REMINDER_AUTO))
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("turn off reminders"))
+            .isEqualTo(VoiceCommandParser.PracticeReminderRequest(enabled = false))
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("remind me to practice at 6:30 pm"))
+            .isEqualTo(VoiceCommandParser.PracticeReminderRequest(enabled = true, minuteOfDay = 18 * 60 + 30))
+    }
+
+    @Test
+    fun `everyday reminders and repeat requests are not app reminder commands`() {
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("Can you remind me at 7 to call my mom")).isNull()
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("nhắc lại câu này")).isNull()
+        assertThat(VoiceCommandParser.parsePracticeReminderCommand("Tôi quên mất cuộc hẹn lúc 7 giờ")).isNull()
+    }
+
+    @Test
+    fun `times of day are read from speech`() {
+        assertThat(VoiceCommandParser.parseTimeOfDay("7 giờ sáng")).isEqualTo(7 * 60)
+        assertThat(VoiceCommandParser.parseTimeOfDay("7 giờ rưỡi tối")).isEqualTo(19 * 60 + 30)
+        assertThat(VoiceCommandParser.parseTimeOfDay("6 giờ chiều")).isEqualTo(18 * 60)
+        assertThat(VoiceCommandParser.parseTimeOfDay("11 giờ đêm")).isEqualTo(23 * 60)
+        assertThat(VoiceCommandParser.parseTimeOfDay("19h")).isEqualTo(19 * 60)
+        assertThat(VoiceCommandParser.parseTimeOfDay("07:45")).isEqualTo(7 * 60 + 45)
+        assertThat(VoiceCommandParser.parseTimeOfDay("7 am")).isEqualTo(7 * 60)
+        assertThat(VoiceCommandParser.parseTimeOfDay("12 am")).isEqualTo(0)
+        assertThat(VoiceCommandParser.parseTimeOfDay("at 9 in the evening")).isEqualTo(21 * 60)
+        // "tôi" (me) folds like "tối" (evening): only the word right after the time counts.
+        assertThat(VoiceCommandParser.parseTimeOfDay("lúc 7 giờ cho tôi")).isEqualTo(7 * 60)
+        assertThat(VoiceCommandParser.parseTimeOfDay("25 giờ")).isNull()
+        assertThat(VoiceCommandParser.parseTimeOfDay("không có giờ nào")).isNull()
+    }
+
+    @Test
+    fun `streak freeze can be turned on and off`() {
+        assertThat(VoiceCommandParser.parseStreakFreezeCommand("tắt bảo toàn chuỗi")).isFalse()
+        assertThat(VoiceCommandParser.parseStreakFreezeCommand("tat bao toan chuoi")).isFalse()
+        assertThat(VoiceCommandParser.parseStreakFreezeCommand("bật bảo toàn chuỗi")).isTrue()
+        assertThat(VoiceCommandParser.parseStreakFreezeCommand("dùng bảo toàn chuỗi")).isNull()
+        assertThat(VoiceCommandParser.parseStreakFreezeCommand("turn off streak freeze")).isFalse()
+        assertThat(VoiceCommandParser.parseStreakFreezeCommand("turn on streak freeze")).isTrue()
+        assertThat(VoiceCommandParser.parseStreakFreezeCommand("My streak is long")).isNull()
     }
 }

@@ -3,8 +3,11 @@ package com.speakdrive.ai.session
 import com.speakdrive.ai.model.AiVoice
 import com.speakdrive.ai.model.CompletedSession
 import com.speakdrive.ai.model.DifficultyLevel
+import com.speakdrive.ai.model.LearnerMemory
 import com.speakdrive.ai.model.LearnerSettings
+import com.speakdrive.ai.model.MistakeReviewResult
 import com.speakdrive.ai.model.PronunciationStrictness
+import com.speakdrive.ai.model.ReviewMistake
 import com.speakdrive.ai.model.ReviewWord
 import com.speakdrive.ai.model.StorytellingStyle
 import kotlinx.coroutines.flow.Flow
@@ -40,6 +43,18 @@ interface SessionStore {
 
     /** Recent drill target sentences practiced by the learner, newest first. */
     suspend fun recentDrillTargets(limit: Int = 30): List<String> = emptyList()
+
+    /** Earlier mistakes whose review is due now, the ones made most often first. */
+    suspend fun mistakesDueForReview(limit: Int): List<ReviewMistake> = emptyList()
+
+    /** Most recent mistakes, for extra practice when none are due. */
+    suspend fun recentMistakes(limit: Int): List<ReviewMistake> = emptyList()
+
+    /** Fixed mistakes move to a longer review interval; the others come back tomorrow. */
+    suspend fun recordMistakeReviews(results: List<MistakeReviewResult>) {}
+
+    /** What the AI should remember about the learner at the start of a lesson. */
+    suspend fun learnerMemory(): LearnerMemory = LearnerMemory.EMPTY
 }
 
 interface LearningSettings {
@@ -63,5 +78,8 @@ interface LearningSettings {
     suspend fun setAiVolume(volume: Int) {}
     suspend fun setAutoPauseWhenUnfocused(enabled: Boolean) {}
     suspend fun setShowTranslationSubtitle(enabled: Boolean) {}
+    suspend fun setRememberLearner(enabled: Boolean) {}
+    suspend fun setPracticeReminder(enabled: Boolean, minuteOfDay: Int? = null) {}
+    suspend fun setStreakFreeze(enabled: Boolean) {}
 }
 

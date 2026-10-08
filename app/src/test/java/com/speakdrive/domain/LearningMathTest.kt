@@ -45,4 +45,50 @@ class LearningMathTest {
         assertThat(SpacedRepetition.nextReviewAt(5, 0)).isEqualTo(60 * day)
         assertThat(SpacedRepetition.nextReviewAt(50, 0)).isEqualTo(60 * day)
     }
+
+    private fun days(vararg offsets: Long) = offsets.map { today.minusDays(it) }.toSet()
+
+    @Test
+    fun `without freezes the streak matches the plain streak`() {
+        val practice = days(0, 1, 2, 5)
+        val status = StreakCalculator.streakWithFreezes(practice, today, freezesEnabled = false)
+        assertThat(status.days).isEqualTo(StreakCalculator.currentStreak(practice, today))
+        assertThat(status.freezesLeft).isEqualTo(0)
+    }
+
+    @Test
+    fun `seven days in a row earn a freeze that covers one missed day`() {
+        // Days 9..3 ago practised (7 in a row), 2 days ago missed, yesterday practised.
+        val practice = days(9, 8, 7, 6, 5, 4, 3, 1)
+        val status = StreakCalculator.streakWithFreezes(practice, today)
+
+        assertThat(status.days).isEqualTo(8)
+        assertThat(status.freezesLeft).isEqualTo(0)
+        assertThat(status.frozenDays).containsExactly(today.minusDays(2))
+        // Without freezes the same history is a one-day streak.
+        assertThat(StreakCalculator.currentStreak(practice, today)).isEqualTo(1)
+    }
+
+    @Test
+    fun `a missed day without a freeze breaks the streak`() {
+        val practice = days(5, 4, 3, 1, 0)
+        val status = StreakCalculator.streakWithFreezes(practice, today)
+        assertThat(status.days).isEqualTo(2)
+        assertThat(status.frozenDays).isEmpty()
+    }
+
+    @Test
+    fun `today does not count as missed and freezes are capped`() {
+        // 21 days in a row up to yesterday: three freezes earned, only two kept.
+        val practice = (1L..21L).map { today.minusDays(it) }.toSet()
+        val status = StreakCalculator.streakWithFreezes(practice, today)
+        assertThat(status.days).isEqualTo(21)
+        assertThat(status.freezesLeft).isEqualTo(StreakCalculator.MAX_FREEZES)
+    }
+
+    @Test
+    fun `memory text ignores case and surrounding punctuation`() {
+        assertThat(MemoryText.normalize("  I goed to Hue!! ")).isEqualTo("i goed to hue")
+        assertThat(MemoryText.normalize("\"Works as a nurse.\"")).isEqualTo("works as a nurse")
+    }
 }

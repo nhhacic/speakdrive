@@ -105,3 +105,43 @@ data class LearnedWordEntity(
     val reviewCount: Int = 0,
     val nextReviewAt: Long
 )
+
+/**
+ * A mistake the learner made, scheduled for spaced-repetition review in mistake review lessons.
+ * One row per distinct wrong sentence; making the same mistake again sends it back to the start.
+ */
+@Entity(
+    tableName = "mistakes",
+    foreignKeys = [ForeignKey(SessionEntity::class, ["id"], ["sessionId"], onDelete = ForeignKey.SET_NULL)],
+    indices = [Index(value = ["normalizedOriginal"], unique = true), Index("sessionId"), Index("nextReviewAt")]
+)
+data class MistakeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val original: String,
+    /** Lower-cased copy of [original] without surrounding punctuation; keeps one row per mistake. */
+    val normalizedOriginal: String,
+    val corrected: String,
+    val explanation: String,
+    /** The lesson the mistake was last made in. */
+    val sessionId: String?,
+    val createdAt: Long,
+    val reviewCount: Int = 0,
+    val nextReviewAt: Long,
+    val lastReviewedAt: Long? = null,
+    /** How many lessons the learner made this mistake in. */
+    val timesMade: Int = 1
+)
+
+/** A short fact the learner shared about themselves, so the AI can personalise later lessons. */
+@Entity(
+    tableName = "learner_facts",
+    foreignKeys = [ForeignKey(SessionEntity::class, ["id"], ["sessionId"], onDelete = ForeignKey.SET_NULL)],
+    indices = [Index(value = ["normalizedFact"], unique = true), Index("sessionId")]
+)
+data class LearnerFactEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val fact: String,
+    val normalizedFact: String,
+    val sessionId: String?,
+    val createdAt: Long
+)

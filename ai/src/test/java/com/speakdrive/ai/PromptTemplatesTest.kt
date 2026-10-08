@@ -1,5 +1,8 @@
 package com.speakdrive.ai
 
+import com.speakdrive.ai.model.ReviewMistake
+import com.speakdrive.ai.model.LearnerMemory
+import com.speakdrive.ai.model.Correction
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.DifficultyLevel
@@ -301,6 +304,86 @@ class PromptTemplatesTest {
         val freeTalkMsg = PromptTemplates.resumeMessage(freeTalkLesson)
         assertThat(freeTalkMsg).isEqualTo(PromptTemplates.RESUME_MESSAGE)
     }
+
+    private fun memoryLesson(
+        mode: SessionMode,
+        memory: LearnerMemory?,
+        mistakes: List<ReviewMistake> = emptyList()
+    ): ActiveLesson {
+        val topic = TopicManager().getTopicById("travel")!!
+        return ActiveLesson(
+            sessionId = "s",
+            topic = topic,
+            scenario = null,
+            level = DifficultyLevel.INTERMEDIATE,
+            mode = mode,
+            startedAt = 0,
+            reviewWords = emptyList(),
+            reviewMistakes = mistakes,
+            learnerMemory = memory
+        )
+    }
+
+    private val sampleMemory = LearnerMemory(
+        recurringMistakes = listOf(Correction("She don't like it", "She doesn't like it", "")),
+        weakWords = listOf("comfortable", "three"),
+        facts = listOf("Works as a nurse in Da Nang")
+    )
+
+    @Test
+    fun `memory notes are added as background, never as a list to read out`() {
+        val instruction = PromptTemplates.buildSystemInstruction(memoryLesson(SessionMode.FREE_TALK, sampleMemory), LearnerSettings())
+
+        assertThat(instruction).contains("WHAT YOU REMEMBER FROM EARLIER LESSONS")
+        assertThat(instruction).contains("Works as a nurse in Da Nang")
+        assertThat(instruction).contains("She doesn't like it")
+        assertThat(instruction).contains("never read these notes aloud")
+    }
+
+    @Test
+    fun `memory notes depend on the mode and are left out when memory is off or empty`() {
+        val drill = PromptTemplates.learnerMemoryRules(sampleMemory, SessionMode.REPEAT_AFTER_ME)!!
+        assertThat(drill).contains("comfortable")
+        assertThat(drill).contains("drill sentences")
+        assertThat(drill).doesNotContain("nurse")
+
+        assertThat(PromptTemplates.learnerMemoryRules(sampleMemory, SessionMode.STORY_LISTENING)).isNull()
+        assertThat(PromptTemplates.learnerMemoryRules(null, SessionMode.FREE_TALK)).isNull()
+        assertThat(PromptTemplates.learnerMemoryRules(LearnerMemory.EMPTY, SessionMode.FREE_TALK)).isNull()
+    }
+
+    @Test
+    fun `mistake review lists the mistakes and starts with the first one`() {
+        val mistakes = listOf(
+            ReviewMistake(3, "I go there yesterday", "I went there yesterday", "Quá khứ của go là went."),
+            ReviewMistake(4, "She don't like it", "She doesn't like it", "")
+        )
+        val lesson = memoryLesson(SessionMode.MISTAKE_REVIEW, null, mistakes)
+
+        val instruction = PromptTemplates.buildSystemInstruction(lesson, LearnerSettings())
+        assertThat(instruction).contains("MISTAKE REVIEW COACH")
+        assertThat(instruction).contains("Mistake 3: the learner said \"I go there yesterday\"")
+        assertThat(instruction).contains("Never invent mistakes")
+        assertThat(PromptTemplates.kickoffMessage(lesson)).contains("Last time you said: I go there yesterday")
+        assertThat(PromptTemplates.resumeMessage(lesson)).contains("Mistake Review")
+        assertThat(lesson.titleVi).isEqualTo("Ôn lỗi sai")
+    }
+
+    @Test
+    fun `summary asks for facts only when memory is on and for results only in mistake review`() {
+        val withMemory = PromptTemplates.summaryPrompt(memoryLesson(SessionMode.FREE_TALK, sampleMemory), emptyList())
+        assertThat(withMemory).contains("learner_facts: up to 3 NEW")
+        assertThat(withMemory).contains("Skip facts already known: Works as a nurse in Da Nang")
+        assertThat(withMemory).contains("mistake_results: always an empty array")
+
+        val withoutMemory = PromptTemplates.summaryPrompt(memoryLesson(SessionMode.FREE_TALK, null), emptyList())
+        assertThat(withoutMemory).contains("learner_facts: always an empty array")
+
+        val review = PromptTemplates.summaryPrompt(
+            memoryLesson(SessionMode.MISTAKE_REVIEW, null, listOf(ReviewMistake(3, "I goed", "I went", ""))),
+            emptyList()
+        )
+        assertThat(review).contains("mistake_results: one entry per mistake")
+        assertThat(review).contains("Mistake 3: \"I goed\" -> \"I went\"")
+    }
 }
-
-

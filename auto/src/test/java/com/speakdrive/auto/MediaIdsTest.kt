@@ -35,4 +35,9 @@ class MediaIdsTest {
         assertThat(MediaIds.parse("something-else")).isEqualTo(MediaTarget.Unknown)
         assertThat(MediaIds.parse(null)).isEqualTo(MediaTarget.Unknown)
     }
+
+    @Test
+    fun `mistake review id round trips`() {
+        assertThat(MediaIds.parse(MediaIds.MISTAKES)).isEqualTo(MediaTarget.Mistakes)
+    }
 }

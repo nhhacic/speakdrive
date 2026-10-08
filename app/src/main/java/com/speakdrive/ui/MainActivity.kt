@@ -34,6 +34,7 @@ import com.speakdrive.ui.components.bottomNavItems
 import com.speakdrive.ui.navigation.AboutRoute
 import com.speakdrive.ui.navigation.ConversationRoute
 import com.speakdrive.ui.navigation.HomeRoute
+import com.speakdrive.ui.navigation.LearnerMemoryRoute
 import com.speakdrive.ui.navigation.PrivacyRoute
 import com.speakdrive.ui.navigation.ProgressRoute
 import com.speakdrive.ui.navigation.SettingsRoute
@@ -42,6 +43,7 @@ import com.speakdrive.ui.navigation.VocabularyRoute
 import com.speakdrive.ui.screens.AboutScreen
 import com.speakdrive.ui.screens.ConversationScreen
 import com.speakdrive.ui.screens.HomeScreen
+import com.speakdrive.ui.screens.LearnerMemoryScreen
 import com.speakdrive.ui.screens.PrivacyPolicyScreen
 import com.speakdrive.ui.screens.ProgressScreen
 import com.speakdrive.ui.screens.SettingsScreen
@@ -269,7 +271,14 @@ private fun SpeakDriveNavHost() {
                     onOpenProgress = { navController.navigate(ProgressRoute) },
                     onOpenVocabulary = { navController.navigate(VocabularyRoute) },
                     onOpenPrivacy = { navController.navigate(PrivacyRoute) },
-                    onOpenAbout = { navController.navigate(AboutRoute) }
+                    onOpenAbout = { navController.navigate(AboutRoute) },
+                    onOpenMemory = { navController.navigate(LearnerMemoryRoute) }
+                )
+            }
+            composable<LearnerMemoryRoute> {
+                LearnerMemoryScreen(
+                    onBack = back,
+                    onStartReview = { mediaId -> navController.navigate(ConversationRoute(mediaId)) }
                 )
             }
             composable<ProgressRoute> {

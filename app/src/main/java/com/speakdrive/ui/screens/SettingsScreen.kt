@@ -87,6 +87,7 @@ fun SettingsScreen(
     onOpenVocabulary: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onOpenAbout: () -> Unit = {},
+    onOpenMemory: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val prefs by viewModel.preferences.collectAsStateWithLifecycle()
@@ -118,7 +119,8 @@ fun SettingsScreen(
         onSetDrillCategory = viewModel::setDrillCategory,
         onSetAiVolume = viewModel::setAiVolume,
         onSetAutoPauseWhenUnfocused = viewModel::setAutoPauseWhenUnfocused,
-        onSetShowTranslationSubtitle = viewModel::setShowTranslationSubtitle
+        onSetShowTranslationSubtitle = viewModel::setShowTranslationSubtitle,
+        extraGroups = { MemorySettingsGroup(onOpenMemory = onOpenMemory) }
     )
 }
 
@@ -151,7 +153,9 @@ fun SettingsContent(
     onSetDailyGoal: (Int) -> Unit = {},
     onSetAiVolume: (Int) -> Unit = {},
     onSetAutoPauseWhenUnfocused: (Boolean) -> Unit = {},
-    onSetShowTranslationSubtitle: (Boolean) -> Unit = {}
+    onSetShowTranslationSubtitle: (Boolean) -> Unit = {},
+    /** Groups with their own view model (memory and reminders), shown before the Azure group. */
+    extraGroups: @Composable () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -565,6 +569,8 @@ fun SettingsContent(
                 )
             }
 
+            extraGroups()
+
             // Group 3: Azure Speech Service
             SettingsGroupCard(title = stringResource(R.string.settings_group_azure), icon = Icons.Filled.Cloud) {
                 AzureSection(
@@ -608,7 +614,7 @@ fun SettingsContent(
 }
 
 @Composable
-private fun SettingsGroupCard(
+internal fun SettingsGroupCard(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     content: @Composable ColumnScope.() -> Unit

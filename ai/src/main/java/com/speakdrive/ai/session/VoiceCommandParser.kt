@@ -6,6 +6,7 @@ import com.speakdrive.ai.model.AppLanguage
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.DrillCategory
 import com.speakdrive.ai.model.DrillSentenceLength
+import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.model.StorytellingStyle
@@ -850,6 +851,138 @@ object VoiceCommandParser {
      * (e.g. Shadowing/Pronunciation, Free Talk, Story Listening, Roleplay, Vocab Review).
      * Returns the target [SessionMode] if detected, or null.
      */
+    /**
+     * Parses a request to turn the AI's memory of the learner on or off
+     * ("bật ghi nhớ", "đừng ghi nhớ gì về tôi", "remember me", "turn off memory").
+     */
+    /** A reminder change: [minuteOfDay] is null to keep the time, or [LearnerSettings.REMINDER_AUTO]. */
+    data class PracticeReminderRequest(val enabled: Boolean, val minuteOfDay: Int? = null)
+
+    /**
+     * Parses a request about the daily practice reminder: "tắt nhắc học", "bật nhắc học",
+     * "nhắc tôi lúc 7 giờ sáng", "nhắc học tự động", "remind me at 6:30 pm", "turn off reminders".
+     * "Nhắc lại" (say again) is not a reminder.
+     */
+    fun parsePracticeReminderCommand(text: String): PracticeReminderRequest? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return null
+        // Only clear requests about the app's reminder: "remind me at 7 to call mum" is conversation.
+        if (!containsAny(q, REMINDER_TOPIC_PHRASES)) return null
+        if (containsAny(q, OFF_REMINDER_PHRASES)) return PracticeReminderRequest(enabled = false)
+        if (containsAny(q, AUTO_REMINDER_PHRASES)) {
+            return PracticeReminderRequest(enabled = true, minuteOfDay = LearnerSettings.REMINDER_AUTO)
+        }
+        parseTimeOfDay(q)?.let { return PracticeReminderRequest(enabled = true, minuteOfDay = it) }
+        if (containsAny(q, ON_REMINDER_PHRASES)) return PracticeReminderRequest(enabled = true)
+        return null
+    }
+
+    /**
+     * Reads a time of day from speech ("7 giờ sáng", "7 giờ rưỡi", "19h30", "8 giờ tối", "6:30 pm", "7 am",
+     * "lúc 7") as minutes after midnight. Text may be raw or already folded by [TopicManager.normalize].
+     */
+    fun parseTimeOfDay(text: String): Int? {
+        val q = TopicManager.normalize(text)
+        val patterns = listOf(
+            Regex("""\b(\d{1,2})\s*h\s*(\d{1,2})?\b"""),
+            Regex("""\b(\d{1,2})\s+gio(?:\s+(\d{1,2}|ruoi))?\b"""),
+            Regex("""\b(\d{1,2})\s+(\d{2})\b"""),
+            Regex("""\b(\d{1,2})\s*(?=am\b|pm\b|a m\b|p m\b)"""),
+            Regex("""\b(?:luc|at|vao)\s+(\d{1,2})\b""")
+        )
+        val match = patterns.firstNotNullOfOrNull { it.find(q) } ?: return null
+        var hour = match.groupValues[1].toIntOrNull() ?: return null
+        val minutePart = match.groupValues.getOrNull(2).orEmpty()
+        val minute = when {
+            minutePart == "ruoi" -> 30
+            minutePart.isEmpty() -> 0
+            else -> minutePart.toIntOrNull() ?: 0
+        }
+        if (hour > 23 || minute > 59) return null
+        // The period is the word right after the time ("7 giờ tối", "6 30 pm") or "buổi …" before it:
+        // "tôi" (me) and "tối" (evening) fold to the same word, so "lúc 7 giờ cho tôi" must stay 7:00.
+        val next = q.substring(match.range.last + 1).trim().split(' ').filter { it.isNotEmpty() }
+        val first = next.getOrNull(0).orEmpty()
+        val spaced = first == "p" || first == "a"
+        val period = if (spaced && next.getOrNull(1) == "m") first + "m" else first
+        val pm = period in setOf("pm", "chieu", "toi", "evening", "afternoon", "night") ||
+            containsAny(q, listOf("buoi chieu", "buoi toi", "in the evening", "in the afternoon"))
+        val am = period in setOf("am", "sang", "morning") || containsAny(q, listOf("buoi sang", "in the morning"))
+        val lateNight = period == "dem"
+        when {
+            pm && hour in 1..11 -> hour += 12
+            am && hour == 12 -> hour = 0
+            lateNight && hour in 8..11 -> hour += 12
+            lateNight && hour == 12 -> hour = 0
+        }
+        return hour * 60 + minute
+    }
+
+    /** "Bật/tắt bảo toàn chuỗi", "turn on/off streak freeze". */
+    fun parseStreakFreezeCommand(text: String): Boolean? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return null
+        if (!containsAny(q, STREAK_FREEZE_PHRASES)) return null
+        // "dung" is left out: it folds from both "đừng" (don't) and "dùng" (use).
+        if (containsAny(q, listOf("tat", "khong can", "bo bao toan", "off", "disable", "turn off", "stop using"))) return false
+        if (containsAny(q, listOf("bat", "mo", "on", "enable", "turn on", "use", "keep", "giu chuoi", "bao ve chuoi"))) return true
+        return null
+    }
+
+    private val REMINDER_TOPIC_PHRASES = listOf(
+        "nhac hoc", "nhac luyen", "nhac luyen tap", "nhac nho hoc", "nhac nho luyen", "loi nhac", "gio nhac",
+        "thong bao nhac", "nhac moi ngay", "nhac hang ngay", "nhac tu dong", "tu dong nhac", "nhac toi hoc",
+        "nhac toi luyen", "nhac minh hoc", "nhac minh luyen", "tat nhac", "bat nhac", "dung nhac",
+        "practice reminder", "practice reminders", "daily reminder", "daily reminders", "study reminder",
+        "reminder notification", "turn off reminders", "turn on reminders", "turn off the reminder",
+        "turn on the reminder", "disable reminders", "enable reminders", "no more reminders",
+        "remind me to practice", "remind me to practise", "remind me to study", "remind me every day",
+        "remind me daily", "remind me automatically", "automatic reminder", "stop reminding"
+    )
+
+    private val OFF_REMINDER_PHRASES = listOf(
+        "tat nhac", "tat loi nhac", "tat thong bao nhac", "dung nhac", "dung nhac nho", "khong can nhac", "khong nhac",
+        "bo nhac", "turn off reminder", "turn off reminders", "disable reminder", "disable reminders", "stop reminding",
+        "no reminders", "no more reminders", "don t remind"
+    )
+
+    private val AUTO_REMINDER_PHRASES = listOf(
+        "nhac tu dong", "tu dong nhac", "nhac hoc tu dong", "gio nhac tu dong", "nhac theo thoi quen",
+        "automatic reminder", "remind me automatically", "reminder automatic", "auto reminder"
+    )
+
+    private val ON_REMINDER_PHRASES = listOf(
+        "bat nhac", "bat nhac hoc", "bat loi nhac", "mo nhac hoc", "nhac toi moi ngay", "nhac minh moi ngay",
+        "turn on reminder", "turn on reminders", "enable reminder", "enable reminders", "remind me every day",
+        "remind me daily"
+    )
+
+    private val STREAK_FREEZE_PHRASES = listOf(
+        "bao toan chuoi", "giu chuoi", "dong bang chuoi", "bao ve chuoi", "streak freeze", "freeze my streak",
+        "streak freezes", "freeze streak"
+    )
+
+    fun parseLearnerMemoryCommand(text: String): Boolean? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return null
+        if (containsAny(q, OFF_LEARNER_MEMORY_PHRASES)) return false
+        if (containsAny(q, ON_LEARNER_MEMORY_PHRASES)) return true
+        return null
+    }
+
+    private val ON_LEARNER_MEMORY_PHRASES = listOf(
+        "bat ghi nho", "bat tri nho", "bat tri nho ai", "mo ghi nho", "nho ve toi", "nho ve minh",
+        "hay nho ve toi", "ghi nho ve toi", "cho phep ghi nho", "bat che do ghi nho",
+        "please remember me", "turn on memory", "enable memory", "memory on", "remember things about me"
+    ).map { TopicManager.normalize(it) }
+
+    private val OFF_LEARNER_MEMORY_PHRASES = listOf(
+        "tat ghi nho", "tat tri nho", "tat tri nho ai", "dung ghi nho", "dung nho ve toi", "dung nho gi ve toi",
+        "dung ghi nho gi ve toi", "khong ghi nho", "khong can ghi nho", "quen toi di", "quen ve toi di", "tat che do ghi nho",
+        "turn off memory", "disable memory", "memory off", "forget everything about me",
+        "don t remember me", "don t remember anything about me", "stop remembering me"
+    ).map { TopicManager.normalize(it) }
+
     fun parseSessionModeCommand(text: String): SessionMode? {
         val q = TopicManager.normalize(text)
         if (q.isBlank()) return null
@@ -882,14 +1015,23 @@ object VoiceCommandParser {
         ).map { TopicManager.normalize(it) }
         if (containsAny(q, roleplayPhrases)) return SessionMode.ROLEPLAY
 
-        // 4. VOCAB REVIEW
+        // 4. MISTAKE REVIEW (before vocabulary: "ôn lại" alone must not mean words)
+        val mistakePhrases = listOf(
+            "on loi sai", "on lai loi sai", "on tap loi sai", "chuyen sang on loi", "chuyen sang on loi sai",
+            "luyen lai loi sai", "sua loi sai cu", "on loi cu", "on lai loi cu", "luyen loi sai",
+            "review my mistakes", "review mistakes", "mistake review", "practice my mistakes", "switch to mistake review",
+            "go over my mistakes"
+        ).map { TopicManager.normalize(it) }
+        if (containsAny(q, mistakePhrases)) return SessionMode.MISTAKE_REVIEW
+
+        // 5. VOCAB REVIEW
         val vocabPhrases = listOf(
             "chuyen sang on tu vung", "on tap tu vung", "hoc tu vung", "chuyen sang tu vung",
             "chuyen sang on tap tu", "switch to vocabulary", "vocab review", "review words", "vocabulary practice"
         ).map { TopicManager.normalize(it) }
         if (containsAny(q, vocabPhrases)) return SessionMode.VOCAB_REVIEW
 
-        // 5. FREE TALK / CONVERSATION
+        // 6. FREE TALK / CONVERSATION
         val freeTalkPhrases = listOf(
             "chuyen sang hoi thoai", "hoi thoai tu do", "tro chuyen tu do", "noi chuyen tu do",
             "chuyen sang tro chuyen", "chuyen sang noi chuyen", "chuyen qua hoi thoai", "chuyen qua tro chuyen",

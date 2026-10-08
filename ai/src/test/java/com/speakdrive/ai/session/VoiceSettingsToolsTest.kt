@@ -1,5 +1,6 @@
 package com.speakdrive.ai.session
 
+import com.speakdrive.ai.model.LearnerSettings
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.model.AiVoice
 import com.speakdrive.ai.model.DifficultyLevel
@@ -38,6 +39,9 @@ class VoiceSettingsToolsTest {
             VoiceSettingsTools.SET_AI_VOLUME_FUNCTION,
             VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION,
             VoiceSettingsTools.SET_TRANSLATION_SUBTITLES_FUNCTION,
+            VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION,
+            VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION,
+            VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION,
             VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION
         )
     }
@@ -491,5 +495,51 @@ class VoiceSettingsToolsTest {
         assertThat(VoiceSettingsTools.parseTranslationSubtitles("show translation")).isTrue()
         assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("dont pause")).isFalse()
         assertThat(VoiceSettingsTools.parseDrillCategory("không liên quan gì")).isNull()
+    }
+
+    @Test
+    fun `switch session mode accepts mistake review`() {
+        assertThat(VoiceSettingsTools.parseSessionMode("MISTAKE_REVIEW")).isEqualTo(SessionMode.MISTAKE_REVIEW)
+        assertThat(VoiceSettingsTools.parseSessionMode("ôn lỗi sai")).isEqualTo(SessionMode.MISTAKE_REVIEW)
+        assertThat(VoiceSettingsTools.parseSessionMode("review my mistakes")).isEqualTo(SessionMode.MISTAKE_REVIEW)
+        assertThat(VoiceSettingsTools.parseSessionMode("ôn từ vựng")).isEqualTo(SessionMode.VOCAB_REVIEW)
+        assertThat(VoiceSettingsTools.switchSessionModeTool.parameters.single().description).contains("MISTAKE_REVIEW")
+    }
+
+    @Test
+    fun `parseLearnerMemory resolves boolean and string inputs`() {
+        assertThat(VoiceSettingsTools.parseLearnerMemory(true)).isTrue()
+        assertThat(VoiceSettingsTools.parseLearnerMemory(false)).isFalse()
+        assertThat(VoiceSettingsTools.parseLearnerMemory("bật")).isTrue()
+        assertThat(VoiceSettingsTools.parseLearnerMemory("remember")).isTrue()
+        assertThat(VoiceSettingsTools.parseLearnerMemory("tắt")).isFalse()
+        assertThat(VoiceSettingsTools.parseLearnerMemory("quên")).isFalse()
+        assertThat(VoiceSettingsTools.parseLearnerMemory("off")).isFalse()
+        assertThat(VoiceSettingsTools.parseLearnerMemory("maybe")).isNull()
+    }
+
+    @Test
+    fun `parseReminderTime reads 24-hour times, spoken times and auto`() {
+        assertThat(VoiceSettingsTools.parseReminderTime("07:30")).isEqualTo(7 * 60 + 30)
+        assertThat(VoiceSettingsTools.parseReminderTime("20:00")).isEqualTo(20 * 60)
+        assertThat(VoiceSettingsTools.parseReminderTime("7 pm")).isEqualTo(19 * 60)
+        assertThat(VoiceSettingsTools.parseReminderTime("8 giờ tối")).isEqualTo(20 * 60)
+        assertThat(VoiceSettingsTools.parseReminderTime("auto")).isEqualTo(LearnerSettings.REMINDER_AUTO)
+        assertThat(VoiceSettingsTools.parseReminderTime("tự động")).isEqualTo(LearnerSettings.REMINDER_AUTO)
+        assertThat(VoiceSettingsTools.parseReminderTime(null)).isNull()
+        assertThat(VoiceSettingsTools.parseReminderTime("whenever")).isNull()
+    }
+
+    @Test
+    fun `new settings tools describe Vietnamese and English requests`() {
+        listOf(
+            VoiceSettingsTools.setLearnerMemoryTool to listOf("tắt ghi nhớ", "turn off memory"),
+            VoiceSettingsTools.setPracticeReminderTool to listOf("nhắc tôi lúc 7 giờ sáng", "turn off reminders"),
+            VoiceSettingsTools.setStreakFreezeTool to listOf("tắt bảo toàn chuỗi", "turn off streak freeze")
+        ).forEach { (tool, examples) ->
+            examples.forEach { assertThat(tool.description).contains(it) }
+        }
+        assertThat(VoiceSettingsTools.setPracticeReminderTool.parameters.map { it.name }).containsExactly("enabled", "time")
+        assertThat(VoiceSettingsTools.setPracticeReminderTool.parameters.last().optional).isTrue()
     }
 }

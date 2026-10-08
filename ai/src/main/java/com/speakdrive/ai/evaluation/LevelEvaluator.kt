@@ -106,7 +106,10 @@ object LevelEvaluator {
             )
         }
 
-        if (currentLevel.previousLevel() != null && (overallAvg <= 4.8 || totalCorrections >= recentCorrections.size * 4)) {
+        // The summary lists at most five corrections, so a long, good lesson can still reach four or five:
+        // many corrections only count against the learner when the scores are mediocre too.
+        val manyCorrections = totalCorrections >= recentCorrections.size * 4 && overallAvg < 6.5
+        if (currentLevel.previousLevel() != null && (overallAvg <= 4.8 || manyCorrections)) {
             val target = currentLevel.previousLevel()!!
             return LevelRecommendation(
                 direction = LevelAdjustmentDirection.LEVEL_DOWN,

@@ -147,7 +147,12 @@ class UserPreferencesRepository @Inject constructor(
                 drillCategory = DrillCategory.fromStored(prefs[DRILL_CATEGORY]),
                 aiVolume = (prefs[AI_VOLUME] ?: 80).coerceIn(10, 100),
                 autoPauseWhenUnfocused = prefs[AUTO_PAUSE_WHEN_UNFOCUSED] ?: true,
-                showTranslationSubtitle = showSubs
+                showTranslationSubtitle = showSubs,
+                rememberLearner = prefs[REMEMBER_LEARNER] ?: true,
+                practiceReminderEnabled = prefs[PRACTICE_REMINDER_ENABLED] ?: true,
+                practiceReminderMinute = prefs[PRACTICE_REMINDER_MINUTE]
+                    ?.takeIf { it in 0 until MINUTES_PER_DAY } ?: LearnerSettings.REMINDER_AUTO,
+                streakFreezeEnabled = prefs[STREAK_FREEZE_ENABLED] ?: true
             ),
             dailyGoalMinutes = prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL,
             onboardingCompleted = prefs[ONBOARDING_COMPLETED] ?: false,
@@ -279,6 +284,25 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[SHOW_TRANSLATION_SUBTITLE] = enabled }
     }
 
+    override suspend fun setRememberLearner(enabled: Boolean) {
+        dataStore.edit { it[REMEMBER_LEARNER] = enabled }
+    }
+
+    /** [minuteOfDay] null keeps the current time; [LearnerSettings.REMINDER_AUTO] follows the learner's habit. */
+    override suspend fun setPracticeReminder(enabled: Boolean, minuteOfDay: Int?) {
+        dataStore.edit { prefs ->
+            prefs[PRACTICE_REMINDER_ENABLED] = enabled
+            if (minuteOfDay != null) {
+                prefs[PRACTICE_REMINDER_MINUTE] =
+                    if (minuteOfDay in 0 until MINUTES_PER_DAY) minuteOfDay else LearnerSettings.REMINDER_AUTO
+            }
+        }
+    }
+
+    override suspend fun setStreakFreeze(enabled: Boolean) {
+        dataStore.edit { it[STREAK_FREEZE_ENABLED] = enabled }
+    }
+
     private companion object {
         val DIFFICULTY_LEVEL = stringPreferencesKey("difficulty_level")
         val VOICE_ID = stringPreferencesKey("voice_id")
@@ -306,5 +330,10 @@ class UserPreferencesRepository @Inject constructor(
         val AI_VOLUME = intPreferencesKey("ai_volume")
         val AUTO_PAUSE_WHEN_UNFOCUSED = booleanPreferencesKey("auto_pause_when_unfocused")
         val SHOW_TRANSLATION_SUBTITLE = booleanPreferencesKey("show_translation_subtitle")
+        val REMEMBER_LEARNER = booleanPreferencesKey("remember_learner")
+        val PRACTICE_REMINDER_ENABLED = booleanPreferencesKey("practice_reminder_enabled")
+        val PRACTICE_REMINDER_MINUTE = intPreferencesKey("practice_reminder_minute")
+        val STREAK_FREEZE_ENABLED = booleanPreferencesKey("streak_freeze_enabled")
+        const val MINUTES_PER_DAY = 24 * 60
     }
 }

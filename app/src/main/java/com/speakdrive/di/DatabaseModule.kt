@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.speakdrive.data.local.ALL_MIGRATIONS
 import com.speakdrive.data.local.AppDatabase
+import com.speakdrive.data.local.dao.MemoryDao
 import com.speakdrive.data.local.dao.SessionDao
 import com.speakdrive.data.local.dao.WordDao
 import dagger.Module
@@ -31,4 +32,7 @@ object DatabaseModule {
 
     @Provides
     fun provideWordDao(database: AppDatabase): WordDao = database.wordDao()
+
+    @Provides
+    fun provideMemoryDao(database: AppDatabase): MemoryDao = database.memoryDao()
 }

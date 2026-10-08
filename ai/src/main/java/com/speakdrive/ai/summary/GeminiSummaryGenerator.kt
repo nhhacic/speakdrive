@@ -140,8 +140,18 @@ class GeminiSummaryGenerator @Inject constructor() : SummaryGenerator {
                 "level_recommendation_direction" to Schema.string(),
                 "recommended_level" to Schema.string(),
                 "level_recommendation_reason_vi" to Schema.string(),
-                "level_recommendation_reason_en" to Schema.string()
-            )
+                "level_recommendation_reason_en" to Schema.string(),
+                "learner_facts" to Schema.array(Schema.string()),
+                "mistake_results" to Schema.array(
+                    Schema.obj(
+                        mapOf(
+                            "id" to Schema.long(),
+                            "fixed" to Schema.boolean()
+                        )
+                    )
+                )
+            ),
+            optionalProperties = listOf("learner_facts", "mistake_results")
         )
     }
 }

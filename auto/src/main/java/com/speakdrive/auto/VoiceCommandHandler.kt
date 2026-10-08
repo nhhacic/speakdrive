@@ -19,6 +19,8 @@ class VoiceCommandHandler @Inject constructor(
 
         if (q.hasAny(VOCAB_PRONUNCIATION_WORDS)) return MediaIds.vocabMode("pronunciation")
         if (q.hasAny(VOCAB_SENTENCE_WORDS)) return MediaIds.vocabMode("sentence")
+        // Before vocabulary review: "review my mistakes" also contains "review".
+        if (q.hasAny(MISTAKE_WORDS)) return MediaIds.MISTAKES
         if (q.hasAny(REVIEW_WORDS)) return MediaIds.REVIEW
         if (q.hasAny(RESUME_STORY_WORDS)) return MediaIds.STORY_RESUME
         if (q.hasAny(RANDOM_WORDS) && !q.hasAny(STORY_WORDS)) return MediaIds.RANDOM
@@ -123,6 +125,9 @@ class VoiceCommandHandler @Inject constructor(
         val VOCAB_SENTENCE_WORDS = listOf(
             "luyen dat cau", "tap dat cau", "thu thach dat cau", "dat cau tu vung", "dat cau voi tu",
             "sentence making", "sentence practice", "practice making sentences", "sentence challenge", "make sentences"
+        )
+        val MISTAKE_WORDS = listOf(
+            "mistake", "mistakes", "my errors", "loi sai", "on loi", "on lai loi", "loi cu", "cau sai"
         )
         val REVIEW_WORDS = listOf(
             "review", "vocabulary", "vocab", "words", "on tap", "tu vung",

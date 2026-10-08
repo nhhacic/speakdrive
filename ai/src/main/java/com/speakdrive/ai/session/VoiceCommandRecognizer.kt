@@ -18,7 +18,8 @@ import com.speakdrive.ai.pronunciation.PronunciationGrader
 enum class CommandCategory {
     SESSION_MODE, LEVEL, VIETNAMESE_HELP, APP_LANGUAGE, STORY_STYLE, STRICTNESS, BARGE_IN, RANDOM_VOICE,
     VOICE, STORY_DURATION, MULTI_VOICE, STORY_NAVIGATION, DRILL_NAVIGATION, DRILL_LENGTH, DRILL_CATEGORY,
-    LEVEL_RECOMMENDATION, ADAPTIVE_LEVEL, VOLUME, AUTO_PAUSE, SUBTITLES;
+    LEVEL_RECOMMENDATION, ADAPTIVE_LEVEL, VOLUME, AUTO_PAUSE, SUBTITLES, LEARNER_MEMORY,
+    PRACTICE_REMINDER, STREAK_FREEZE;
 
     companion object {
         /** The category a Gemini Live tool works on, so the fallback never applies the same change twice. */
@@ -46,6 +47,9 @@ enum class CommandCategory {
             VoiceSettingsTools.SET_AI_VOLUME_FUNCTION -> VOLUME
             VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION -> AUTO_PAUSE
             VoiceSettingsTools.SET_TRANSLATION_SUBTITLES_FUNCTION -> SUBTITLES
+            VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION -> LEARNER_MEMORY
+            VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION -> PRACTICE_REMINDER
+            VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION -> STREAK_FREEZE
             else -> null
         }
     }
@@ -123,6 +127,16 @@ sealed interface VoiceCommand {
     }
     data class SetSubtitles(val enabled: Boolean) : VoiceCommand {
         override val category get() = CommandCategory.SUBTITLES
+    }
+    data class SetLearnerMemory(val enabled: Boolean) : VoiceCommand {
+        override val category get() = CommandCategory.LEARNER_MEMORY
+    }
+    /** [minuteOfDay] null keeps the current time; [LearnerSettings.REMINDER_AUTO] follows the learner's habit. */
+    data class SetPracticeReminder(val enabled: Boolean, val minuteOfDay: Int?) : VoiceCommand {
+        override val category get() = CommandCategory.PRACTICE_REMINDER
+    }
+    data class SetStreakFreeze(val enabled: Boolean) : VoiceCommand {
+        override val category get() = CommandCategory.STREAK_FREEZE
     }
 }
 
@@ -249,6 +263,17 @@ object VoiceCommandRecognizer {
         VoiceCommandParser.parseTranslationSubtitlesCommand(text)?.let { enabled ->
             if (enabled != s.showTranslationSubtitle && lenient) return VoiceCommand.SetSubtitles(enabled)
         }
+        VoiceCommandParser.parseLearnerMemoryCommand(text)?.let { enabled ->
+            if (enabled != s.rememberLearner && lenient) return VoiceCommand.SetLearnerMemory(enabled)
+        }
+        VoiceCommandParser.parsePracticeReminderCommand(text)?.let { reminder ->
+            val changes = reminder.enabled != s.practiceReminderEnabled ||
+                (reminder.minuteOfDay != null && reminder.minuteOfDay != s.practiceReminderMinute)
+            if (changes && lenient) return VoiceCommand.SetPracticeReminder(reminder.enabled, reminder.minuteOfDay)
+        }
+        VoiceCommandParser.parseStreakFreezeCommand(text)?.let { enabled ->
+            if (enabled != s.streakFreezeEnabled && lenient) return VoiceCommand.SetStreakFreeze(enabled)
+        }
         return null
     }
 
@@ -276,11 +301,11 @@ object VoiceCommandRecognizer {
     private val REQUEST_OPENERS = setOf(
         "bat", "tat", "mo", "doi", "chuyen", "chinh", "cai", "dat", "tang", "giam", "ha", "cho", "hay", "noi",
         "doc", "ke", "bo", "chon", "dung", "ngung", "luyen", "tap", "nghe", "quay", "hien", "an", "giu", "ap",
-        "de", "cham",
+        "de", "cham", "nhac",
         "switch", "change", "set", "turn", "make", "enable", "disable", "use", "speak", "skip", "repeat", "play",
         "give", "stop", "start", "show", "hide", "keep", "can", "could", "would", "go", "next", "replay",
         "resume", "continue", "lower", "raise", "increase", "decrease", "apply", "accept", "tell", "read", "say",
-        "let", "lets"
+        "let", "lets", "remind"
     )
 
     private val REQUEST_OPENER_PAIRS = setOf(
