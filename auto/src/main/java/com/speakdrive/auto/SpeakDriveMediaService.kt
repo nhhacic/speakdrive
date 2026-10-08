@@ -191,9 +191,18 @@ class SpeakDriveMediaService : MediaLibraryService() {
         super.onDestroy()
     }
 
-    private fun isAllowedController(controller: MediaSession.ControllerInfo): Boolean {
+    internal fun isAllowedController(controller: MediaSession.ControllerInfo): Boolean {
+        // 1. Same app process / UID (Phone UI connecting to its own MediaService)
+        if (controller.uid == android.os.Process.myUid()) return true
+
+        // 2. System UID (Media notification, lockscreen controls, Bluetooth system routing)
+        if (controller.uid == android.os.Process.SYSTEM_UID) return true
+
+        // 3. Trusted Media3 controller or matching package names
         val pkg = controller.packageName
-        if (controller.isTrusted || pkg == packageName || pkg in TRUSTED_CONTROLLERS) return true
+        if (controller.isTrusted || pkg == packageName || pkg == "com.speakdrive.ai" || pkg == "com.speakdrive" || pkg in TRUSTED_CONTROLLERS) return true
+
+        // 4. System packages (Bluetooth, Android Auto, System UI, etc.)
         return runCatching {
             val flags = packageManager.getApplicationInfo(pkg, 0).flags
             flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
@@ -213,7 +222,7 @@ class SpeakDriveMediaService : MediaLibraryService() {
          */
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
             if (!isAllowedController(controller)) {
-                Log.w(TAG, "Rejected media controller ${controller.packageName}")
+                Log.w(TAG, "Rejected media controller ${controller.packageName} (uid=${controller.uid})")
                 return MediaSession.ConnectionResult.reject()
             }
             val repeatCommand = SessionCommand(CUSTOM_ACTION_REPEAT, Bundle.EMPTY)
