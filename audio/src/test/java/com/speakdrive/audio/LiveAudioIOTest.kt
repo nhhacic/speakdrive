@@ -5,6 +5,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,6 +30,12 @@ class LiveAudioIOTest {
         audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         shadowAudioManager = shadowOf(audioManager)
         liveAudio = LiveAudioIO(context)
+    }
+
+    @After
+    fun tearDown() {
+        // Stops the speaker thread a test may have started.
+        liveAudio.release()
     }
 
     @Test
@@ -146,12 +153,28 @@ class LiveAudioIOTest {
     }
 
     @Test
-    fun flushPlayback_dropsQueuedChunksAndCallbacks() {
-        var callbackTriggered = false
+    fun flushPlayback_dropsQueuedChunks() {
         val pcm = ByteArray(LiveAudioIO.CHUNK_BYTES)
-        // Flush before playback thread processes
+        repeat(20) { liveAudio.play(pcm) }
+
         liveAudio.flushPlayback()
+
         assertThat(liveAudio.isPlaying()).isFalse()
+    }
+
+    @Test
+    fun stopPlayback_releasesTheSpeakerAndTheNextChunkStartsItAgain() {
+        val pcm = ByteArray(LiveAudioIO.CHUNK_BYTES)
+        liveAudio.play(pcm)
+
+        liveAudio.stopPlayback()
+        assertThat(liveAudio.isPlaying()).isFalse()
+
+        var played = false
+        liveAudio.play(pcm) { played = true }
+        val start = System.currentTimeMillis()
+        while (!played && System.currentTimeMillis() - start < 1000) Thread.sleep(20)
+        assertThat(played).isTrue()
     }
 
     @Test
@@ -164,12 +187,14 @@ class LiveAudioIOTest {
     }
 
     @Test
-    fun isCarConnected_returnsTrueWhenCarAudioDeviceConnected() {
+    fun isCarConnected_bluetoothHeadphonesAloneAreNotACar() {
         val bluetoothA2dp = AudioDeviceInfoBuilder.newBuilder()
             .setType(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
             .build()
         shadowAudioManager.setOutputDevices(listOf(bluetoothA2dp))
 
-        assertThat(liveAudio.isCarConnected()).isTrue()
+        // Only Android Auto switches to the car route; the A2DP latency still lengthens the echo tail.
+        assertThat(liveAudio.isCarConnected()).isFalse()
+        assertThat(liveAudio.isCarAudioConnected()).isTrue()
     }
 }

@@ -78,6 +78,7 @@ class SpeakDriveMediaService : MediaLibraryService() {
 
         // The engine may start a lesson without a notification update (e.g. from the phone UI).
         serviceScope.launch {
+            var wasInLesson = false
             engine.state.collect { state ->
                 if (state == ConversationState.ACTIVE) triggerNotificationUpdate()
                 if (state.isInLesson) {
@@ -92,8 +93,12 @@ class SpeakDriveMediaService : MediaLibraryService() {
                     } catch (e: Exception) {
                         Log.w(TAG, "Could not release WakeLock", e)
                     }
-                    dismissNotificationAndStopIfIdle()
+                    // Only when a lesson has just ended. On creation the engine is still IDLE while a
+                    // car / headset Play button is starting one; stopping now would crash the service
+                    // ("startForegroundService() did not then call startForeground()").
+                    if (wasInLesson) dismissNotificationAndStopIfIdle()
                 }
+                wasInLesson = state.isInLesson
             }
         }
     }
@@ -101,7 +106,9 @@ class SpeakDriveMediaService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = librarySession
 
     override fun onUpdateNotificationAsync(session: MediaSession, startInForegroundRequired: Boolean): ListenableFuture<Void?> {
-        if (!engine.state.value.isInLesson) {
+        // When Media3 must start the foreground service (playback resumption from the car), always
+        // post the notification, even before the engine has left IDLE.
+        if (!engine.state.value.isInLesson && !startInForegroundRequired) {
             dismissNotificationAndStopIfIdle()
             return Futures.immediateFuture(null)
         }
@@ -180,12 +187,33 @@ class SpeakDriveMediaService : MediaLibraryService() {
         super.onDestroy()
     }
 
+    private fun isAllowedController(controller: MediaSession.ControllerInfo): Boolean {
+        val pkg = controller.packageName
+        if (controller.isTrusted || pkg == packageName || pkg in TRUSTED_CONTROLLERS) return true
+        return runCatching {
+            val flags = packageManager.getApplicationInfo(pkg, 0).flags
+            flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
+        }.getOrDefault(false)
+    }
+
     private fun launchAppIntent(): PendingIntent? {
         val intent = packageManager.getLaunchIntentForPackage(packageName) ?: return null
         return PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     private inner class LibraryCallback : MediaLibrarySession.Callback {
+
+        /**
+         * Only trusted controllers may start lessons (which open the microphone): this app, the
+         * system (notification, Bluetooth / steering-wheel buttons), Android Auto and Assistant.
+         */
+        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+            if (!isAllowedController(controller)) {
+                Log.w(TAG, "Rejected media controller ${controller.packageName}")
+                return MediaSession.ConnectionResult.reject()
+            }
+            return super.onConnect(session, controller)
+        }
 
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
@@ -269,5 +297,14 @@ class SpeakDriveMediaService : MediaLibraryService() {
 
     private companion object {
         const val TAG = "SpeakDriveMediaService"
+
+        /** Media controllers allowed to connect besides this app and system apps. */
+        val TRUSTED_CONTROLLERS = setOf(
+            "com.google.android.projection.gearhead", // Android Auto
+            "com.google.android.googlequicksearchbox", // Google Assistant
+            "com.google.android.carassistant",
+            "com.google.android.wearable.app",
+            "com.google.android.apps.automotive.templates.host"
+        )
     }
 }

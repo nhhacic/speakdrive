@@ -3,6 +3,9 @@
 
     <!-- LiveAudioIO records the learner during lessons. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Needed for the voice-call route: audio mode, speakerphone and Bluetooth SCO changes are
+         silently ignored without it (granted automatically, no prompt). -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- Lets the on-device text-to-speech engine be found on Android 11+ (package visibility). -->
     <queries>

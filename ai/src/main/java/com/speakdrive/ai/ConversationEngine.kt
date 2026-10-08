@@ -1328,7 +1328,7 @@ open class ConversationEngine @Inject constructor(
      * Skips the current story and switches to a recommended one without disconnecting.
      * Can be invoked via voice tool, voice command fallback, steering wheel button, or phone UI.
      */
-    fun nextStory(): Boolean {
+    open fun nextStory(): Boolean {
         val currentLesson = _lesson.value ?: return false
         if (currentLesson.mode != SessionMode.STORY_LISTENING) return next()
 
@@ -1448,7 +1448,7 @@ open class ConversationEngine @Inject constructor(
      * - In REPEAT_AFTER_ME: skips to the next practice sentence.
      * - In other modes: prompts the AI to move to the next question or topic.
      */
-    fun next(): Boolean {
+    open fun next(): Boolean {
         val currentLesson = _lesson.value ?: return false
         return when (currentLesson.mode) {
             SessionMode.STORY_LISTENING -> nextStory()
@@ -1485,7 +1485,7 @@ open class ConversationEngine @Inject constructor(
      * - In REPEAT_AFTER_ME: repeats the current drill target sentence clearly.
      * - In other modes: asks AI to repeat what it just said.
      */
-    fun repeat(): Boolean {
+    open fun repeat(): Boolean {
         val currentLesson = _lesson.value ?: return false
         return when (currentLesson.mode) {
             SessionMode.STORY_LISTENING -> replayStory()
@@ -1638,6 +1638,9 @@ open class ConversationEngine @Inject constructor(
         // Keep the focus request after a transient loss so the system tells us when we may resume.
         if (reason != PauseReason.FOCUS_TRANSIENT) audioFocus.abandon()
         if (state != ConversationState.ACTIVE) return
+        // A navigation prompt or call cuts the AI off mid-sentence (its queued audio is dropped):
+        // remember that, so it picks up again on resume even after a short pause.
+        if (_activeSpeaker.value == Speaker.AI) resumeNeedsKickoff = true
         stopActiveClock()
         suspendRunCatching { liveClient.pauseAudio() }.onFailure { Log.w(TAG, "Could not pause audio", it) }
         enterPausedLocked()

@@ -153,6 +153,18 @@ class SpeakDrivePlayerTest {
     ) {
         var lastStartRequest: LessonRequest? = null
         var resumeCallCount = 0
+        var nextCallCount = 0
+        var nextStoryCallCount = 0
+
+        override fun next(): Boolean {
+            nextCallCount++
+            return true
+        }
+
+        override fun nextStory(): Boolean {
+            nextStoryCallCount++
+            return true
+        }
 
         override suspend fun start(request: LessonRequest): Boolean {
             lastStartRequest = request
@@ -405,5 +417,54 @@ class SpeakDrivePlayerTest {
         assertThat(testEngine.lastStartRequest?.topicId).isEqualTo("shopping")
         assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.FREE_TALK)
     }
-}
 
+    private fun activeLesson(mode: SessionMode) {
+        lessonFlow.value = ActiveLesson(
+            sessionId = "s1",
+            topic = topics.getTopicById("travel")!!,
+            scenario = null,
+            level = DifficultyLevel.INTERMEDIATE,
+            mode = mode,
+            startedAt = 0L,
+            reviewWords = emptyList()
+        )
+        stateFlow.value = ConversationState.ACTIVE
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    @Test
+    fun `steering wheel next during free talk switches to another topic`() = runTest(testDispatcher) {
+        activeLesson(SessionMode.FREE_TALK)
+
+        player.seekToNext()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.lastStartRequest).isNotNull()
+        assertThat(testEngine.lastStartRequest?.topicId).isNotEqualTo("travel")
+    }
+
+    @Test
+    fun `steering wheel next during a pronunciation drill skips the sentence instead of leaving the drill`() = runTest(testDispatcher) {
+        activeLesson(SessionMode.REPEAT_AFTER_ME)
+
+        player.seekToNext()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.nextCallCount).isEqualTo(1)
+        assertThat(testEngine.lastStartRequest).isNull()
+    }
+
+    @Test
+    fun `steering wheel next during a story moves to the next story`() = runTest(testDispatcher) {
+        activeLesson(SessionMode.STORY_LISTENING)
+
+        player.seekToNext()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.nextStoryCallCount).isEqualTo(1)
+    }
+}

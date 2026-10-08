@@ -37,12 +37,12 @@ class MediaContentProvider @Inject constructor(
     }
 
     private suspend fun browseChildren(parentId: String): List<MediaItem> = when {
+        // Android Auto shows at most 4 tabs; the level picker lives at the end of "Bắt đầu".
         parentId == MediaIds.ROOT -> listOf(
-            browsable(MediaIds.HOME, "Bắt đầu", "Tiếp tục, kể chuyện, ngẫu nhiên, phát âm, ôn tập"),
+            browsable(MediaIds.HOME, "Bắt đầu", "Tiếp tục, kể chuyện, ngẫu nhiên, phát âm, ôn tập, độ khó"),
             browsable(MediaIds.STORIES, "🎧 Luyện nghe kể chuyện", "AI kể chuyện người nổi tiếng, khoa học, lịch sử"),
             browsable(MediaIds.TOPICS, "Chủ đề", "${topicManager.getConversationTopics().size} chủ đề hội thoại"),
-            browsable(MediaIds.ROLEPLAY, "Nhập vai", "AI đóng vai trong tình huống thực tế"),
-            browsable(MediaIds.LEVELS, "Độ khó", settings.snapshot().level.displayName)
+            browsable(MediaIds.ROLEPLAY, "Nhập vai", "AI đóng vai trong tình huống thực tế")
         )
         parentId == MediaIds.HOME -> homeItems()
         parentId == MediaIds.STORIES -> {
@@ -201,7 +201,8 @@ class MediaContentProvider @Inject constructor(
                 MediaIds.REVIEW,
                 "Ôn tập từ vựng",
                 if (dueCount > 0) "$dueCount từ đến hạn ôn" else "Chưa có từ cần ôn — AI sẽ trò chuyện tự do"
-            )
+            ),
+            browsable(MediaIds.LEVELS, "Độ khó: ${snapshot.level.displayName}", "Chọn cấp độ từ A1 đến C2")
         )
     }
 
@@ -271,7 +272,7 @@ class MediaContentProvider @Inject constructor(
     }
 
     fun randomTopicIdExcept(topicId: String): String =
-        topicManager.getAllTopics().filter { it.id != topicId }.random().id
+        topicManager.getAllTopics().filter { it.id != topicId }.randomOrNull()?.id ?: topicId
 
     /** The "now playing" item, whose metadata and artwork tell the driver what is happening. */
     fun lessonItem(
@@ -292,8 +293,9 @@ class MediaContentProvider @Inject constructor(
             else -> ""
         }
 
+        // The title stays the topic while driving: a title that changes with every AI sentence is
+        // text the driver would be tempted to read (Android Auto driver-distraction rules).
         val hasTarget = !drillTarget.isNullOrBlank()
-        val hasAiText = !lastAiText.isNullOrBlank()
 
         val (title, subtitle, artist) = when {
             hasTarget -> {
@@ -310,12 +312,6 @@ class MediaContentProvider @Inject constructor(
                 val storyTitle = lesson.scenario?.titleVi ?: lesson.titleVi
                 val title = "📖 $storyTitle"
                 val subtitle = if (status.isNotEmpty()) "$status • Bấm Next để đổi truyện" else "Bấm Next để đổi truyện"
-                val artist = "${lesson.topic.emoji} ${lesson.titleVi} • ${lesson.level.displayName}"
-                Triple(title, subtitle, artist)
-            }
-            hasAiText && lastAiText.length <= 50 -> {
-                val title = "🤖 $lastAiText"
-                val subtitle = if (status.isNotEmpty()) status else "Nói tự nhiên bằng tiếng Anh"
                 val artist = "${lesson.topic.emoji} ${lesson.titleVi} • ${lesson.level.displayName}"
                 Triple(title, subtitle, artist)
             }

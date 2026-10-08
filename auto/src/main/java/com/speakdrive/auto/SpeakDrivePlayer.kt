@@ -110,6 +110,9 @@ class SpeakDrivePlayer(
                     .setDurationUs(C.TIME_UNSET)
                     // A conversation has no timeline; marking it live hides the seek bar.
                     .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().build())
+                    // Dynamic: without it Media3 drops "next" on a single-item playlist and the
+                    // steering-wheel Next button never reaches handleSeek.
+                    .setIsDynamic(true)
                     .build()
             )
         )
@@ -138,15 +141,17 @@ class SpeakDrivePlayer(
     override fun handlePrepare(): ListenableFuture<*> = Futures.immediateVoidFuture()
 
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> = scope.future {
-        engine.clearError()
         val state = engine.state.value
         val itemToStart = selectedItem
-        when {
-            !playWhenReady -> {
-                if (startingMediaId == null && !engine.isWithinStartupGrace()) {
-                    engine.pause()
-                }
+        if (!playWhenReady) {
+            // Keep any error on screen: the driver should still see why the lesson stopped.
+            if (startingMediaId == null && !engine.isWithinStartupGrace()) {
+                engine.pause()
             }
+            return@future
+        }
+        engine.clearError()
+        when {
             itemToStart != null && !isSameAsCurrentLesson(itemToStart) -> startFromItem(itemToStart)
             state == ConversationState.PAUSED -> engine.resume()
             state.isInLesson -> Unit
@@ -161,24 +166,42 @@ class SpeakDrivePlayer(
     }
 
     override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
-        if (seekCommand != Player.COMMAND_SEEK_TO_NEXT && seekCommand != Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM) {
-            return Futures.immediateVoidFuture()
-        }
-        val currentLesson = engine.lesson.value
-        if (currentLesson?.mode == SessionMode.STORY_LISTENING) {
-            // "Next" on steering wheel while listening to stories: switch to next recommended story
-            return scope.future {
-                engine.nextStory()
-                Unit
+        when (seekCommand) {
+            Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> {
+                val currentLesson = engine.lesson.value
+                if (currentLesson?.mode == SessionMode.STORY_LISTENING) {
+                    // "Next" on steering wheel while listening to stories: switch to next recommended story
+                    return scope.future {
+                        engine.nextStory()
+                        Unit
+                    }
+                }
+                if (engine.state.value.isInLesson) {
+                    // "Next" during lesson: advance to next sentence or prompt AI to move forward
+                    return scope.future {
+                        engine.next()
+                        Unit
+                    }
+                }
+                // "Next" when idle or outside lesson: move on to a different topic.
+                val currentTopic = currentLesson?.topic?.id
+                return scope.future {
+                    selectedItem = null
+                    engine.start(LessonRequest(topicId = null, mode = SessionMode.FREE_TALK).avoiding(currentTopic))
+                    Unit
+                }
+            }
+            Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> {
+                if (engine.state.value.isInLesson) {
+                    // "Previous" / "Repeat" on steering wheel or car screen: repeat current sentence
+                    return scope.future {
+                        engine.repeat()
+                        Unit
+                    }
+                }
             }
         }
-        // "Next" on the steering wheel: move on to a different topic.
-        val currentTopic = currentLesson?.topic?.id
-        return scope.future {
-            selectedItem = null
-            engine.start(LessonRequest(topicId = null, mode = SessionMode.FREE_TALK).avoiding(currentTopic))
-            Unit
-        }
+        return Futures.immediateVoidFuture()
     }
 
     override fun handleRelease(): ListenableFuture<*> = Futures.immediateVoidFuture()
@@ -196,7 +219,13 @@ class SpeakDrivePlayer(
                 engine.resumeStory()
                 return
             }
-            val request = requestFor(mediaId) ?: return
+            val request = requestFor(mediaId)
+            if (request == null) {
+                // Nothing playable (e.g. a folder): do not stay stuck in "switching".
+                selectedItem = null
+                invalidateState()
+                return
+            }
             engine.start(request)
         } finally {
             startingMediaId = null
@@ -280,6 +309,8 @@ class SpeakDrivePlayer(
                 Player.COMMAND_PLAY_PAUSE,
                 Player.COMMAND_PREPARE,
                 Player.COMMAND_STOP,
+                Player.COMMAND_SEEK_TO_PREVIOUS,
+                Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
                 Player.COMMAND_SEEK_TO_NEXT,
                 Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
                 Player.COMMAND_SET_MEDIA_ITEM,

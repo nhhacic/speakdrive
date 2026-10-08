@@ -230,7 +230,7 @@ class GeminiLiveManager @Inject constructor(
         audioPaused = false
         gate.reset()
         resetAiTurn()
-        audio.startCapture(::onMicChunk)
+        startCaptureFor(session)
     }
 
     override suspend fun disconnect() = lock.withLock { closeLocked() }
@@ -288,7 +288,14 @@ class GeminiLiveManager @Inject constructor(
                 if (session === target) _events.tryEmit(LiveEvent.Disconnected(e))
             }
         }
-        audio.startCapture(::onMicChunk)
+        startCaptureFor(target)
+    }
+
+    /** A microphone that dies mid-lesson is handled like a dropped connection: the engine reconnects. */
+    private fun startCaptureFor(target: LiveSession?) {
+        audio.startCapture(::onMicChunk) { error ->
+            if (target != null && session === target) _events.tryEmit(LiveEvent.Disconnected(error))
+        }
     }
 
     private fun onContent(message: LiveServerContent) {
@@ -582,7 +589,7 @@ class GeminiLiveManager @Inject constructor(
         watchdog?.cancel()
         watchdog = null
         audio.stopCapture()
-        audio.flushPlayback()
+        audio.stopPlayback()
         synchronized(transcriptLock) { pendingAiTranscript.clear() }
         resetAiTurn()
         outgoing.close()

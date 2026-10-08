@@ -39,21 +39,24 @@ class MediaContentProviderTest {
     private val provider = MediaContentProvider(topics, store, settings)
 
     @Test
-    fun `root has five browsable tabs including stories`() = runTest {
+    fun `root has the four tabs Android Auto can show, levels moved into home`() = runTest {
         val root = provider.children(MediaIds.ROOT)
 
         assertThat(root.map { it.mediaId })
-            .containsExactly(MediaIds.HOME, MediaIds.STORIES, MediaIds.TOPICS, MediaIds.ROLEPLAY, MediaIds.LEVELS).inOrder()
+            .containsExactly(MediaIds.HOME, MediaIds.STORIES, MediaIds.TOPICS, MediaIds.ROLEPLAY).inOrder()
         assertThat(root.all { it.mediaMetadata.isBrowsable == true }).isTrue()
+        assertThat(provider.children(MediaIds.HOME).map { it.mediaId }).contains(MediaIds.LEVELS)
     }
 
     @Test
-    fun `home tab offers resume, stories, random, pronunciation and review with live subtitles`() = runTest {
+    fun `home tab offers resume, stories, random, pronunciation, review and the level picker`() = runTest {
         val home = provider.children(MediaIds.HOME)
 
         assertThat(home.map { it.mediaId })
-            .containsExactly(MediaIds.RESUME, MediaIds.STORY_RECOMMENDED, MediaIds.RANDOM, MediaIds.PRONUNCIATION, MediaIds.REVIEW).inOrder()
-        assertThat(home.all { it.mediaMetadata.isPlayable == true }).isTrue()
+            .containsExactly(MediaIds.RESUME, MediaIds.STORY_RECOMMENDED, MediaIds.RANDOM, MediaIds.PRONUNCIATION, MediaIds.REVIEW, MediaIds.LEVELS)
+            .inOrder()
+        assertThat(home.dropLast(1).all { it.mediaMetadata.isPlayable == true }).isTrue()
+        assertThat(home.last().mediaMetadata.isBrowsable).isTrue()
         assertThat(home[0].mediaMetadata.subtitle.toString()).contains("Ăn uống")
         assertThat(home[1].mediaMetadata.title.toString()).contains("Luyện nghe kể chuyện")
         assertThat(home[3].mediaMetadata.subtitle.toString()).contains("Ăn uống")
@@ -178,7 +181,7 @@ class MediaContentProviderTest {
     }
 
     @Test
-    fun `lesson item shows AI text when free talking without repeat target`() {
+    fun `lesson item keeps the topic as title instead of the changing AI text`() {
         val lesson = ActiveLesson("id", topics.getTopicById("travel")!!, null, DifficultyLevel.INTERMEDIATE, SessionMode.FREE_TALK, 0, emptyList())
 
         val item = provider.lessonItem(
@@ -189,8 +192,8 @@ class MediaContentProviderTest {
         )
 
         assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
-        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🤖 Where would you like to travel next?")
-        assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("Đang trò chuyện")
+        assertThat(item.mediaMetadata.title.toString()).doesNotContain("Where would you like")
+        assertThat(item.mediaMetadata.subtitle.toString()).startsWith("Đang trò chuyện")
         assertThat(item.mediaMetadata.artworkData).isNotNull()
     }
 

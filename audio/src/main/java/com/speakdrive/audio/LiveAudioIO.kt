@@ -17,7 +17,6 @@ import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import android.os.Build
 import android.util.Log
-import androidx.car.app.connection.CarConnection
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.LinkedBlockingQueue
@@ -28,8 +27,12 @@ import kotlin.math.ceil
 
 /** Microphone and speaker for a live conversation. */
 interface LiveAudio {
-    /** Starts recording 16 kHz mono PCM16; [onChunk] gets ~100 ms chunks on a background thread. */
-    fun startCapture(onChunk: (ByteArray) -> Unit)
+    /**
+     * Starts recording 16 kHz mono PCM16; [onChunk] gets ~100 ms chunks on a background thread.
+     * [onError] is called (on that thread) if the recorder dies, e.g. after an audio server restart.
+     */
+    fun startCapture(onChunk: (ByteArray) -> Unit, onError: (Throwable) -> Unit)
+    fun startCapture(onChunk: (ByteArray) -> Unit) = startCapture(onChunk) { }
     fun stopCapture()
 
     /** Queues 24 kHz mono PCM16 from the AI for playback. */
@@ -40,6 +43,9 @@ interface LiveAudio {
 
     /** Drops everything queued or still buffered, e.g. when the learner interrupts. */
     fun flushPlayback()
+
+    /** Stops and releases the speaker when a session ends; the next [play] creates it again. */
+    fun stopPlayback() = flushPlayback()
 
     /** True while AI audio is queued or still coming out of the speaker. */
     fun isPlaying(): Boolean
@@ -134,20 +140,31 @@ class LiveAudioIO @Inject constructor(
     private val audioDeviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
             Log.d(TAG, "Audio devices added: ${addedDevices?.joinToString { it.type.toString() }}")
-            applyAudioRouting()
+            synchronized(lock) { applyAudioRouting() }
         }
 
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
             Log.d(TAG, "Audio devices removed: ${removedDevices?.joinToString { it.type.toString() }}")
-            applyAudioRouting()
+            synchronized(lock) { applyAudioRouting() }
         }
     }
 
-    override fun startCapture(onChunk: (ByteArray) -> Unit): Unit = synchronized(lock) {
+    override fun startCapture(onChunk: (ByteArray) -> Unit, onError: (Throwable) -> Unit): Unit = synchronized(lock) {
         if (capturing) return
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             throw SecurityException("RECORD_AUDIO permission is not granted")
         }
+        try {
+            startCaptureLocked(onChunk, onError)
+        } catch (e: Exception) {
+            // Leave nothing behind: a half-started capture would keep the mic or a changed audio mode.
+            Log.w(TAG, "Could not start the microphone", e)
+            releaseCaptureLocked()
+            throw e
+        }
+    }
+
+    private fun startCaptureLocked(onChunk: (ByteArray) -> Unit, onError: (Throwable) -> Unit) {
         previousAudioMode = audioManager.mode
         @Suppress("DEPRECATION")
         previousSpeakerphoneOn = audioManager.isSpeakerphoneOn
@@ -185,8 +202,9 @@ class LiveAudioIO @Inject constructor(
                 if (record != null) break
             }
         }
-        runCatching { audioManager.registerAudioDeviceCallback(audioDeviceCallback, null) }
         checkNotNull(record) { "AudioRecord failed to initialize with any available audio source" }
+        // Owned from here on, so a failure below still releases it.
+        recorder = record
 
         if (NoiseSuppressor.isAvailable()) {
             noiseSuppressor = NoiseSuppressor.create(record.audioSessionId)?.apply { enabled = true }
@@ -200,7 +218,7 @@ class LiveAudioIO @Inject constructor(
         }
 
         if (record.recordingState != AudioRecord.RECORDSTATE_RECORDING) record.startRecording()
-        recorder = record
+        runCatching { audioManager.registerAudioDeviceCallback(audioDeviceCallback, null) }
         capturing = true
         AudioDiagnostics.reset(sourceName(record.audioSource), routeName)
         Log.i(
@@ -215,6 +233,13 @@ class LiveAudioIO @Inject constructor(
                 var filled = 0
                 while (filled < CHUNK_BYTES && capturing) {
                     val read = record.read(buffer, filled, CHUNK_BYTES - filled)
+                    if (read == AudioRecord.ERROR_DEAD_OBJECT || read == AudioRecord.ERROR_INVALID_OPERATION) {
+                        // The recorder is gone (audio server restart, route lost): retrying would spin forever.
+                        Log.w(TAG, "AudioRecord stopped working (error $read)")
+                        capturing = false
+                        runCatching { onError(IllegalStateException("Microphone stopped (AudioRecord error $read)")) }
+                        break
+                    }
                     if (read <= 0) {
                         if (read < 0) Log.w(TAG, "AudioRecord read returned error code $read")
                         try {
@@ -233,11 +258,11 @@ class LiveAudioIO @Inject constructor(
                         // Level 0 for a long time means the OS/HAL is silencing the mic.
                         Log.d(TAG, "Recording active: $chunkCount chunks, last level rms=${PcmLevel.rms(buffer, filled)}")
                     }
-                    onChunk(buffer.copyOf(filled))
+                    // An exception here would kill the app from this raw thread.
+                    runCatching { onChunk(buffer.copyOf(filled)) }.onFailure { Log.w(TAG, "Mic chunk handler failed", it) }
                 }
             }
         }, "speakdrive-mic").apply { start() }
-        Unit
     }
 
     /**
@@ -292,11 +317,14 @@ class LiveAudioIO @Inject constructor(
         }.getOrDefault(true)
     }
 
-    override fun stopCapture(): Unit = synchronized(lock) {
+    override fun stopCapture(): Unit = synchronized(lock) { releaseCaptureLocked() }
+
+    private fun releaseCaptureLocked() {
         capturing = false
+        // Stopping first unblocks a read() in progress, so the thread can finish.
+        runCatching { recorder?.stop() }
         captureThread?.join(500)
         captureThread = null
-        runCatching { recorder?.stop() }
         recorder?.release()
         recorder = null
         echoCanceler?.release()
@@ -339,6 +367,14 @@ class LiveAudioIO @Inject constructor(
                 framesWritten = 0L
             }
         }
+    }
+
+    override fun stopPlayback() {
+        playbackQueue.clear()
+        lastWriteTimestampMs = 0L
+        lastPlaybackHeadPosition = -1L
+        lastPositionChangeTimestampMs = 0L
+        synchronized(lock) { releaseTrackLocked() }
     }
 
     override fun isPlaying(): Boolean {
@@ -386,12 +422,8 @@ class LiveAudioIO @Inject constructor(
         }.getOrDefault(false)
     }
 
-    @Volatile private var carConnectedExplicit: Boolean? = null
-
-    fun isCarProjected(): Boolean = runCatching {
-        val type = CarConnection(context).type.value ?: CarConnection.CONNECTION_TYPE_NOT_CONNECTED
-        type == CarConnection.CONNECTION_TYPE_PROJECTION
-    }.getOrDefault(false)
+    /** Android Auto state, reported by the app's car connection observer through the engine. */
+    @Volatile private var carProjected = false
 
     override fun isCarAudioConnected(): Boolean {
         return runCatching {
@@ -405,15 +437,17 @@ class LiveAudioIO @Inject constructor(
         }.getOrDefault(false)
     }
 
-    override fun isCarConnected(): Boolean {
-        carConnectedExplicit?.let { return it }
-        return isCarProjected() || isCarAudioConnected()
-    }
+    /**
+     * True only while Android Auto is projecting. A Bluetooth car without Android Auto behaves like
+     * any Bluetooth hands-free device (voice-call route); plain A2DP headphones are not a car.
+     */
+    override fun isCarConnected(): Boolean = carProjected
 
     override fun setCarConnected(connected: Boolean) {
-        carConnectedExplicit = connected
-        Log.i(TAG, "Car connected state set explicitly to: $connected")
-        applyAudioRouting()
+        if (carProjected == connected) return
+        carProjected = connected
+        Log.i(TAG, "Android Auto connected: $connected")
+        synchronized(lock) { applyAudioRouting() }
     }
 
     override fun isEchoCancelled(): Boolean =
@@ -432,9 +466,8 @@ class LiveAudioIO @Inject constructor(
     override fun setVolume(volumeFraction: Float) {
         val clamped = volumeFraction.coerceIn(0.0f, 1.0f)
         volumeGain = clamped
-        synchronized(lock) {
-            runCatching { track?.setVolume(clamped) }
-        }
+        // Applied to the samples (see the speaker thread); the track itself stays at full volume,
+        // otherwise the gain would be applied twice (0.8 -> 0.64).
         Log.d(TAG, "setVolume: volumeGain set to $clamped")
     }
 
@@ -629,9 +662,6 @@ class LiveAudioIO @Inject constructor(
             .setTransferMode(AudioTrack.MODE_STREAM)
 
         val newTrack = builder.build()
-        runCatching {
-            newTrack.setVolume(volumeGain)
-        }
         newTrack.play()
         track = newTrack
         trackUsage = usage

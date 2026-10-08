@@ -158,4 +158,22 @@ class AutoCardArtworkGeneratorTest {
         assertThat(bytes).isNotNull()
         assertThat(bytes!!.size).isGreaterThan(100)
     }
+
+    @Test
+    fun `generates large high contrast card for exact user sentence without translation`() {
+        val topic = topics.getTopicById("work") ?: topics.getAllTopics().first()
+        val lesson = ActiveLesson("session_user", topic, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
+
+        val bytes = generator.generateCard(
+            lesson = lesson,
+            state = ConversationState.ACTIVE,
+            lastAiText = "Repeat after me: We need a better plan.",
+            drillTarget = "We need a better plan.",
+            drillTargetTranslation = null
+        )
+
+        assertThat(bytes).isNotNull()
+        assertThat(bytes!!.size).isGreaterThan(100)
+    }
 }
+

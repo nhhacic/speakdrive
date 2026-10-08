@@ -46,10 +46,12 @@ class TextToSpeechAnnouncer @Inject constructor(
     private fun onInit(status: Int) {
         val engine = tts ?: return
         if (status != TextToSpeech.SUCCESS) {
+            // Forget the broken engine so the next announcement tries again.
             Log.w(TAG, "TextToSpeech unavailable (status $status)")
+            runCatching { engine.shutdown() }
+            tts = null
             return
         }
-        engine.language = Locale.US
         ready = true
         pending?.let { speak(engine, it) }
         pending = null
@@ -66,6 +68,14 @@ class TextToSpeechAnnouncer @Inject constructor(
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build()
         )
+        // Many announcements are Vietnamese: read them with a Vietnamese voice when one is installed.
+        val vietnamese = Locale.forLanguageTag("vi-VN")
+        val wanted = if (looksVietnamese(text) && engine.isLanguageAvailable(vietnamese) >= TextToSpeech.LANG_AVAILABLE) {
+            vietnamese
+        } else {
+            Locale.US
+        }
+        if (engine.voice?.locale?.language != wanted.language) engine.language = wanted
         engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "speakdrive-announcement")
     }
 
@@ -79,5 +89,9 @@ class TextToSpeechAnnouncer @Inject constructor(
 
     private companion object {
         const val TAG = "VoiceAnnouncer"
+
+        private val VIETNAMESE_LETTERS = Regex("[ăâđêôơưàảãáạằẳẵắặầẩẫấậèẻẽéẹềểễếệìỉĩíịòỏõóọồổỗốộờởỡớợùủũúụừửữứựỳỷỹýỵ]", RegexOption.IGNORE_CASE)
+
+        fun looksVietnamese(text: String): Boolean = VIETNAMESE_LETTERS.containsMatchIn(text)
     }
 }

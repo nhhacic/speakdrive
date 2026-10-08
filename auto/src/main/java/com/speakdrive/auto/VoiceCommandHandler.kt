@@ -66,10 +66,10 @@ class VoiceCommandHandler @Inject constructor(
                     val safeSlug = stripped.replace(' ', '_').take(30)
                     return MediaIds.scenario("${TopicManager.DYNAMIC_PREFIX}custom_${topic.id}_$safeSlug")
                 }
-                return MediaIds.scenario(topic.scenarios.random().id)
+                return topic.scenarios.randomOrNull()?.let { MediaIds.scenario(it.id) } ?: MediaIds.topic(topic.id, level)
             }
             val scenarios = topicManager.getAllTopics().flatMap { it.scenarios }
-            return MediaIds.scenario(scenarios.random().id)
+            return scenarios.randomOrNull()?.let { MediaIds.scenario(it.id) } ?: MediaIds.RESUME
         }
         return when {
             topic != null -> MediaIds.topic(topic.id, level)
