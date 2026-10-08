@@ -228,6 +228,30 @@ def run_cmd(cmd, check=True, cwd=None):
     return res.stdout.strip()
 
 
+def send_bytes_ssh(data_bytes, remote_path):
+    cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"cat > '{remote_path}'"]
+    p = subprocess.run(cmd, input=data_bytes, check=True)
+    return p.returncode
+
+
+def stream_tar_ssh(source_dir, items_list, remote_target_dir):
+    if not items_list:
+        return
+    temp_list = Path(os.environ.get("TEMP", "/tmp")) / "tar_stream_items.txt"
+    with open(temp_list, "w", encoding="utf-8") as f:
+        f.write("\n".join(items_list))
+    
+    tar_cmd = ["tar", "-czf", "-", "-C", str(source_dir), "-T", str(temp_list)]
+    ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -xzf - -C '{remote_target_dir}'"]
+    
+    tar_p = subprocess.Popen(tar_cmd, stdout=subprocess.PIPE)
+    ssh_p = subprocess.Popen(ssh_cmd, stdin=tar_p.stdout)
+    tar_p.stdout.close()
+    ssh_p.communicate()
+    if ssh_p.returncode != 0:
+        raise RuntimeError(f"Lỗi truyền tải dữ liệu tar stream (exit {ssh_p.returncode})")
+
+
 def sync_code_git(direction):
     print("\n--- BƯỚC 1: ĐỒNG BỘ MÃ NGUỒN GIT ---")
     current_os = 'windows' if platform.system() == 'Windows' else 'linux'
@@ -326,15 +350,12 @@ def sync_conversations_to_linux():
             } for s in sql_statements
         ]
     }
-    with open(temp_sync_json, "w", encoding="utf-8") as f:
-        json.dump(sync_payload, f)
-
-    # SCP payload to Linux
+    # Send JSON payload directly via SSH pipe (không dùng scp)
     print("  Đang chuyển dữ liệu phiên hội thoại sang Linux...")
-    run_cmd(f"scp -o StrictHostKeyChecking=no \"{temp_sync_json}\" {LINUX_HOST}:/tmp/speakdrive_sync.json")
+    send_bytes_ssh(json.dumps(sync_payload).encode('utf-8'), "/tmp/speakdrive_sync.json")
 
-    # Sync conversation DB files in a single batched tar archive
-    print("  Đang đóng gói và đồng bộ các file SQLite hội thoại...")
+    # Sync conversation DB files via streaming tar pipe
+    print("  Đang đóng gói và truyền tải các file SQLite hội thoại...")
     conv_dir = Path(WIN_GEMINI_DIR) / "conversations"
     conv_files_to_sync = []
     for cid in cids:
@@ -344,27 +365,15 @@ def sync_conversations_to_linux():
                 conv_files_to_sync.append(f"{cid}.db{ext}")
 
     if conv_files_to_sync:
-        conv_list_file = temp_dir / "conv_files.txt"
-        with open(conv_list_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(conv_files_to_sync))
-        conv_tar = temp_dir / "conv_batch.tar.gz"
-        run_cmd(f"tar -czf \"{conv_tar}\" -C \"{conv_dir}\" -T \"{conv_list_file}\"")
-        run_cmd(f"scp -o StrictHostKeyChecking=no \"{conv_tar}\" {LINUX_HOST}:/tmp/conv_batch.tar.gz")
-        run_cmd(f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"tar -xzf /tmp/conv_batch.tar.gz -C {LINUX_GEMINI_DIR}/conversations/ && rm -f /tmp/conv_batch.tar.gz\"")
+        stream_tar_ssh(conv_dir, conv_files_to_sync, f"{LINUX_GEMINI_DIR}/conversations/")
 
-    # Sync brain folders in a single batched tar archive
-    print("  Đang đóng gói và đồng bộ các thư mục não bộ / ký ức (brain/)...")
+    # Sync brain folders via streaming tar pipe
+    print("  Đang đóng gói và truyền tải các thư mục não bộ / ký ức (brain/)...")
     brain_dir = Path(WIN_GEMINI_DIR) / "brain"
     brain_folders_to_sync = [cid for cid in cids if (brain_dir / cid).exists()]
 
     if brain_folders_to_sync:
-        brain_list_file = temp_dir / "brain_folders.txt"
-        with open(brain_list_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(brain_folders_to_sync))
-        brain_tar = temp_dir / "brain_batch.tar.gz"
-        run_cmd(f"tar -czf \"{brain_tar}\" -C \"{brain_dir}\" -T \"{brain_list_file}\"")
-        run_cmd(f"scp -o StrictHostKeyChecking=no \"{brain_tar}\" {LINUX_HOST}:/tmp/brain_batch.tar.gz")
-        run_cmd(f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"tar -xzf /tmp/brain_batch.tar.gz -C {LINUX_GEMINI_DIR}/brain/ && rm -f /tmp/brain_batch.tar.gz\"")
+        stream_tar_ssh(brain_dir, brain_folders_to_sync, f"{LINUX_GEMINI_DIR}/brain/")
 
     # Update Linux SQLite & agyhub_summaries_proto.pb via Python script on Linux
     remote_apply_script = """
@@ -403,11 +412,7 @@ conn.close()
 os.system("chown -R cic-ai:cic-ai /home/cic-ai/.gemini")
 print("[Linux] Database updated successfully!")
 """
-    remote_py_file = temp_dir / "apply_sync.py"
-    with open(remote_py_file, "w", encoding="utf-8") as f:
-        f.write(remote_apply_script)
-
-    run_cmd(f"scp -o StrictHostKeyChecking=no \"{remote_py_file}\" {LINUX_HOST}:/tmp/apply_sync.py")
+    send_bytes_ssh(remote_apply_script.encode('utf-8'), "/tmp/apply_sync.py")
     run_cmd(f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"python3 /tmp/apply_sync.py && python3 /tmp/migrate_hub.py\"")
 
     print("  ✅ Toàn bộ phiên hội thoại, ký ức AI và cache đã được đồng bộ sang Linux!")
