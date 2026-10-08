@@ -237,19 +237,24 @@ def send_bytes_ssh(data_bytes, remote_path):
 def stream_tar_ssh(source_dir, items_list, remote_target_dir):
     if not items_list:
         return
-    temp_list = Path(os.environ.get("TEMP", "/tmp")) / "tar_stream_items.txt"
+    temp_dir = Path(os.environ.get("TEMP", "/tmp")) / "speakdrive_sync"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_list = temp_dir / "tar_stream_items.txt"
     with open(temp_list, "w", encoding="utf-8") as f:
         f.write("\n".join(items_list))
     
-    tar_cmd = ["tar", "-czf", "-", "-C", str(source_dir), "-T", str(temp_list)]
-    ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -xzf - -C '{remote_target_dir}'"]
+    tar_archive = temp_dir / "transfer_batch.tar.gz"
+    run_cmd(f"tar -czf \"{tar_archive}\" -C \"{source_dir}\" -T \"{temp_list}\"", check=True)
     
-    tar_p = subprocess.Popen(tar_cmd, stdout=subprocess.PIPE)
-    ssh_p = subprocess.Popen(ssh_cmd, stdin=tar_p.stdout)
-    tar_p.stdout.close()
-    ssh_p.communicate()
-    if ssh_p.returncode != 0:
-        raise RuntimeError(f"Lỗi truyền tải dữ liệu tar stream (exit {ssh_p.returncode})")
+    with open(tar_archive, "rb") as f:
+        ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -xzf - -C '{remote_target_dir}'"]
+        p = subprocess.run(ssh_cmd, input=f.read(), check=True)
+        if p.returncode != 0:
+            raise RuntimeError(f"Lỗi truyền tải dữ liệu tar stream (exit {p.returncode})")
+    try:
+        tar_archive.unlink()
+    except Exception:
+        pass
 
 
 def sync_code_git(direction):
