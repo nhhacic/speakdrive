@@ -247,11 +247,12 @@ def stream_tar_to_linux(source_dir, items_list, remote_target_dir):
     temp_dir = Path(os.environ.get("TEMP", "/tmp")) / "speakdrive_sync"
     temp_dir.mkdir(parents=True, exist_ok=True)
     temp_list = temp_dir / "tar_items.txt"
-    with open(temp_list, "w", encoding="utf-8") as f:
-        f.write("\n".join(items_list))
+    with open(temp_list, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(items_list) + "\n")
     
     tar_archive = temp_dir / "transfer_batch.tar.gz"
-    run_cmd(f"tar -czf \"{tar_archive}\" -C \"{source_dir}\" -T \"{temp_list}\"", check=True)
+    force_local = "--force-local " if platform.system() == "Windows" else ""
+    run_cmd(f"tar {force_local}-czf \"{tar_archive}\" -C \"{source_dir}\" -T \"{temp_list}\"", check=True)
     
     with open(tar_archive, "rb") as f:
         ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -xzf - -C '{remote_target_dir}'"]
