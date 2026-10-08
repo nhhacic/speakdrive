@@ -334,6 +334,19 @@ object PronunciationGrader {
         return results
     }
 
+    /**
+     * How much of [heard] matches [target] word for word, from 0 to 1 (words heard in place divided
+     * by the longer of the two). Used to tell a learner repeating a sentence from a spoken command.
+     */
+    fun similarity(target: String, heard: String): Double {
+        val targetWords = tokenize(target).size
+        val heardWords = tokenize(heard).size
+        val longer = maxOf(targetWords, heardWords)
+        if (longer == 0) return 0.0
+        val matched = compare(target, heard).count { it.status == WordStatus.OK }
+        return matched.toDouble() / longer
+    }
+
     private data class Token(val display: String, val normalized: String)
 
     private fun tokenize(text: String): List<Token> =

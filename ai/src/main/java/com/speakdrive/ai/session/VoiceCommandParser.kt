@@ -63,12 +63,13 @@ object VoiceCommandParser {
         val q = TopicManager.normalize(utterance)
         if (q.isBlank()) return null
 
-        val hasVolumeWord = containsAny(q, listOf(
-            "am luong", "volume", "tieng", "tieng noi", "giong noi", "sound"
-        ))
+        // A number only means a volume when it is next to "âm lượng"/"volume" or given in percent:
+        // "tôi lái xe 2 tiếng" (I drive two hours) must not set the volume to 10%.
+        val hasVolumeWord = containsAny(q, listOf("am luong", "volume"))
+        val hasPercent = utterance.contains('%') || containsAny(q, listOf("phan tram", "percent"))
 
         // Check explicit number first (e.g. "am luong 50%", "volume 70", "cho am luong 60")
-        if (hasVolumeWord) {
+        if (hasVolumeWord || hasPercent) {
             val numberMatch = Regex("(\\d{1,3})").find(utterance)
             if (numberMatch != null) {
                 val num = numberMatch.groupValues[1].toIntOrNull()
@@ -92,21 +93,25 @@ object VoiceCommandParser {
 
         // Louder / volume up / nói to lên
         if (containsAny(q, listOf(
-            "noi to len", "to len", "noi to hon", "to hon", "tang am luong", "cho to tieng", "cho tieng to len",
-            "tieng to hon", "giong to hon", "lon hon", "noi lon hon", "tang volume",
+            "noi to len", "to len", "noi to hon", "tang am luong", "cho to tieng", "cho tieng to len",
+            "tieng to hon", "giong to hon", "noi lon hon", "tang volume",
             "volume up", "speak louder", "louder", "turn up volume", "turn up the volume", "increase volume",
             "make it louder", "sound louder"
         ))) {
             return (currentVolume + 20).coerceAtMost(100)
         }
 
-        // Softer / quieter / volume down / nói nhỏ lại
-        if (containsAny(q, listOf(
+        // Softer / quieter / volume down / nói nhỏ lại. "nhớ lại" (remember) folds to the same letters
+        // as "nhỏ lại", so with diacritics present only the real "nhỏ" counts.
+        val accented = utterance.lowercase()
+        val saysRemember = accented.contains("nhớ") && !accented.contains("nhỏ")
+        val softerPhrases = listOf(
             "noi nho lai", "nho lai", "noi nho thoi", "nho thoi", "nho tieng lai", "cho nho tieng", "cho nho lai",
-            "giam am luong", "be lai", "noi be lai", "be thoi", "nho hon", "ha am luong", "giam volume",
+            "giam am luong", "be lai", "noi be lai", "be thoi", "ha am luong", "giam volume",
             "volume down", "speak softer", "softer", "quieter", "turn down volume", "turn down the volume",
             "lower volume", "make it softer", "quieter please", "speak quiet"
-        ))) {
+        ).filterNot { saysRemember && "nho" in it.split(' ') }
+        if (containsAny(q, softerPhrases)) {
             return (currentVolume - 20).coerceAtLeast(10)
         }
 
@@ -121,12 +126,17 @@ object VoiceCommandParser {
         val q = TopicManager.normalize(utterance)
         if (q.isBlank()) return null
 
+        // "tiếng" alone or verbs like "use"/"make" are not enough: "Tôi đang học tiếng Anh" or
+        // "I use English at work" talk about English, they do not ask to change the app language.
         val hasLangContext = containsAny(q, listOf(
-            "ngon ngu", "giao dien", "tieng", "language", "app language", "idioma", "langue", "sprache"
+            "ngon ngu", "giao dien", "language", "app language", "idioma", "langue", "sprache"
         ))
-        val hasSwitchAction = containsAny(q, listOf(
-            "doi", "chuyen", "cai", "chinh", "chon", "switch", "change", "set", "use", "make"
-        ))
+        val accented = utterance.lowercase()
+        val saysHungry = accented.contains("đói") && !accented.contains("đổi")
+        val hasSwitchAction = containsAny(
+            q,
+            listOf("chuyen", "cai", "chinh", "chon", "switch", "change", "set") + if (saysHungry) emptyList() else listOf("doi")
+        )
 
         if (hasLangContext || hasSwitchAction) {
             if (containsAny(q, listOf("tieng anh", "english", "to english", "sang tieng anh"))) return AppLanguage.ENGLISH
@@ -324,10 +334,12 @@ object VoiceCommandParser {
         val q = TopicManager.normalize(utterance)
         if (q.isBlank()) return null
 
-        if (q.contains("charon") || containsAny(q, listOf("giong charon", "voice charon", "nam tram am", "tram am", "nam tram"))) return AiVoice.CHARON
-        if (q.contains("puck") || containsAny(q, listOf("giong puck", "voice puck", "nam vui ve", "vui ve", "nam vui"))) return AiVoice.PUCK
-        if (q.contains("aoede") || containsAny(q, listOf("giong aoede", "voice aoede", "nu nhe nhang", "nhe nhang", "nu nhe"))) return AiVoice.AOEDE
-        if (q.contains("kore") || containsAny(q, listOf("giong kore", "voice kore", "nu ro rang", "ro rang", "nu ro"))) return AiVoice.KORE
+        // Whole words only ("Korean food" is not the voice Kore), and the descriptive names need the
+        // gender word too: "rõ ràng" or "vui vẻ" alone are ordinary adjectives.
+        if (containsAny(q, listOf("charon", "giong charon", "voice charon", "nam tram am", "giong tram am"))) return AiVoice.CHARON
+        if (containsAny(q, listOf("puck", "giong puck", "voice puck", "nam vui ve", "giong vui ve"))) return AiVoice.PUCK
+        if (containsAny(q, listOf("aoede", "giong aoede", "voice aoede", "nu nhe nhang", "giong nhe nhang"))) return AiVoice.AOEDE
+        if (containsAny(q, listOf("kore", "giong kore", "voice kore", "nu ro rang", "giong ro rang"))) return AiVoice.KORE
 
         if (containsAny(q, listOf("doi giong nam", "chuyen sang giong nam", "giong con trai", "giong nam", "male voice", "switch to male voice"))) return AiVoice.PUCK
         if (containsAny(q, listOf("doi giong nu", "chuyen sang giong nu", "giong con gai", "giong nu", "female voice", "switch to female voice"))) return AiVoice.AOEDE
@@ -714,19 +726,19 @@ object VoiceCommandParser {
 
     private val DRIVING_PHRASES_DRILL_PHRASES = listOf(
         "tieng anh lai xe", "tieng anh khi lai xe", "cau lai xe", "chu de lai xe", "luyen tieng anh lai xe",
-        "luyen cau lai xe", "lai xe an toan", "lai xe", "driving phrases", "driving english",
+        "luyen cau lai xe", "driving phrases", "driving english",
         "practice driving phrases", "english while driving", "car phrases", "driving commute"
     )
 
     private val BUSINESS_WORK_DRILL_PHRASES = listOf(
         "tieng anh cong so", "chu de cong so", "chu de van phong", "tieng anh van phong", "luyen cau cong so",
-        "luyen tieng anh cong so", "tieng anh di lam", "cau di lam", "cong so", "kinh doanh", "lam viec",
+        "luyen tieng anh cong so", "tieng anh di lam", "cau di lam", "tieng anh kinh doanh",
         "business english", "work phrases", "office english", "business phrases", "practice business english", "business work"
     )
 
     private val TRAVEL_DAILY_DRILL_PHRASES = listOf(
         "tieng anh du lich", "chu de du lich", "cau du lich", "luyen cau du lich", "luyen tieng anh du lich",
-        "du lich khach san", "du lich san bay", "du lich doi song", "du lich va doi song", "du lich",
+        "du lich khach san", "du lich san bay", "du lich doi song", "du lich va doi song",
         "travel english", "travel phrases", "tourism phrases", "practice travel phrases", "travel and daily", "travel daily"
     )
 
@@ -743,7 +755,7 @@ object VoiceCommandParser {
         "tat ca the loai", "tat ca danh muc luyen", "luyen phong phu", "luyen da dang",
         "phong phu hon", "da dang hon", "luyen phong phu hon", "luyen tap phong phu hon",
         "muon phong phu hon", "tap phong phu hon", "luyen da dang hon", "tap da dang hon",
-        "tong hop", "luyen tong hop", "chu de da dang", "more variety", "diverse practice", "more diverse"
+        "luyen tong hop", "chu de da dang", "more variety", "diverse practice", "more diverse"
     )
 
     private fun isPronunciationContext(q: String): Boolean =
@@ -779,7 +791,7 @@ object VoiceCommandParser {
             "don't pause when leaving app", "dont pause when leaving app", "do not pause when leaving app",
             "keep playing in background", "continue in background"
         ).map { TopicManager.normalize(it) }
-        if (disablePhrases.any { q.contains(it) }) return false
+        if (containsAny(q, disablePhrases)) return false
 
         // Enable phrases
         val enablePhrases = listOf(
@@ -793,7 +805,7 @@ object VoiceCommandParser {
             "pause when screen locked", "pause when leaving app", "auto pause when leaving app",
             "pause when app unfocused", "auto pause when unfocused", "auto pause"
         ).map { TopicManager.normalize(it) }
-        if (enablePhrases.any { q.contains(it) }) return true
+        if (containsAny(q, enablePhrases)) return true
 
         return null
     }
@@ -815,7 +827,7 @@ object VoiceCommandParser {
             "hide subtitle", "turn off translation", "hide translation", "disable translation",
             "no subtitles", "without subtitles", "no translation", "don't show translation", "dont show translation"
         ).map { TopicManager.normalize(it) }
-        if (disablePhrases.any { q.contains(it) }) return false
+        if (containsAny(q, disablePhrases)) return false
 
         // Enable / Show phrases
         val enablePhrases = listOf(
@@ -828,7 +840,7 @@ object VoiceCommandParser {
             "show subtitle", "turn on translation", "show translation", "enable translation",
             "with subtitles", "display subtitles", "display translation", "show subtitle translation"
         ).map { TopicManager.normalize(it) }
-        if (enablePhrases.any { q.contains(it) }) return true
+        if (containsAny(q, enablePhrases)) return true
 
         return null
     }
@@ -853,7 +865,7 @@ object VoiceCommandParser {
             "switch to shadowing", "shadowing mode", "repeat after me", "repeat after me mode",
             "practice repeat after me", "pronunciation mode"
         ).map { TopicManager.normalize(it) }
-        if (repeatAfterMePhrases.any { q.contains(it) }) return SessionMode.REPEAT_AFTER_ME
+        if (containsAny(q, repeatAfterMePhrases)) return SessionMode.REPEAT_AFTER_ME
 
         // 2. STORY LISTENING
         val storyPhrases = listOf(
@@ -861,21 +873,21 @@ object VoiceCommandParser {
             "chuyen sang nghe chuyen", "ke chuyen di", "ke truyen di", "ke chuyen tieng anh",
             "story listening", "switch to storytelling", "tell me a story", "story mode", "switch to story"
         ).map { TopicManager.normalize(it) }
-        if (storyPhrases.any { q.contains(it) }) return SessionMode.STORY_LISTENING
+        if (containsAny(q, storyPhrases)) return SessionMode.STORY_LISTENING
 
         // 3. ROLEPLAY
         val roleplayPhrases = listOf(
             "chuyen sang nhap vai", "dong vai", "nhap vai tinh huong", "chuyen sang dong vai",
             "switch to roleplay", "roleplay mode", "scenario mode", "start roleplay"
         ).map { TopicManager.normalize(it) }
-        if (roleplayPhrases.any { q.contains(it) }) return SessionMode.ROLEPLAY
+        if (containsAny(q, roleplayPhrases)) return SessionMode.ROLEPLAY
 
         // 4. VOCAB REVIEW
         val vocabPhrases = listOf(
             "chuyen sang on tu vung", "on tap tu vung", "hoc tu vung", "chuyen sang tu vung",
             "chuyen sang on tap tu", "switch to vocabulary", "vocab review", "review words", "vocabulary practice"
         ).map { TopicManager.normalize(it) }
-        if (vocabPhrases.any { q.contains(it) }) return SessionMode.VOCAB_REVIEW
+        if (containsAny(q, vocabPhrases)) return SessionMode.VOCAB_REVIEW
 
         // 5. FREE TALK / CONVERSATION
         val freeTalkPhrases = listOf(
@@ -884,7 +896,7 @@ object VoiceCommandParser {
             "free talk", "conversation mode", "switch to conversation", "switch to free talk",
             "talk freely", "open conversation"
         ).map { TopicManager.normalize(it) }
-        if (freeTalkPhrases.any { q.contains(it) }) return SessionMode.FREE_TALK
+        if (containsAny(q, freeTalkPhrases)) return SessionMode.FREE_TALK
 
         return null
     }

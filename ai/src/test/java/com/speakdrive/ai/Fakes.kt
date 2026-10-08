@@ -35,11 +35,17 @@ class FakeLiveClient : LiveConversationClient {
 
     val connects = mutableListOf<LiveSessionConfig>()
     val sentTexts = mutableListOf<String>()
+    val sentContexts = mutableListOf<String>()
     var failNextConnects = 0
     var audioPaused = false
     var disconnects = 0
+    override var settingsToolsActive = true
+
+    /** When set, connect() suspends until it is completed (a connection that hangs). */
+    var connectGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
     override suspend fun connect(config: LiveSessionConfig) {
+        connectGate?.await()
         if (failNextConnects > 0) {
             failNextConnects--
             throw IllegalStateException("connect failed")
@@ -54,6 +60,11 @@ class FakeLiveClient : LiveConversationClient {
     override suspend fun sendText(text: String) {
         sendTextFailsWith?.let { throw it }
         sentTexts += text
+    }
+
+    override suspend fun sendContext(text: String) {
+        sendTextFailsWith?.let { throw it }
+        sentContexts += text
     }
 
     override suspend fun pauseAudio() {
@@ -89,7 +100,12 @@ class FakeLiveClient : LiveConversationClient {
 class FakeSummaryGenerator : SummaryGenerator {
     var fail = false
     var calls = 0
-    val summary = SessionSummary(7, 6, 8, emptyList(), emptyList(), "Tốt lắm", "Luyện thêm thì quá khứ")
+    var nextRecommendation: com.speakdrive.ai.model.LevelRecommendation? = null
+    val summary: SessionSummary
+        get() = SessionSummary(
+            7, 6, 8, emptyList(), emptyList(), "Tốt lắm", "Luyện thêm thì quá khứ",
+            levelRecommendation = nextRecommendation
+        )
 
     override suspend fun summarize(
         lesson: ActiveLesson,
@@ -107,13 +123,22 @@ class FakeSessionStore : SessionStore {
     val reviewed = mutableListOf<List<String>>()
     var recent = listOf<String>()
     var due = listOf<ReviewWord>()
+    /** Simulates a broken database for the read paths used when a lesson starts. */
+    var failReads = false
 
     override suspend fun saveSession(session: CompletedSession) {
         saved += session
     }
 
-    override suspend fun recentTopicIds(limit: Int) = recent.take(limit)
-    override suspend fun wordsDueForReview(limit: Int) = due.take(limit)
+    override suspend fun recentTopicIds(limit: Int): List<String> {
+        if (failReads) error("database unavailable")
+        return recent.take(limit)
+    }
+
+    override suspend fun wordsDueForReview(limit: Int): List<ReviewWord> {
+        if (failReads) error("database unavailable")
+        return due.take(limit)
+    }
     override suspend fun markWordsReviewed(words: List<String>) {
         reviewed += words
     }
@@ -123,7 +148,13 @@ class FakeSettings(settings: LearnerSettings = LearnerSettings()) : LearningSett
     val flow = MutableStateFlow(settings)
     var settings: LearnerSettings
         get() = flow.value
-        set(value) { flow.value = value }
+        set(value) {
+            if (failWrites) error("disk full")
+            flow.value = value
+        }
+
+    /** Simulates a DataStore that cannot be written. */
+    var failWrites = false
 
     override suspend fun snapshot() = settings
     override fun observeLearnerSettings(): kotlinx.coroutines.flow.Flow<LearnerSettings> = flow
@@ -178,6 +209,26 @@ class FakeSettings(settings: LearnerSettings = LearnerSettings()) : LearningSett
 
     override suspend fun setAutoPauseWhenUnfocused(enabled: Boolean) {
         settings = settings.copy(autoPauseWhenUnfocused = enabled)
+    }
+
+    override suspend fun setAppLanguage(language: com.speakdrive.ai.model.AppLanguage) {
+        settings = settings.copy(appLanguage = language)
+    }
+
+    override suspend fun setStoryDuration(duration: com.speakdrive.ai.model.StoryDuration) {
+        settings = settings.copy(storyDuration = duration)
+    }
+
+    override suspend fun setMultiVoiceStorytelling(enabled: Boolean) {
+        settings = settings.copy(multiVoiceStorytelling = enabled)
+    }
+
+    override suspend fun setAdaptiveLevelRecommendation(enabled: Boolean) {
+        settings = settings.copy(adaptiveLevelRecommendation = enabled)
+    }
+
+    override suspend fun setShowTranslationSubtitle(enabled: Boolean) {
+        settings = settings.copy(showTranslationSubtitle = enabled)
     }
 }
 

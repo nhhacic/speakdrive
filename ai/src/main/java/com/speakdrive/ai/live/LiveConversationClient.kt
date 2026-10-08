@@ -17,6 +17,18 @@ interface LiveConversationClient {
     /** Sends a text instruction that the AI answers out loud. */
     suspend fun sendText(text: String)
 
+    /**
+     * Adds a note to the conversation without asking for a new answer (used when the AI is already
+     * replying, so it does not answer twice). Clients without that ability fall back to [sendText].
+     */
+    suspend fun sendContext(text: String) = sendText(text)
+
+    /**
+     * False when the session had to be opened without the settings tools (Live API limits), so the
+     * app's own voice command recognition is the only way settings can change by voice.
+     */
+    val settingsToolsActive: Boolean get() = true
+
     /** Stops the microphone and speaker but keeps the session open. */
     suspend fun pauseAudio()
 
@@ -41,7 +53,7 @@ data class LiveSessionConfig(
     val enableInterruptions: Boolean = false,
     /** Tools the model may call besides ending the lesson. */
     val tools: List<LiveTool> = emptyList(),
-    /** Answers calls to [tools]. Runs on a background thread and must return quickly. */
+    /** Answers calls to [tools]. Called from a background coroutine; the handler picks its own thread. */
     val toolHandler: LiveToolHandler? = null
 )
 
@@ -74,7 +86,7 @@ data class LiveToolCall(
 
 fun interface LiveToolHandler {
     /** Returns the tool's result (strings, numbers, booleans and lists of those). */
-    fun handle(call: LiveToolCall): Map<String, Any>
+    suspend fun handle(call: LiveToolCall): Map<String, Any>
 }
 
 sealed interface LiveEvent {

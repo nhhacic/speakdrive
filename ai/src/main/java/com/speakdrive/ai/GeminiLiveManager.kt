@@ -58,6 +58,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -100,6 +101,7 @@ class GeminiLiveManager @Inject constructor(
     private var watchdog: Job? = null
     private var receiveJob: Job? = null
     private var sendJob: Job? = null
+    @Volatile
     private var outgoing = newOutgoingChannel()
     @Volatile
     private var audioPaused = false
@@ -128,6 +130,12 @@ class GeminiLiveManager @Inject constructor(
     override val isConnected: Boolean
         get() = session?.isClosed() == false
 
+    @Volatile
+    private var toolsActive = true
+
+    override val settingsToolsActive: Boolean
+        get() = toolsActive
+
     override suspend fun connect(config: LiveSessionConfig) = lock.withLock {
         closeLocked()
         this.config = config
@@ -136,27 +144,22 @@ class GeminiLiveManager @Inject constructor(
 
         val allDeclarations = listOf(endLessonDeclaration) + config.tools.map(::toDeclaration)
         var usedDeclarations = allDeclarations
+        toolsActive = true
         val newSession = try {
-            createLiveModel(config, allDeclarations).connect()
+            connectWithTimeout(config, allDeclarations)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            // When connecting with many function declarations fails (Gemini Live preview limits),
-            // gracefully fallback to core tools so the lesson still connects seamlessly.
-            if (config.tools.isNotEmpty()) {
-                Log.w(TAG, "Live connection with ${allDeclarations.size} tools failed, retrying with core tools...", e)
-                try {
-                    val coreTools = listOf(endLessonDeclaration) +
-                        config.tools.filter { it.name == PronunciationDrill.CHECK_ATTEMPT_FUNCTION }.map(::toDeclaration)
-                    usedDeclarations = coreTools
-                    createLiveModel(config, coreTools).connect().also {
-                        Log.i(TAG, "Fallback connection succeeded with core tools (${coreTools.size})")
-                    }
-                } catch (fallbackEx: CancellationException) {
-                    throw fallbackEx
-                } catch (fallbackEx: Exception) {
-                    Log.e(TAG, "Fallback live connection also failed", fallbackEx)
-                    throw fallbackEx
+            // The Live API preview may reject a session with many function declarations. Only then
+            // retry with the core tools; a network or App Check failure would fail again anyway.
+            if (config.tools.isNotEmpty() && isToolSchemaRejection(e)) {
+                Log.w(TAG, "Live connection with ${allDeclarations.size} tools was rejected, retrying with core tools...", e)
+                val coreTools = listOf(endLessonDeclaration) +
+                    config.tools.filter { it.name == PronunciationDrill.CHECK_ATTEMPT_FUNCTION }.map(::toDeclaration)
+                usedDeclarations = coreTools
+                toolsActive = false
+                connectWithTimeout(config, coreTools).also {
+                    Log.i(TAG, "Fallback connection succeeded with core tools (${coreTools.size}); settings tools are off")
                 }
             } else {
                 Log.e(TAG, "Live connection failed", e)
@@ -172,6 +175,11 @@ class GeminiLiveManager @Inject constructor(
         Log.i(TAG, "Connected to ${BuildConfig.LIVE_MODEL} with ${usedDeclarations.size} tools (half-duplex MicGate active)")
         Unit
     }
+
+    /** One connection attempt that cannot hang forever on a dead network. */
+    private suspend fun connectWithTimeout(config: LiveSessionConfig, declarations: List<FunctionDeclaration>): LiveSession =
+        withTimeoutOrNull(CONNECT_ATTEMPT_TIMEOUT_MS) { createLiveModel(config, declarations).connect() }
+            ?: throw IllegalStateException("Live connection timed out after ${CONNECT_ATTEMPT_TIMEOUT_MS / 1000} s")
 
     private fun createLiveModel(
         config: LiveSessionConfig,
@@ -201,6 +209,13 @@ class GeminiLiveManager @Inject constructor(
             awaitingAiSince = 0L
             throw e
         }
+    }
+
+    override suspend fun sendContext(text: String) {
+        val current = session ?: return
+        // A note while the AI is already answering: no new turn, so it does not answer twice and the
+        // learner's microphone stays open.
+        current.send(content(role = "user") { text(text) }, turnComplete = false)
     }
 
     override suspend fun pauseAudio() = lock.withLock {
@@ -484,6 +499,13 @@ class GeminiLiveManager @Inject constructor(
         }
     }
 
+    /** True when the server refused the session because of the tool declarations. */
+    private fun isToolSchemaRejection(e: Exception): Boolean {
+        val text = (e.message.orEmpty() + " " + e.cause?.message.orEmpty()).lowercase()
+        return listOf("invalid_argument", "invalid argument", "400", "1007", "function", "tool", "schema", "too large", "too many")
+            .any { it in text }
+    }
+
     private fun answerToolCall(target: LiveSession, call: FunctionCallPart) {
         scope.launch {
             val response = handleFunctionCall(call)
@@ -493,7 +515,7 @@ class GeminiLiveManager @Inject constructor(
         }
     }
 
-    private fun handleFunctionCall(call: FunctionCallPart): FunctionResponsePart {
+    private suspend fun handleFunctionCall(call: FunctionCallPart): FunctionResponsePart {
         val result: Map<String, Any> = when {
             call.name == PromptTemplates.END_LESSON_FUNCTION -> {
                 _events.tryEmit(LiveEvent.EndLessonRequested)
@@ -501,17 +523,21 @@ class GeminiLiveManager @Inject constructor(
             }
             config?.tools?.any { it.name == call.name } == true -> {
                 val handler = config?.toolHandler
-                runCatching {
-                    handler?.handle(
-                        LiveToolCall(
-                            name = call.name,
-                            args = call.args.mapValues { (_, v) -> v.toPlain() },
-                            learnerUtterance = utterance.text(),
-                            learnerAudio = utterance.audio()
-                        )
-                    )
-                }.onFailure { Log.e(TAG, "Tool ${call.name} failed", it) }.getOrNull()
-                    ?: mapOf("status" to "error")
+                val toolCall = LiveToolCall(
+                    name = call.name,
+                    args = call.args.mapValues { (_, v) -> v.toPlain() },
+                    learnerUtterance = utterance.text(),
+                    learnerAudio = utterance.audio()
+                )
+                try {
+                    // The model waits for this answer; never leave it waiting forever.
+                    withTimeoutOrNull(TOOL_TIMEOUT_MS) { handler?.handle(toolCall) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Tool ${call.name} failed", e)
+                    null
+                } ?: mapOf("status" to "error")
             }
             else -> {
                 Log.w(TAG, "Unknown function call: ${call.name}")
@@ -576,6 +602,10 @@ class GeminiLiveManager @Inject constructor(
     private companion object {
         const val TAG = "GeminiLiveManager"
         const val WATCHDOG_INTERVAL_MS = 1_500L
+        const val CONNECT_ATTEMPT_TIMEOUT_MS = 15_000L
+
+        /** Azure pronunciation grading can take two 10 s HTTP timeouts. */
+        const val TOOL_TIMEOUT_MS = 25_000L
         const val OUTGOING_CHUNKS = 50
         const val INPUT_AUDIO_MIME = "audio/pcm;rate=16000"
 

@@ -457,5 +457,18 @@ class VoiceSettingsToolsTest {
         assertThat(VoiceSettingsTools.parseSessionMode(null)).isNull()
         assertThat(VoiceSettingsTools.parseSessionMode("bla bla bla")).isNull()
     }
-}
 
+    @Test
+    fun `tool arguments are matched on whole words`() {
+        // "harder" contains "de" and used to resolve to BEGINNER.
+        assertThat(VoiceSettingsTools.parseLevel("harder")).isNotEqualTo(DifficultyLevel.BEGINNER)
+        assertThat(VoiceSettingsTools.parseLevel("harder", DifficultyLevel.INTERMEDIATE)).isEqualTo(DifficultyLevel.UPPER_INTERMEDIATE)
+        assertThat(VoiceSettingsTools.parseLevel("dễ hơn", DifficultyLevel.INTERMEDIATE)).isEqualTo(DifficultyLevel.PRE_INTERMEDIATE)
+        assertThat(VoiceSettingsTools.parseLevel("không")).isNull()
+        // "don't" contains "on", "an" is inside many words.
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("don't show translation")).isFalse()
+        assertThat(VoiceSettingsTools.parseTranslationSubtitles("show translation")).isTrue()
+        assertThat(VoiceSettingsTools.parseAutoPauseWhenUnfocused("dont pause")).isFalse()
+        assertThat(VoiceSettingsTools.parseDrillCategory("không liên quan gì")).isNull()
+    }
+}

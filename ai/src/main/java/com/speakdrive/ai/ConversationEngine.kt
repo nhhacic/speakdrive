@@ -38,20 +38,30 @@ import com.speakdrive.ai.pronunciation.PronunciationGrader
 import com.speakdrive.ai.session.LearningSettings
 import com.speakdrive.ai.session.MicPermissionChecker
 import com.speakdrive.ai.session.SessionStore
+import com.speakdrive.ai.session.CommandCategory
+import com.speakdrive.ai.session.CommandContext
 import com.speakdrive.ai.session.TranscriptAccumulator
-import com.speakdrive.ai.session.VoiceCommandParser
+import com.speakdrive.ai.session.VoiceCommand
+import com.speakdrive.ai.session.VoiceCommandRecognizer
 import com.speakdrive.ai.session.VoiceSettingsTools
 import com.speakdrive.ai.summary.SummaryGenerator
 import com.speakdrive.ai.summary.SummaryParser
+import com.speakdrive.ai.util.suspendRunCatching
+import com.speakdrive.ai.live.LiveToolHandler
+import com.speakdrive.ai.model.LevelAdjustmentDirection
+import com.speakdrive.ai.model.LevelRecommendation
 import com.speakdrive.audio.AudioFocus
 import com.speakdrive.audio.AudioFocusState
 import com.speakdrive.audio.VoiceAnnouncer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,6 +74,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 import javax.inject.Inject
@@ -129,7 +140,17 @@ open class ConversationEngine @Inject constructor(
     /** Replaceable in tests. */
     internal var clock: () -> Long = System::currentTimeMillis
 
-    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    private val engineDispatcher = dispatcher
+
+    /**
+     * Last resort for exceptions nobody caught in the engine's background work: log them instead of
+     * crashing the app in the middle of a drive. Tests replace it to fail on unexpected errors.
+     */
+    internal var onUncaughtError: (Throwable) -> Unit = { Log.e(TAG, "Unexpected error in the lesson engine", it) }
+
+    private val scope = CoroutineScope(
+        SupervisorJob() + dispatcher + CoroutineExceptionHandler { _, e -> onUncaughtError(e) }
+    )
     private val mutex = Mutex()
     private val accumulator = TranscriptAccumulator { clock() }
 
@@ -214,6 +235,8 @@ open class ConversationEngine @Inject constructor(
                 if (_drillTarget.value == target && isActive && !translated.isNullOrBlank()) {
                     _drillTargetTranslation.value = translated
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to translate drill target '$target': ${e.message}")
             }
@@ -276,26 +299,24 @@ open class ConversationEngine @Inject constructor(
     internal fun pauseByUnfocusedAsync() {
         scope.launch {
             mutex.withLock {
-                if (_state.value == ConversationState.ACTIVE) {
-                    pausedByAppUnfocused = true
-                    pauseLocked(byFocus = true)
-                }
+                if (_state.value == ConversationState.ACTIVE) pauseLocked(PauseReason.APP_UNFOCUSED)
             }
         }
     }
 
     internal fun checkAutoResume() {
-        if (_state.value == ConversationState.PAUSED && pausedByAppUnfocused) {
-            if (_isAppFocused.value && _isScreenOn.value) {
-                Log.i(TAG, "App regained focus and screen is on; auto-resuming lesson")
-                pausedByAppUnfocused = false
-                scope.launch { resume() }
+        if (!_isAppFocused.value || !_isScreenOn.value) return
+        scope.launch {
+            mutex.withLock {
+                if (PauseReason.APP_UNFOCUSED !in pauseReasons) return@withLock
+                pauseReasons -= PauseReason.APP_UNFOCUSED
+                // Still paused for another reason (a phone call, the learner's own pause...)? Then stay paused.
+                if (_state.value == ConversationState.PAUSED && pauseReasons.isEmpty()) {
+                    Log.i(TAG, "App regained focus and screen is on; auto-resuming lesson")
+                    resumeLocked()
+                }
             }
         }
-    }
-
-    open fun pauseAsync() {
-        scope.launch { pause() }
     }
 
     open fun setCarConnected(connected: Boolean) {
@@ -308,7 +329,7 @@ open class ConversationEngine @Inject constructor(
             }
             if (_state.value == ConversationState.ACTIVE && _lesson.value?.mode == SessionMode.REPEAT_AFTER_ME) {
                 scope.launch {
-                    runCatching {
+                    suspendRunCatching {
                         liveClient.sendText(
                             PromptTemplates.carConnectionSwitchMessage(
                                 isCarConnected = connected,
@@ -334,10 +355,46 @@ open class ConversationEngine @Inject constructor(
     private var accumulatedActiveMs = 0L
     private var lastActivityAt = 0L
     private var unansweredNudges = 0
-    private var pausedByFocus = false
-    private var pausedByAppUnfocused = false
     private var lessonStartedAt = 0L
     private var pausedAt = 0L
+
+    /** Why the lesson is paused. It resumes on its own only when every automatic reason is gone. */
+    private enum class PauseReason {
+        /** The learner pressed pause (or asked by voice). Only the learner resumes. */
+        USER,
+        /** A phone call or navigation prompt took audio focus for a moment. Resumes on focus GAIN. */
+        FOCUS_TRANSIENT,
+        /** Another app took audio focus for good. Only the learner resumes. */
+        FOCUS_LOSS,
+        /** The app went to the background or the screen turned off (auto-pause setting). */
+        APP_UNFOCUSED,
+        /** The learner stayed silent after several nudges. */
+        SILENCE
+    }
+
+    private val pauseReasons = mutableSetOf<PauseReason>()
+
+    /** Set when a fresh connection was parked paused: the AI must be asked to speak on resume. */
+    private var resumeNeedsKickoff = false
+
+    /** Incremented on every successful connection, so late events of an old connection are ignored. */
+    private var connectionGeneration = 0
+    private var reconnectJob: Job? = null
+    private var goAwayJob: Job? = null
+    private var endRequestJob: Job? = null
+    private var watchdogJob: Job? = null
+
+    /** A level change suggested by the last lesson summary, waiting for the learner's answer. */
+    private var pendingLevelRecommendation: LevelRecommendation? = null
+
+    // Client-side voice command recognition: what the learner is saying right now, as one utterance.
+    private val utteranceBuffer = StringBuilder()
+    private var utteranceStartedAt = 0L
+    private var lastLearnerUtterance = ""
+    private var lastAiTranscriptAt = Long.MIN_VALUE
+    private var pendingFallbackJob: Job? = null
+    private val lastToolCallAt = mutableMapOf<CommandCategory, Long>()
+    private val lastFallbackAppliedAt = mutableMapOf<CommandCategory, Long>()
 
     open fun isWithinStartupGrace(): Boolean = clock() - lessonStartedAt < STARTUP_GRACE_PERIOD_MS
     private var learnerSettings = LearnerSettings()
@@ -355,7 +412,6 @@ open class ConversationEngine @Inject constructor(
         scope.launch { liveClient.events.collect(::onLiveEvent) }
         scope.launch { audioFocus.state.collect(::onAudioFocusChanged) }
         scope.launch { connectivity.isOnline.collect(::onConnectivityChanged) }
-        scope.launch { silenceWatchdog() }
         scope.launch {
             settings.observeLearnerSettings().collect { updated ->
                 val previousStyle = learnerSettings.storytellingStyle
@@ -369,13 +425,13 @@ open class ConversationEngine @Inject constructor(
                 if (updated.storytellingStyle != previousStyle && isStoryLessonActive()) {
                     Log.i(TAG, "Storytelling style changed outside the session: ${updated.storytellingStyle}")
                     onStorytellingStyleChanged()
-                    runCatching {
+                    suspendRunCatching {
                         liveClient.sendText(PromptTemplates.storytellingStyleSwitchMessage(updated.storytellingStyle))
                     }.onFailure { Log.w(TAG, "Could not send storytelling style update to Live client", it) }
                 }
                 if (updated.drillSentenceLength != previousDrillLength && _state.value == ConversationState.ACTIVE && drill) {
                     Log.i(TAG, "Drill sentence length changed outside session: ${updated.drillSentenceLength}")
-                    runCatching {
+                    suspendRunCatching {
                         liveClient.sendText(PromptTemplates.drillSentenceLengthSwitchMessage(updated.drillSentenceLength, _isCarConnected.value))
                     }.onFailure { Log.w(TAG, "Could not send drill sentence length update to Live client", it) }
                 }
@@ -418,21 +474,27 @@ open class ConversationEngine @Inject constructor(
      * Starts a lesson. A lesson that is already running is ended (and saved) first.
      * @return true if the conversation is now running.
      */
-    open suspend fun start(request: LessonRequest): Boolean = mutex.withLock {
+    open suspend fun start(request: LessonRequest): Boolean {
+        cancelReconnect()
+        return mutex.withLock { startLocked(request) }
+    }
+
+    private suspend fun startLocked(request: LessonRequest): Boolean {
         if (_state.value.isInLesson) endLocked()
+        endRequestJob?.cancel()
         _error.value = null
 
-        if (!micPermission.hasMicPermission()) return@withLock failStart(EngineError.MissingMicPermission)
+        if (!micPermission.hasMicPermission()) return failStart(EngineError.MissingMicPermission)
         if (!connectivity.isOnlineNow()) {
             announcer.announce(ANNOUNCE_OFFLINE_AT_START)
-            return@withLock failStart(EngineError.NoNetwork)
+            return failStart(EngineError.NoNetwork)
         }
 
-        learnerSettings = settings.snapshot()
+        learnerSettings = suspendRunCatching { settings.snapshot() }.getOrDefault(learnerSettings)
         liveClient.setVolume(learnerSettings.aiVolume / 100f)
         val lesson = resolveLesson(request, learnerSettings)
         if (lesson.mode == SessionMode.STORY_LISTENING) {
-            cachedStorySessions = runCatching { sessionStore.recentStorySessions(20) }.getOrDefault(emptyList())
+            cachedStorySessions = suspendRunCatching { sessionStore.recentStorySessions(20) }.getOrDefault(emptyList())
         }
         accumulator.clear()
         _transcript.value = emptyList()
@@ -443,15 +505,19 @@ open class ConversationEngine @Inject constructor(
         accumulatedActiveMs = 0L
         unansweredNudges = 0
         resetStoryProgress()
-        pausedByFocus = false
-        pausedByAppUnfocused = false
+        pauseReasons.clear()
+        resumeNeedsKickoff = false
+        clearUtterance()
+        lastLearnerUtterance = ""
+        lastToolCallAt.clear()
+        lastFallbackAppliedAt.clear()
         _isAppFocused.value = true
         _lesson.value = lesson
         _state.value = ConversationState.CONNECTING
 
         if (!audioFocus.request()) {
             _lesson.value = null
-            return@withLock failStart(EngineError.AudioFocusDenied)
+            return failStart(EngineError.AudioFocusDenied)
         }
 
         try {
@@ -463,38 +529,56 @@ open class ConversationEngine @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Could not start the lesson", e)
             audioFocus.abandon()
-            liveClient.disconnect()
+            suspendRunCatching { liveClient.disconnect() }
             _lesson.value = null
-            return@withLock failStart(mapError(e))
+            return failStart(mapError(e))
         }
 
-        settings.setLastTopicId(lesson.topic.id)
-        settings.setLastSession(lesson.topic.id, lesson.mode, lesson.scenario?.id)
+        suspendRunCatching {
+            settings.setLastTopicId(lesson.topic.id)
+            settings.setLastSession(lesson.topic.id, lesson.mode, lesson.scenario?.id)
+        }.onFailure { Log.w(TAG, "Could not remember the last lesson", it) }
         markActive()
         startDraftSaver()
-        true
+        return true
     }
 
     /** User-initiated pause (play/pause button, steering-wheel button). */
     open suspend fun pause() = mutex.withLock {
-        pausedByAppUnfocused = false
-        pauseLocked(byFocus = false)
+        pauseLocked(PauseReason.USER)
     }
 
+    /** User-initiated resume: clears every pause reason. */
     open suspend fun resume(): Boolean = mutex.withLock { resumeLocked() }
 
     /**
      * Ends the lesson, generates the summary and saves the session.
      * @return the saved session id, or null if nothing worth saving happened.
      */
-    open suspend fun end(): String? = mutex.withLock { endLocked() }
+    open suspend fun end(): String? {
+        cancelReconnect()
+        return mutex.withLock { endLocked() }
+    }
+
+    /** Stops a reconnect in progress so Stop / a new lesson never waits for slow connection attempts. */
+    private suspend fun cancelReconnect() {
+        val job = reconnectJob ?: return
+        if (job == currentCoroutineContext()[Job]) return
+        job.cancelAndJoin()
+        if (reconnectJob === job) reconnectJob = null
+    }
+
+    /** Cancels [job] unless it is the coroutine running this code (which must finish its own work). */
+    private suspend fun cancelUnlessCurrent(job: Job?) {
+        if (job != null && job != currentCoroutineContext()[Job]) job.cancel()
+    }
 
     // region Lesson lifecycle (call with mutex held)
 
     private suspend fun resolveLesson(request: LessonRequest, prefs: LearnerSettings): ActiveLesson {
         val scenarioMatch = topicManager.getScenario(request.scenarioId)
         val storyResolved = if (request.mode == SessionMode.STORY_LISTENING && scenarioMatch == null && request.topicId == null) {
-            val recent = runCatching { sessionStore.recentStorySessions(20) }.getOrDefault(emptyList())
+            val recent = suspendRunCatching { sessionStore.recentStorySessions(20) }.getOrDefault(emptyList())
             storyRecommender.recommendStory(recent)
         } else {
             null
@@ -502,13 +586,15 @@ open class ConversationEngine @Inject constructor(
         val topic = scenarioMatch?.first
             ?: storyResolved?.first
             ?: topicManager.getTopicById(request.topicId)
-            ?: topicManager.suggestTopic(sessionStore.recentTopicIds(RECENT_TOPICS_FOR_SUGGESTION))
+            ?: topicManager.suggestTopic(
+                suspendRunCatching { sessionStore.recentTopicIds(RECENT_TOPICS_FOR_SUGGESTION) }.getOrDefault(emptyList())
+            )
         val reviewWords = if (request.mode == SessionMode.VOCAB_REVIEW) {
             when {
                 request.targetWords.isNotEmpty() -> request.targetWords
                 else -> {
-                    val due = sessionStore.wordsDueForReview(MAX_REVIEW_WORDS)
-                    if (due.isNotEmpty()) due else sessionStore.recentWords(MAX_REVIEW_WORDS)
+                    val due = suspendRunCatching { sessionStore.wordsDueForReview(MAX_REVIEW_WORDS) }.getOrDefault(emptyList())
+                    if (due.isNotEmpty()) due else suspendRunCatching { sessionStore.recentWords(MAX_REVIEW_WORDS) }.getOrDefault(emptyList())
                 }
             }
         } else {
@@ -546,7 +632,7 @@ open class ConversationEngine @Inject constructor(
     private suspend fun connectLive(lesson: ActiveLesson, recap: Boolean) {
         val drill = lesson.mode == SessionMode.REPEAT_AFTER_ME
         val sampleDrillSentences = if (drill) {
-            val recentTargets = runCatching { sessionStore.recentDrillTargets(30) }.getOrDefault(emptyList()).toSet()
+            val recentTargets = suspendRunCatching { sessionStore.recentDrillTargets(30) }.getOrDefault(emptyList()).toSet()
             drillSentenceManager.getSampleSentencesForPrompt(
                 category = learnerSettings.drillCategory,
                 level = lesson.level,
@@ -564,6 +650,7 @@ open class ConversationEngine @Inject constructor(
             sampleDrillSentences = sampleDrillSentences
         )
         val tools = VoiceSettingsTools.allTools + if (drill) listOf(PronunciationDrill.checkAttemptTool) else emptyList()
+        val sessionId = lesson.sessionId
         liveClient.connect(
             LiveSessionConfig(
                 systemInstruction = instruction,
@@ -571,12 +658,40 @@ open class ConversationEngine @Inject constructor(
                 // The learner never needs to talk over the AI in a drill.
                 enableInterruptions = learnerSettings.allowBargeIn && !drill,
                 tools = tools,
-                toolHandler = ::handleLiveToolCall
+                toolHandler = LiveToolHandler { call -> handleLiveToolCall(sessionId, call) }
             )
         )
+        connectionGeneration++
     }
 
-    private fun handleLiveToolCall(call: LiveToolCall): Map<String, Any> = when (call.name) {
+    /**
+     * Answers a Gemini tool call. Calls arrive on the Live client's background thread; all lesson
+     * state is changed on the engine's own thread, and calls that belong to a lesson that has
+     * already ended are refused so they cannot bring it back.
+     */
+    private suspend fun handleLiveToolCall(sessionId: String, call: LiveToolCall): Map<String, Any> {
+        if (call.name == PronunciationDrill.CHECK_ATTEMPT_FUNCTION) return gradeAttempt(sessionId, call)
+        return withContext(engineDispatcher) {
+            if (_lesson.value?.sessionId != sessionId || !_state.value.isInLesson) return@withContext STALE_TOOL_RESPONSE
+            val category = CommandCategory.forTool(call.name)
+            if (category != null) {
+                lastToolCallAt[category] = clock()
+                // The model handled it: the client-side safety net must not apply the same change again.
+                val appliedAt = lastFallbackAppliedAt[category]
+                if (appliedAt != null && clock() - appliedAt < FALLBACK_DEDUP_MS) {
+                    Log.i(TAG, "Tool ${call.name} ignored: the same change was just applied from the transcript")
+                    return@withContext mapOf(
+                        "status" to "success",
+                        "already_applied" to true,
+                        "instruction" to "This change was already applied. Confirm it in a few words and continue."
+                    )
+                }
+            }
+            dispatchToolCall(call)
+        }
+    }
+
+    private fun dispatchToolCall(call: LiveToolCall): Map<String, Any> = when (call.name) {
         VoiceSettingsTools.SET_DIFFICULTY_LEVEL_FUNCTION -> handleSetDifficultyLevel(call)
         VoiceSettingsTools.SET_VIETNAMESE_HELP_FUNCTION -> handleSetVietnameseHelp(call)
         VoiceSettingsTools.SET_APP_LANGUAGE_FUNCTION -> handleSetAppLanguage(call)
@@ -600,13 +715,29 @@ open class ConversationEngine @Inject constructor(
         VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION -> handleSetAutoPauseWhenUnfocused(call)
         VoiceSettingsTools.SET_TRANSLATION_SUBTITLES_FUNCTION -> handleSetTranslationSubtitles(call)
         VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION -> handleSwitchSessionMode(call)
-        PronunciationDrill.CHECK_ATTEMPT_FUNCTION -> gradeAttempt(call)
         else -> mapOf("status" to "unknown function")
+    }
+
+    /** Tool arguments arrive as String, Boolean or Number; anything else is unusable. */
+    private fun booleanArg(value: Any?): Boolean? = when (value) {
+        is Boolean -> value
+        is String -> when (value.trim().lowercase()) {
+            "true", "yes", "on", "1", "enable", "enabled" -> true
+            "false", "no", "off", "0", "disable", "disabled" -> false
+            else -> null
+        }
+        else -> null
+    }
+
+    private fun argumentError(name: String, value: Any?, allowed: String): Map<String, Any> {
+        Log.w(TAG, "Unusable tool argument $name=$value")
+        return mapOf("status" to "error", "message" to "Unknown $name: $value. Allowed: $allowed. Nothing was changed.")
     }
 
     private fun handleSwitchSessionMode(call: LiveToolCall): Map<String, Any> {
         val rawMode = call.args["mode"] as? String
-        val targetMode = VoiceSettingsTools.parseSessionMode(rawMode) ?: SessionMode.REPEAT_AFTER_ME
+        val targetMode = VoiceSettingsTools.parseSessionMode(rawMode)
+            ?: return argumentError("mode", rawMode, SessionMode.entries.joinToString { it.name })
         return applySessionModeSwitch(targetMode)
     }
 
@@ -636,9 +767,14 @@ open class ConversationEngine @Inject constructor(
         }
         announcer.announce(confirmationMsg)
 
+        val fromSessionId = currentLesson?.sessionId
         scope.launch {
+            // The lesson changed in the meantime (ended, or another switch won): do not restart again.
+            if (fromSessionId != null && _lesson.value?.sessionId != fromSessionId) return@launch
             if (effectiveTopicId != null) {
-                settings.setLastSession(effectiveTopicId, newMode, if (newMode == SessionMode.ROLEPLAY) currentLesson?.scenario?.id else null)
+                suspendRunCatching {
+                    settings.setLastSession(effectiveTopicId, newMode, if (newMode == SessionMode.ROLEPLAY) currentLesson?.scenario?.id else null)
+                }
             }
             start(LessonRequest(mode = newMode, topicId = effectiveTopicId))
         }
@@ -649,43 +785,60 @@ open class ConversationEngine @Inject constructor(
     private fun handleApplyLevelRecommendation(call: LiveToolCall): Map<String, Any> {
         val acceptArg = call.args["accept"]
         val accept = when (acceptArg) {
+            null -> true
             is Boolean -> acceptArg
-            is String -> VoiceSettingsTools.parseApplyLevelRecommendation(acceptArg) ?: true
-            else -> true
+            is String -> VoiceSettingsTools.parseApplyLevelRecommendation(acceptArg)
+                ?: return argumentError("accept", acceptArg, "true, false")
+            else -> return argumentError("accept", acceptArg, "true, false")
         }
-
-        val currentLevel = learnerSettings.level
-        if (!accept) {
-            val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
-            val msg = if (isVi) "Giữ nguyên cấp độ ${currentLevel.getLabel(true)}" else "Kept current level ${currentLevel.displayName}"
-            announcer.announce(msg)
-            return mapOf("status" to "dismissed", "level" to currentLevel.name)
-        }
-
         val targetArg = call.args["target_level"] as? String
-        val parsedTarget = VoiceSettingsTools.parseLevel(targetArg)
-        val newLevel = parsedTarget ?: currentLevel.nextLevel() ?: currentLevel
-
-        scope.launch { settings.setLevel(newLevel) }
-        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
-        val confirmation = if (isVi) {
-            "Đã chuyển cấp độ sang ${newLevel.getLabel(true)} cho buổi học tiếp theo!"
+        val newLevel = answerLevelRecommendation(accept, VoiceSettingsTools.parseLevel(targetArg, learnerSettings.level))
+        return if (accept) {
+            mapOf("status" to "applied", "new_level" to newLevel.name)
         } else {
-            "Updated learning level to ${newLevel.displayName} for your next lesson!"
+            mapOf("status" to "dismissed", "level" to newLevel.name)
         }
-        announcer.announce(confirmation)
-        return mapOf("status" to "applied", "new_level" to newLevel.name)
+    }
+
+    /**
+     * Accepts or dismisses the level change suggested by the last lesson summary (or [explicitTarget]).
+     * Without a pending suggestion, accepting moves one level up, as the tool always did.
+     * @return the level the learner ends up with.
+     */
+    private fun answerLevelRecommendation(accept: Boolean, explicitTarget: DifficultyLevel? = null): DifficultyLevel {
+        val currentLevel = learnerSettings.level
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val recommendation = pendingLevelRecommendation
+        pendingLevelRecommendation = null
+        if (!accept) {
+            announcer.announce(if (isVi) "Giữ nguyên cấp độ ${currentLevel.getLabel(true)}" else "Kept current level ${currentLevel.displayName}")
+            return currentLevel
+        }
+        val newLevel = explicitTarget
+            ?: recommendation?.targetLevel
+            ?: currentLevel.nextLevel()
+            ?: currentLevel
+        learnerSettings = learnerSettings.copy(level = newLevel)
+        persist("level") { settings.setLevel(newLevel) }
+        announcer.announce(
+            if (isVi) "Đã chuyển cấp độ sang ${newLevel.getLabel(true)} cho buổi học tiếp theo!"
+            else "Updated learning level to ${newLevel.displayName} for your next lesson!"
+        )
+        return newLevel
     }
 
     private fun handleSetAdaptiveLevel(call: LiveToolCall): Map<String, Any> {
         val enabledArg = call.args["enabled"]
-        val enabled = when (enabledArg) {
-            is Boolean -> enabledArg
-            is String -> VoiceSettingsTools.parseAdaptiveLevel(enabledArg) ?: true
-            else -> true
-        }
+        val enabled = booleanArg(enabledArg)
+            ?: (enabledArg as? String)?.let(VoiceSettingsTools::parseAdaptiveLevel)
+            ?: return argumentError("enabled", enabledArg, "true, false")
+        applyAdaptiveLevelChange(enabled)
+        return mapOf("status" to "updated", "adaptive_level_enabled" to enabled)
+    }
 
-        scope.launch { settings.setAdaptiveLevelRecommendation(enabled) }
+    private fun applyAdaptiveLevelChange(enabled: Boolean) {
+        learnerSettings = learnerSettings.copy(adaptiveLevelRecommendation = enabled)
+        persist("adaptive level") { settings.setAdaptiveLevelRecommendation(enabled) }
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
         val confirmation = if (enabled) {
             if (isVi) "Đã bật tự động gợi ý điều chỉnh cấp độ." else "Adaptive level recommendation enabled."
@@ -693,18 +846,18 @@ open class ConversationEngine @Inject constructor(
             if (isVi) "Đã tắt tự động gợi ý điều chỉnh cấp độ." else "Adaptive level recommendation disabled."
         }
         announcer.announce(confirmation)
-        return mapOf("status" to "updated", "adaptive_level_enabled" to enabled)
     }
 
     private fun handleSetDrillSentenceLength(call: LiveToolCall): Map<String, Any> {
         val raw = call.args["length"] as? String
-        val parsed = VoiceSettingsTools.parseDrillSentenceLength(raw) ?: DrillSentenceLength.AUTO_ON_CAR
+        val parsed = VoiceSettingsTools.parseDrillSentenceLength(raw)
+            ?: return argumentError("length", raw, DrillSentenceLength.entries.joinToString { it.name })
         return applyDrillSentenceLength(parsed)
     }
 
     internal fun applyDrillSentenceLength(length: DrillSentenceLength): Map<String, Any> {
         learnerSettings = learnerSettings.copy(drillSentenceLength = length)
-        scope.launch { settings.setDrillSentenceLength(length) }
+        persist("drill sentence length") { settings.setDrillSentenceLength(length) }
 
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
         val confirmation = if (isVi) {
@@ -724,7 +877,7 @@ open class ConversationEngine @Inject constructor(
 
         if (_state.value == ConversationState.ACTIVE) {
             scope.launch {
-                runCatching {
+                suspendRunCatching {
                     liveClient.sendText("System: Drill sentence length set to ${length.name}. " + PromptTemplates.drillSentenceLengthSwitchMessage(length, _isCarConnected.value))
                 }
             }
@@ -740,13 +893,14 @@ open class ConversationEngine @Inject constructor(
 
     private fun handleSetDrillCategory(call: LiveToolCall): Map<String, Any> {
         val catArg = call.args["category"] as? String
-        val parsed = VoiceSettingsTools.parseDrillCategory(catArg) ?: DrillCategory.ALL
+        val parsed = VoiceSettingsTools.parseDrillCategory(catArg)
+            ?: return argumentError("category", catArg, DrillCategory.entries.joinToString { it.name })
         return applyDrillCategory(parsed)
     }
 
     internal fun applyDrillCategory(category: DrillCategory): Map<String, Any> {
         learnerSettings = learnerSettings.copy(drillCategory = category)
-        scope.launch { settings.setDrillCategory(category) }
+        persist("drill category") { settings.setDrillCategory(category) }
 
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
         val confirmation = if (isVi) {
@@ -756,17 +910,11 @@ open class ConversationEngine @Inject constructor(
         }
         announcer.announce(confirmation)
 
-        val sampleSentences = drillSentenceManager.getSampleSentencesForPrompt(
-            category = category,
-            level = _lesson.value?.level ?: learnerSettings.level,
-            topicId = _lesson.value?.topic?.id,
-            isCarConnected = _isCarConnected.value
-        ).map { it.text }
         val switchMsg = PromptTemplates.drillCategorySwitchMessage(category)
 
         if (_state.value == ConversationState.ACTIVE) {
             scope.launch {
-                runCatching {
+                suspendRunCatching {
                     liveClient.sendText("System: $switchMsg")
                 }
             }
@@ -780,15 +928,19 @@ open class ConversationEngine @Inject constructor(
     }
 
     private fun handleSetAiVolume(call: LiveToolCall): Map<String, Any> {
-        val volArg = call.args["volume"] as? String
-        val parsed = VoiceSettingsTools.parseVolume(volArg, learnerSettings.aiVolume) ?: (learnerSettings.aiVolume - 20).coerceAtLeast(10)
+        val volArg = call.args["volume"]
+        val parsed = when (volArg) {
+            is Number -> volArg.toInt()
+            is String -> VoiceSettingsTools.parseVolume(volArg, learnerSettings.aiVolume)
+            else -> null
+        } ?: return argumentError("volume", volArg, "a percentage 10-100, \"louder\" or \"softer\"")
         return applyAiVolume(parsed)
     }
 
     internal fun applyAiVolume(volume: Int): Map<String, Any> {
         val clamped = volume.coerceIn(10, 100)
         learnerSettings = learnerSettings.copy(aiVolume = clamped)
-        scope.launch { settings.setAiVolume(clamped) }
+        persist("AI volume") { settings.setAiVolume(clamped) }
         liveClient.setVolume(clamped / 100f)
 
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
@@ -808,13 +960,14 @@ open class ConversationEngine @Inject constructor(
 
     private fun handleSetAutoPauseWhenUnfocused(call: LiveToolCall): Map<String, Any> {
         val enabledArg = call.args["enabled"]
-        val parsed = VoiceSettingsTools.parseAutoPauseWhenUnfocused(enabledArg) ?: true
+        val parsed = VoiceSettingsTools.parseAutoPauseWhenUnfocused(enabledArg)
+            ?: return argumentError("enabled", enabledArg, "true, false")
         return applyAutoPauseWhenUnfocusedChange(parsed)
     }
 
     internal fun applyAutoPauseWhenUnfocusedChange(enabled: Boolean): Map<String, Any> {
         learnerSettings = learnerSettings.copy(autoPauseWhenUnfocused = enabled)
-        scope.launch { settings.setAutoPauseWhenUnfocused(enabled) }
+        persist("auto-pause") { settings.setAutoPauseWhenUnfocused(enabled) }
 
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
         val confirmation = if (isVi) {
@@ -839,13 +992,14 @@ open class ConversationEngine @Inject constructor(
 
     private fun handleSetTranslationSubtitles(call: LiveToolCall): Map<String, Any> {
         val enabledArg = call.args["enabled"]
-        val parsed = VoiceSettingsTools.parseTranslationSubtitles(enabledArg) ?: true
+        val parsed = VoiceSettingsTools.parseTranslationSubtitles(enabledArg)
+            ?: return argumentError("enabled", enabledArg, "true, false")
         return applyTranslationSubtitlesChange(parsed)
     }
 
     internal fun applyTranslationSubtitlesChange(enabled: Boolean): Map<String, Any> {
         learnerSettings = learnerSettings.copy(showTranslationSubtitle = enabled)
-        scope.launch { settings.setShowTranslationSubtitle(enabled) }
+        persist("translation subtitles") { settings.setShowTranslationSubtitle(enabled) }
         Log.i(TAG, "Switched showTranslationSubtitle to $enabled")
 
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
@@ -892,7 +1046,7 @@ open class ConversationEngine @Inject constructor(
 
     private fun handleSetDifficultyLevel(call: LiveToolCall): Map<String, Any> {
         val levelArg = call.args["level"] as? String
-        val parsedLevel = VoiceSettingsTools.parseLevel(levelArg)
+        val parsedLevel = VoiceSettingsTools.parseLevel(levelArg, _lesson.value?.level ?: learnerSettings.level)
         if (parsedLevel == null) {
             Log.w(TAG, "Could not parse difficulty level from arg: $levelArg")
             return mapOf("status" to "error", "message" to "Unknown level: $levelArg")
@@ -912,7 +1066,7 @@ open class ConversationEngine @Inject constructor(
     }
 
     private fun handleSetVietnameseHelp(call: LiveToolCall): Map<String, Any> {
-        val enabled = call.args["enabled"] as? Boolean ?: true
+        val enabled = booleanArg(call.args["enabled"]) ?: return argumentError("enabled", call.args["enabled"], "true, false")
         applyVietnameseHelpChange(enabled)
         val instruction = if (enabled) {
             "Vietnamese help has been enabled. Confirm warmly to the learner in one short sentence (e.g. \"Sure, I will provide brief explanations in Vietnamese when needed!\") and continue. If the learner struggles, you may give one short explanation in Vietnamese."
@@ -949,7 +1103,7 @@ open class ConversationEngine @Inject constructor(
     }
 
     private fun handleSetBargeIn(call: LiveToolCall): Map<String, Any> {
-        val enabled = call.args["enabled"] as? Boolean ?: true
+        val enabled = booleanArg(call.args["enabled"]) ?: return argumentError("enabled", call.args["enabled"], "true, false")
         applyBargeInChange(enabled)
         val instruction = if (enabled) {
             "Barge-in / interruption mode has been enabled. Confirm warmly to the learner in one short sentence (e.g. \"Barge-in is now turned on, you can interrupt me anytime!\") and continue."
@@ -982,7 +1136,7 @@ open class ConversationEngine @Inject constructor(
     }
 
     private fun handleSetRandomVoice(call: LiveToolCall): Map<String, Any> {
-        val enabled = call.args["enabled"] as? Boolean ?: true
+        val enabled = booleanArg(call.args["enabled"]) ?: return argumentError("enabled", call.args["enabled"], "true, false")
         applyRandomVoiceChange(enabled)
         val instruction = if (enabled) {
             "Random AI voice selection has been enabled for each lesson. Confirm warmly to the learner in one short sentence (e.g. \"Đã bật chế độ giọng ngẫu nhiên mỗi bài học!\") and continue."
@@ -1059,11 +1213,9 @@ open class ConversationEngine @Inject constructor(
 
     private fun handleSetMultiVoice(call: LiveToolCall): Map<String, Any> {
         val enabledArg = call.args["enabled"]
-        val enabled = when (enabledArg) {
-            is Boolean -> enabledArg
-            is String -> VoiceSettingsTools.parseMultiVoice(enabledArg) ?: true
-            else -> true
-        }
+        val enabled = booleanArg(enabledArg)
+            ?: (enabledArg as? String)?.let(VoiceSettingsTools::parseMultiVoice)
+            ?: return argumentError("enabled", enabledArg, "true, false")
         applyMultiVoiceChange(enabled)
         return mapOf(
             "status" to "success",
@@ -1085,26 +1237,33 @@ open class ConversationEngine @Inject constructor(
         )
     }
 
+    /** Saves a setting in the background; a failed write is logged, never fatal. */
+    private fun persist(what: String, write: suspend () -> Unit) {
+        scope.launch {
+            suspendRunCatching { write() }.onFailure { Log.w(TAG, "Could not save $what", it) }
+        }
+    }
+
     private fun applyDifficultyChange(newLevel: DifficultyLevel) {
         val currentLesson = _lesson.value ?: return
         if (currentLesson.level == newLevel) return
         _lesson.value = currentLesson.copy(level = newLevel)
         learnerSettings = learnerSettings.copy(level = newLevel)
-        scope.launch { settings.setLevel(newLevel) }
+        persist("level") { settings.setLevel(newLevel) }
         Log.i(TAG, "Switched difficulty level to ${newLevel.displayName} (${newLevel.cefr})")
     }
 
     private fun applyVietnameseHelpChange(enabled: Boolean) {
         if (learnerSettings.allowVietnameseHelp == enabled) return
         learnerSettings = learnerSettings.copy(allowVietnameseHelp = enabled)
-        scope.launch { settings.setAllowVietnameseHelp(enabled) }
+        persist("Vietnamese help") { settings.setAllowVietnameseHelp(enabled) }
         Log.i(TAG, "Switched allowVietnameseHelp to $enabled")
     }
 
     private fun applyAppLanguageChange(newLanguage: AppLanguage) {
         if (learnerSettings.appLanguage == newLanguage) return
         learnerSettings = learnerSettings.copy(appLanguage = newLanguage)
-        scope.launch { settings.setAppLanguage(newLanguage) }
+        persist("app language") { settings.setAppLanguage(newLanguage) }
         Log.i(TAG, "Switched appLanguage to ${newLanguage.name} (${newLanguage.code})")
         if (learnerSettings.showTranslationSubtitle) {
             _drillTarget.value?.let { currentTarget ->
@@ -1116,28 +1275,28 @@ open class ConversationEngine @Inject constructor(
     private fun applyStorytellingStyleChange(newStyle: StorytellingStyle) {
         if (learnerSettings.storytellingStyle == newStyle) return
         learnerSettings = learnerSettings.copy(storytellingStyle = newStyle)
-        scope.launch { settings.setStorytellingStyle(newStyle) }
+        persist("storytelling style") { settings.setStorytellingStyle(newStyle) }
         Log.i(TAG, "Switched storytellingStyle to ${newStyle.displayName}")
     }
 
     private fun applyPronunciationStrictnessChange(newStrictness: PronunciationStrictness) {
         if (learnerSettings.pronunciationStrictness == newStrictness) return
         learnerSettings = learnerSettings.copy(pronunciationStrictness = newStrictness)
-        scope.launch { settings.setPronunciationStrictness(newStrictness) }
+        persist("pronunciation strictness") { settings.setPronunciationStrictness(newStrictness) }
         Log.i(TAG, "Switched pronunciationStrictness to ${newStrictness.displayName}")
     }
 
     private fun applyBargeInChange(enabled: Boolean) {
         if (learnerSettings.allowBargeIn == enabled) return
         learnerSettings = learnerSettings.copy(allowBargeIn = enabled)
-        scope.launch { settings.setAllowBargeIn(enabled) }
+        persist("barge-in") { settings.setAllowBargeIn(enabled) }
         Log.i(TAG, "Switched allowBargeIn to $enabled")
     }
 
     private fun applyVoiceChange(voice: AiVoice) {
         if (learnerSettings.voiceId == voice.id && !learnerSettings.randomVoice) return
         learnerSettings = learnerSettings.copy(voiceId = voice.id, randomVoice = false)
-        scope.launch {
+        persist("voice") {
             settings.setRandomVoice(false)
             settings.setVoice(voice)
         }
@@ -1147,21 +1306,21 @@ open class ConversationEngine @Inject constructor(
     private fun applyRandomVoiceChange(enabled: Boolean) {
         if (learnerSettings.randomVoice == enabled) return
         learnerSettings = learnerSettings.copy(randomVoice = enabled)
-        scope.launch { settings.setRandomVoice(enabled) }
+        persist("random voice") { settings.setRandomVoice(enabled) }
         Log.i(TAG, "Switched randomVoice to $enabled")
     }
 
     private fun applyStoryDurationChange(newDuration: StoryDuration) {
         if (learnerSettings.storyDuration == newDuration) return
         learnerSettings = learnerSettings.copy(storyDuration = newDuration)
-        scope.launch { settings.setStoryDuration(newDuration) }
+        persist("story duration") { settings.setStoryDuration(newDuration) }
         Log.i(TAG, "Switched storyDuration to ${newDuration.displayName}")
     }
 
     private fun applyMultiVoiceChange(enabled: Boolean) {
         if (learnerSettings.multiVoiceStorytelling == enabled) return
         learnerSettings = learnerSettings.copy(multiVoiceStorytelling = enabled)
-        scope.launch { settings.setMultiVoiceStorytelling(enabled) }
+        persist("multi-voice storytelling") { settings.setMultiVoiceStorytelling(enabled) }
         Log.i(TAG, "Switched multiVoiceStorytelling to $enabled")
     }
 
@@ -1171,16 +1330,11 @@ open class ConversationEngine @Inject constructor(
      */
     fun nextStory(): Boolean {
         val currentLesson = _lesson.value ?: return false
-        if (currentLesson.mode != SessionMode.STORY_LISTENING) {
-            scope.launch {
-                start(LessonRequest(topicId = null, mode = SessionMode.FREE_TALK))
-            }
-            return true
-        }
+        if (currentLesson.mode != SessionMode.STORY_LISTENING) return next()
 
         val result = performNextStory() ?: return false
         scope.launch {
-            runCatching {
+            suspendRunCatching {
                 liveClient.sendText(
                     "System: The learner skipped the previous story. Switch immediately to the new story: \"${result.second.titleEn}\" (Topic: ${result.first.titleEn}). " +
                         "Introduce it enthusiastically in one short sentence and begin the opening scene!"
@@ -1214,7 +1368,7 @@ open class ConversationEngine @Inject constructor(
         val title = currentLesson.scenario?.titleEn ?: currentLesson.topic.titleEn
         resetStoryProgress()
         scope.launch {
-            runCatching {
+            suspendRunCatching {
                 liveClient.sendText(
                     "System: The learner requested to replay the story from the beginning. " +
                         "Re-introduce \"$title\" in one short sentence and start narrating Chapter 1 again."
@@ -1230,7 +1384,7 @@ open class ConversationEngine @Inject constructor(
      */
     fun resumeStory(): Boolean {
         scope.launch {
-            val unfinished = runCatching { sessionStore.latestUnfinishedStorySession() }.getOrNull()
+            val unfinished = suspendRunCatching { sessionStore.latestUnfinishedStorySession() }.getOrNull()
             if (unfinished != null) {
                 val topic = topicManager.getTopicById(unfinished.topicId)
                     ?: topicManager.getStoryTopics().first()
@@ -1302,7 +1456,7 @@ open class ConversationEngine @Inject constructor(
                 skipDrillSentence()
                 val topic = currentLesson.topic.titleEn
                 scope.launch {
-                    runCatching {
+                    suspendRunCatching {
                         liveClient.sendText(
                             "System: The learner skipped to the next sentence. " +
                                 "Confirm in one short phrase, then give a fresh, brand new sentence related to $topic that has not been used yet in this session. " +
@@ -1314,7 +1468,7 @@ open class ConversationEngine @Inject constructor(
             }
             else -> {
                 scope.launch {
-                    runCatching {
+                    suspendRunCatching {
                         liveClient.sendText(
                             "System: The learner clicked 'Next'. Wrap up this thought and move on to the next question or topic."
                         )
@@ -1339,7 +1493,7 @@ open class ConversationEngine @Inject constructor(
                 val target = _drillTarget.value
                 announcer.announce("Đọc lại câu")
                 scope.launch {
-                    runCatching {
+                    suspendRunCatching {
                         if (target.isNullOrBlank()) {
                             liveClient.sendText(
                                 "System: The learner wants to hear the sentence again. Please repeat the sentence clearly and slowly. " +
@@ -1356,7 +1510,7 @@ open class ConversationEngine @Inject constructor(
             }
             else -> {
                 scope.launch {
-                    runCatching {
+                    suspendRunCatching {
                         liveClient.sendText(
                             "System: The learner asked you to repeat what you just said. Please repeat your last sentence clearly."
                         )
@@ -1380,55 +1534,68 @@ open class ConversationEngine @Inject constructor(
     }
 
     /**
-     * Called by the model after each "repeat after me" attempt (on a background thread). The
-     * verdict combines the model's judgement with a word-by-word transcript check, and the model
-     * is told to follow it, so a wrong attempt is never praised.
+     * Called by the model after each "repeat after me" attempt. The verdict combines the model's
+     * judgement with a word-by-word transcript check, and the model is told to follow it, so a wrong
+     * attempt is never praised. Lesson state is read and written on the engine thread; the optional
+     * Azure call blocks, so it runs on the caller's (background) thread in between.
      */
-    private fun gradeAttempt(call: LiveToolCall): Map<String, Any> {
-        val target = (call.args["target_sentence"] as? String)?.takeIf { it.isNotBlank() } ?: _drillTarget.value.orEmpty()
-        val modelSaidCorrect = (call.args["verdict"] as? String)?.trim()?.equals("correct", ignoreCase = true) == true
-        val problemWords = (call.args["problem_words"] as? List<*>)?.mapNotNull { it?.toString() }.orEmpty()
-        val notes = call.args["problem_notes"] as? String ?: ""
-        val attemptNumber = synchronized(attemptCounts) {
+    private suspend fun gradeAttempt(sessionId: String, call: LiveToolCall): Map<String, Any> {
+        val input = withContext(engineDispatcher) {
+            if (_lesson.value?.sessionId != sessionId || !_state.value.isInLesson) return@withContext null
+            val target = (call.args["target_sentence"] as? String)?.takeIf { it.isNotBlank() } ?: _drillTarget.value.orEmpty()
             val key = PronunciationDrill.key(target)
-            (attemptCounts.getOrElse(key) { 0 } + 1).also { attemptCounts[key] = it }
+            val attemptNumber = (attemptCounts.getOrElse(key) { 0 } + 1).also { attemptCounts[key] = it }
+            GradeInput(target, attemptNumber, learnerSettings, _lesson.value?.level ?: learnerSettings.level)
+        } ?: return STALE_TOOL_RESPONSE
+
+        val (azure, azureError) = assessWithAzure(input.target, call.learnerAudio, input.settings)
+
+        return withContext(engineDispatcher) {
+            if (_lesson.value?.sessionId != sessionId) return@withContext STALE_TOOL_RESPONSE
+            val attempt = PronunciationGrader.grade(
+                target = input.target,
+                heard = call.learnerUtterance,
+                modelSaidCorrect = (call.args["verdict"] as? String)?.trim()?.equals("correct", ignoreCase = true) == true,
+                modelProblemWords = (call.args["problem_words"] as? List<*>)?.mapNotNull { it?.toString() }.orEmpty(),
+                modelNotes = call.args["problem_notes"] as? String ?: "",
+                attemptNumber = input.attemptNumber,
+                timestamp = clock(),
+                azure = azure,
+                azureError = azureError,
+                strictness = input.settings.pronunciationStrictness,
+                level = input.level
+            )
+            if (attempt.heard.isNotBlank()) _pronunciationAttempts.value = _pronunciationAttempts.value + attempt
+            val isDoneWithSentence = attempt.passed || input.attemptNumber >= PronunciationGrader.MAX_ATTEMPTS_PER_SENTENCE
+            awaitingNewDrillTarget = isDoneWithSentence
+            val shown = _drillTarget.value
+            if (shown.isNullOrBlank() || PronunciationDrill.key(shown) == PronunciationDrill.key(input.target)) {
+                setDrillTarget(input.target)
+            }
+            Log.d(
+                TAG,
+                "Attempt ${input.attemptNumber} at '${input.target}': passed=${attempt.passed} " +
+                    "strictness=${input.settings.pronunciationStrictness} accuracy=${attempt.accuracyPercent}% " +
+                    "azure=${azure?.pronunciationScore ?: azureError ?: "off"}"
+            )
+            PronunciationDrill.toolResponse(attempt)
         }
-        val (azure, azureError) = assessWithAzure(target, call.learnerAudio)
-        val attempt = PronunciationGrader.grade(
-            target = target,
-            heard = call.learnerUtterance,
-            modelSaidCorrect = modelSaidCorrect,
-            modelProblemWords = problemWords,
-            modelNotes = notes,
-            attemptNumber = attemptNumber,
-            timestamp = clock(),
-            azure = azure,
-            azureError = azureError,
-            strictness = learnerSettings.pronunciationStrictness,
-            level = _lesson.value?.level ?: learnerSettings.level
-        )
-        if (attempt.heard.isNotBlank()) _pronunciationAttempts.value = _pronunciationAttempts.value + attempt
-        val isDoneWithSentence = attempt.passed || attemptNumber >= PronunciationGrader.MAX_ATTEMPTS_PER_SENTENCE
-        awaitingNewDrillTarget = isDoneWithSentence
-        val shown = _drillTarget.value
-        if (shown.isNullOrBlank() || PronunciationDrill.key(shown) == PronunciationDrill.key(target)) {
-            setDrillTarget(target)
-        }
-        Log.d(
-            TAG,
-            "Attempt $attemptNumber at '$target': passed=${attempt.passed} strictness=${learnerSettings.pronunciationStrictness} " +
-                "accuracy=${attempt.accuracyPercent}% azure=${azure?.pronunciationScore ?: azureError ?: "off"}"
-        )
-        return PronunciationDrill.toolResponse(attempt)
     }
+
+    private class GradeInput(
+        val target: String,
+        val attemptNumber: Int,
+        val settings: LearnerSettings,
+        val level: DifficultyLevel
+    )
 
     /**
      * Third, independent judge when switched on in settings. Failures never block the drill:
      * the attempt is then graded by the other two judges and the reason is shown to the learner.
      */
-    private fun assessWithAzure(target: String, audio: ByteArray): Pair<AzureAssessment?, String?> {
-        if (!learnerSettings.azureEnabled) return null to null
-        val config = AzureSpeechConfig(learnerSettings.azureRegion, learnerSettings.azureKey)
+    private fun assessWithAzure(target: String, audio: ByteArray, prefs: LearnerSettings): Pair<AzureAssessment?, String?> {
+        if (!prefs.azureEnabled) return null to null
+        val config = AzureSpeechConfig(prefs.azureRegion, prefs.azureKey)
         if (!config.isComplete) return null to "Chưa nhập Region/Key Azure trong Cài đặt"
         if (audio.size < MIN_AZURE_AUDIO_BYTES) return null to null
         return runCatching { pronunciationAssessor.assess(target, audio, config) }
@@ -1446,6 +1613,7 @@ open class ConversationEngine @Inject constructor(
         lastActivityAt = clock()
         lessonStartedAt = clock()
         _state.value = ConversationState.ACTIVE
+        if (watchdogJob?.isActive != true) watchdogJob = scope.launch { silenceWatchdog() }
     }
 
     private fun stopActiveClock() {
@@ -1458,22 +1626,37 @@ open class ConversationEngine @Inject constructor(
         return false
     }
 
-    private suspend fun pauseLocked(byFocus: Boolean) {
-        if (_state.value != ConversationState.ACTIVE) return
+    /**
+     * Records why the lesson should be paused and pauses it if it is running. A reason given while the
+     * lesson is connecting, reconnecting or offline is kept, so the lesson comes back paused instead of
+     * talking over a phone call.
+     */
+    private suspend fun pauseLocked(reason: PauseReason) {
+        val state = _state.value
+        if (!state.isInLesson) return
+        pauseReasons += reason
+        // Keep the focus request after a transient loss so the system tells us when we may resume.
+        if (reason != PauseReason.FOCUS_TRANSIENT) audioFocus.abandon()
+        if (state != ConversationState.ACTIVE) return
         stopActiveClock()
-        liveClient.pauseAudio()
+        suspendRunCatching { liveClient.pauseAudio() }.onFailure { Log.w(TAG, "Could not pause audio", it) }
+        enterPausedLocked()
+    }
+
+    /** Puts an open connection into the paused state (audio already stopped). */
+    private fun enterPausedLocked() {
         _activeSpeaker.value = null
         setAiThinking(false)
-        pausedByFocus = byFocus
+        clearUtterance()
         pausedAt = clock()
         _state.value = ConversationState.PAUSED
-        // Keep the focus request after a transient loss so the system tells us when we may resume.
-        if (!byFocus) audioFocus.abandon()
         // An idle Live connection still counts toward its lifetime; close it after a long pause.
         pauseCloseJob?.cancel()
         pauseCloseJob = scope.launch {
             delay(CLOSE_AFTER_PAUSE_MS)
-            mutex.withLock { if (_state.value == ConversationState.PAUSED) liveClient.disconnect() }
+            mutex.withLock {
+                if (_state.value == ConversationState.PAUSED) suspendRunCatching { liveClient.disconnect() }
+            }
         }
     }
 
@@ -1485,24 +1668,22 @@ open class ConversationEngine @Inject constructor(
             _error.value = EngineError.AudioFocusDenied
             return false
         }
-        pausedByFocus = false
-        pausedByAppUnfocused = false
+        pauseReasons.clear()
         unansweredNudges = 0
         return try {
             if (liveClient.isConnected) {
                 liveClient.resumeAudio()
-                if (clock() - pausedAt > SAY_WELCOME_BACK_AFTER_MS) {
-                    val msg = PromptTemplates.resumeMessage(lesson, _drillTarget.value)
-                    liveClient.sendText(msg)
+                if (resumeNeedsKickoff || clock() - pausedAt > SAY_WELCOME_BACK_AFTER_MS) {
+                    liveClient.sendText(PromptTemplates.resumeMessage(lesson, _drillTarget.value))
                     setAiThinking(true)
                 }
             } else {
-                learnerSettings = settings.snapshot()
+                learnerSettings = suspendRunCatching { settings.snapshot() }.getOrDefault(learnerSettings)
                 connectLive(lesson, recap = true)
-                val msg = PromptTemplates.resumeMessage(lesson, _drillTarget.value)
-                liveClient.sendText(msg)
+                liveClient.sendText(PromptTemplates.resumeMessage(lesson, _drillTarget.value))
                 setAiThinking(true)
             }
+            resumeNeedsKickoff = false
             markActive()
             true
         } catch (e: CancellationException) {
@@ -1514,42 +1695,85 @@ open class ConversationEngine @Inject constructor(
         }
     }
 
-    private suspend fun reconnectLocked() {
+    /**
+     * Starts reconnecting in the background unless that is already happening. The attempts run
+     * outside the engine lock so Pause, Stop and a new lesson are never stuck behind them.
+     * Call with the mutex held.
+     */
+    private fun requestReconnectLocked() {
+        if (reconnectJob?.isActive == true) return
         val lesson = _lesson.value ?: return
         if (_state.value != ConversationState.ACTIVE && _state.value != ConversationState.WAITING_FOR_NETWORK) return
         stopActiveClock()
         _state.value = ConversationState.RECONNECTING
         _activeSpeaker.value = null
         setAiThinking(false)
-        repeat(MAX_RECONNECT_ATTEMPTS) { attempt ->
-            if (!connectivity.isOnlineNow()) {
-                goOffline()
-                return
+        clearUtterance()
+        val sessionId = lesson.sessionId
+        reconnectJob = scope.launch { reconnectLoop(sessionId) }
+    }
+
+    private suspend fun reconnectLoop(sessionId: String) {
+        for (attempt in 0 until MAX_RECONNECT_ATTEMPTS) {
+            val lesson = mutex.withLock {
+                if (_lesson.value?.sessionId != sessionId || _state.value != ConversationState.RECONNECTING) return
+                if (!connectivity.isOnlineNow()) {
+                    goOffline()
+                    return
+                }
+                _lesson.value ?: return
             }
-            try {
-                connectLive(lesson, recap = true)
-                val msg = PromptTemplates.resumeMessage(lesson, _drillTarget.value)
-                liveClient.sendText(msg)
-                setAiThinking(true)
-                markActive()
-                return
+            val connected = try {
+                withTimeoutOrNull(CONNECT_TIMEOUT_MS) { connectLive(lesson, recap = true) } != null
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Reconnect attempt ${attempt + 1} failed", e)
-                delay(RECONNECT_BACKOFF_MS * (attempt + 1))
+                false
             }
+            mutex.withLock {
+                if (_lesson.value?.sessionId != sessionId || _state.value != ConversationState.RECONNECTING) {
+                    // Went offline or the state changed while connecting: drop this connection.
+                    if (connected && _lesson.value?.sessionId == sessionId) suspendRunCatching { liveClient.disconnect() }
+                    return
+                }
+                if (connected) {
+                    onReconnectedLocked(lesson)
+                    return
+                }
+            }
+            if (attempt < MAX_RECONNECT_ATTEMPTS - 1) delay(RECONNECT_BACKOFF_MS * (attempt + 1))
         }
-        _error.value = EngineError.ConnectionFailed(null)
-        announcer.announce(ANNOUNCE_GIVE_UP)
-        endLocked()
+        mutex.withLock {
+            if (_lesson.value?.sessionId != sessionId || _state.value != ConversationState.RECONNECTING) return
+            reconnectJob = null
+            _error.value = EngineError.ConnectionFailed(null)
+            announcer.announce(ANNOUNCE_GIVE_UP)
+            endLocked()
+        }
+    }
+
+    private suspend fun onReconnectedLocked(lesson: ActiveLesson) {
+        if (pauseReasons.isNotEmpty()) {
+            // Paused while offline (a phone call, the learner's pause...): stay quiet until resumed.
+            Log.i(TAG, "Reconnected while paused for $pauseReasons; staying paused")
+            suspendRunCatching { liveClient.pauseAudio() }
+            resumeNeedsKickoff = true
+            enterPausedLocked()
+            return
+        }
+        suspendRunCatching { liveClient.sendText(PromptTemplates.resumeMessage(lesson, _drillTarget.value)) }
+            .onFailure { Log.w(TAG, "Could not send the resume message after reconnecting", it) }
+        setAiThinking(true)
+        markActive()
     }
 
     private suspend fun goOffline() {
         stopActiveClock()
-        liveClient.disconnect()
+        suspendRunCatching { liveClient.disconnect() }
         _activeSpeaker.value = null
         setAiThinking(false)
+        clearUtterance()
         _state.value = ConversationState.WAITING_FOR_NETWORK
         announcer.announce(ANNOUNCE_OFFLINE)
     }
@@ -1565,12 +1789,20 @@ open class ConversationEngine @Inject constructor(
         setAiThinking(false)
         pauseCloseJob?.cancel()
         draftJob?.cancel()
-        liveClient.disconnect()
+        pendingFallbackJob?.cancel()
+        clearUtterance()
+        cancelUnlessCurrent(watchdogJob)
+        cancelUnlessCurrent(goAwayJob)
+        cancelUnlessCurrent(reconnectJob)
+        reconnectJob = null
+        pauseReasons.clear()
+        suspendRunCatching { liveClient.disconnect() }.onFailure { Log.w(TAG, "Could not disconnect", it) }
         audioFocus.abandon()
 
         val turns = accumulator.snapshot()
         val hasLearnerSpeech = turns.any { it.speaker == Speaker.USER }
         val hasStoryContent = lesson.mode == SessionMode.STORY_LISTENING && turns.any { it.speaker == Speaker.AI }
+        val storyCompleted = storyFinished
         _lesson.value = null
         if (!hasLearnerSpeech && !hasStoryContent) {
             // Nothing to learn from; do not clutter the history.
@@ -1591,11 +1823,11 @@ open class ConversationEngine @Inject constructor(
         _summarizing.value = _summarizing.value + lesson.sessionId
         _state.value = ConversationState.ENDED
         _endedSessions.tryEmit(lesson.sessionId)
-        scope.launch { summarizeAndStore(lesson, draft) }
+        scope.launch { summarizeAndStore(lesson, draft, storyCompleted) }
         return lesson.sessionId
     }
 
-    private suspend fun summarizeAndStore(lesson: ActiveLesson, draft: CompletedSession) {
+    private suspend fun summarizeAndStore(lesson: ActiveLesson, draft: CompletedSession, storyCompleted: Boolean) {
         try {
             val summary: SessionSummary = try {
                 summaryGenerator.summarize(lesson, draft.transcript, draft.pronunciationAttempts)
@@ -1610,15 +1842,14 @@ open class ConversationEngine @Inject constructor(
             } else {
                 summary
             }
-            val isStoryFullyFinished = lesson.mode != SessionMode.STORY_LISTENING ||
-                draft.transcript.any {
-                    it.text.contains("takeaway", ignoreCase = true) ||
-                    it.text.contains("moral", ignoreCase = true) ||
-                    it.text.contains("the end", ignoreCase = true)
-                }
-            val completedStatus = if (lesson.mode == SessionMode.STORY_LISTENING) isStoryFullyFinished else true
+            // A story counts as finished only when the AI actually told its ending (end marker), not
+            // when someone happened to say "the end" or "moral".
+            val completedStatus = if (lesson.mode == SessionMode.STORY_LISTENING) storyCompleted else true
             sessionStore.saveSession(draft.copy(summary = graded, isCompleted = completedStatus))
             if (lesson.mode == SessionMode.VOCAB_REVIEW) sessionStore.markWordsReviewed(draft.reviewedWords)
+            graded.levelRecommendation
+                ?.takeIf { it.direction != LevelAdjustmentDirection.KEEP && learnerSettings.adaptiveLevelRecommendation }
+                ?.let { pendingLevelRecommendation = it }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -1653,14 +1884,18 @@ open class ConversationEngine @Inject constructor(
     private fun startDraftSaver() {
         draftJob?.cancel()
         draftJob = scope.launch {
+            var lastSavedTurns = -1
             while (isActive) {
                 delay(DRAFT_INTERVAL_MS)
                 val lesson = _lesson.value ?: return@launch
                 val turns = accumulator.snapshot()
                 val shouldSave = turns.any { it.speaker == Speaker.USER } ||
                     (lesson.mode == SessionMode.STORY_LISTENING && turns.any { it.speaker == Speaker.AI })
-                if (shouldSave) {
-                    runCatching { sessionStore.saveSession(buildRecord(lesson, turns, null, completed = false)) }
+                // Nothing new (e.g. while paused): no need to rewrite the same draft.
+                val changed = turns.size != lastSavedTurns || _state.value == ConversationState.ACTIVE
+                if (shouldSave && changed) {
+                    suspendRunCatching { sessionStore.saveSession(buildRecord(lesson, turns, null, completed = false)) }
+                        .onSuccess { lastSavedTurns = turns.size }
                         .onFailure { Log.w(TAG, "Draft save failed", it) }
                 }
             }
@@ -1680,21 +1915,54 @@ open class ConversationEngine @Inject constructor(
                 _activeSpeaker.value = null
                 setAiThinking(false)
             }
-            LiveEvent.GoAway -> scope.launch {
-                // Let the AI finish its sentence before swapping connections.
-                withTimeoutOrNull(GO_AWAY_WAIT_MS) { _activeSpeaker.first { it == null } }
-                mutex.withLock { if (_state.value == ConversationState.ACTIVE) reconnectLocked() }
-            }
-            LiveEvent.EndLessonRequested -> scope.launch {
-                delay(GOODBYE_GRACE_MS) // let the spoken goodbye play out
-                end()
-            }
-            is LiveEvent.Disconnected -> scope.launch {
-                mutex.withLock {
-                    if (_state.value != ConversationState.ACTIVE) return@withLock
-                    if (connectivity.isOnlineNow()) reconnectLocked() else goOffline()
+            LiveEvent.GoAway -> {
+                val generation = connectionGeneration
+                goAwayJob?.cancel()
+                goAwayJob = scope.launch {
+                    // Let the AI finish its sentence before swapping connections.
+                    withTimeoutOrNull(GO_AWAY_WAIT_MS) { _activeSpeaker.first { it == null } }
+                    mutex.withLock {
+                        // A Disconnected event may already have replaced this connection.
+                        if (generation == connectionGeneration && _state.value == ConversationState.ACTIVE) {
+                            requestReconnectLocked()
+                        }
+                    }
                 }
             }
+            LiveEvent.EndLessonRequested -> onEndLessonRequested()
+            is LiveEvent.Disconnected -> {
+                val generation = connectionGeneration
+                scope.launch {
+                    mutex.withLock {
+                        if (generation != connectionGeneration || _state.value != ConversationState.ACTIVE) return@withLock
+                        if (connectivity.isOnlineNow()) requestReconnectLocked() else goOffline()
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * The model asked to end the lesson. Ends exactly this lesson after the goodbye has played, and
+     * ignores the request when the learner was only repeating a drill sentence such as
+     * "Let's call it a day." or "Stop the car here.".
+     */
+    private fun onEndLessonRequested() {
+        val lesson = _lesson.value ?: return
+        val target = _drillTarget.value
+        val heard = currentUtteranceText()
+        if (lesson.mode == SessionMode.REPEAT_AFTER_ME && !target.isNullOrBlank() && heard.isNotBlank() &&
+            PronunciationGrader.similarity(target, heard) >= DRILL_ECHO_SIMILARITY
+        ) {
+            Log.i(TAG, "Ignoring end-lesson request: the learner was repeating the drill sentence")
+            return
+        }
+        val sessionId = lesson.sessionId
+        endRequestJob?.cancel()
+        endRequestJob = scope.launch {
+            delay(GOODBYE_GRACE_MS) // let the spoken goodbye play out
+            cancelReconnect()
+            mutex.withLock { if (_lesson.value?.sessionId == sessionId) endLocked() }
         }
     }
 
@@ -1703,18 +1971,17 @@ open class ConversationEngine @Inject constructor(
         _transcript.value = accumulator.append(speaker, text)
         if (speaker == Speaker.AI) {
             setAiThinking(false)
+            lastAiTranscriptAt = clock()
+            // The AI answering means the learner has finished: judge what they said now.
+            if (utteranceBuffer.isNotEmpty()) finalizeUtterance(aiStarted = true)
             _transcript.value.lastOrNull()?.let { turn ->
                 if (_lesson.value?.mode == SessionMode.REPEAT_AFTER_ME) {
                     val current = _drillTarget.value
                     val newTarget = PronunciationDrill.extractTarget(turn.text)
                     if (newTarget != null) {
-                        val norm = { s: String -> PronunciationDrill.key(s) }
-                        val isDifferentSentence = current == null || norm(newTarget) != norm(current)
                         val isExtension = current != null &&
                             newTarget.length > current.length &&
                             newTarget.contains(current.trimEnd('.', '!', '?', ',', ' ', '"', '”'), ignoreCase = true)
-                        val isPartialOfCurrent = current != null &&
-                            norm(current).startsWith(norm(newTarget)) && norm(newTarget) != norm(current)
                         val explicitCue = turn.text.contains("repeat after me", ignoreCase = true)
                         val canUpdate = awaitingNewDrillTarget || current == null || isExtension || explicitCue
                         if (canUpdate) {
@@ -1737,359 +2004,232 @@ open class ConversationEngine @Inject constructor(
             if (_drillTarget.value != null) {
                 awaitingNewDrillTarget = false
             }
-            checkVoiceCommandFallback(text)
+            if (utteranceBuffer.isEmpty()) utteranceStartedAt = clock()
+            val joined = TranscriptAccumulator.joinChunks(utteranceBuffer.toString(), text)
+            utteranceBuffer.setLength(0)
+            utteranceBuffer.append(joined)
         }
         _activeSpeaker.value = speaker
         speakerResetJob?.cancel()
         speakerResetJob = scope.launch {
             delay(SPEAKER_IDLE_MS)
             _activeSpeaker.value = null
-            if (speaker == Speaker.USER && _state.value == ConversationState.ACTIVE) {
-                setAiThinking(true)
+            if (speaker == Speaker.USER) {
+                finalizeUtterance(aiStarted = false)
+                if (_state.value == ConversationState.ACTIVE) setAiThinking(true)
             }
         }
     }
 
-    private fun checkVoiceCommandFallback(text: String) {
-        val modeCmd = VoiceCommandParser.parseSessionModeCommand(text)
-        if (modeCmd != null && _lesson.value?.mode != modeCmd) {
-            Log.i(TAG, "Fallback voice command parser detected session mode switch: $modeCmd")
-            applySessionModeSwitch(modeCmd)
-            return
-        }
+    private fun currentUtteranceText(): String =
+        utteranceBuffer.toString().trim().ifEmpty { lastLearnerUtterance }
 
-        val currentLevel = _lesson.value?.level ?: learnerSettings.level
-        val levelCmd = VoiceCommandParser.parseDifficultyCommand(text, currentLevel)
-        if (levelCmd != null && _lesson.value?.level != levelCmd) {
-            Log.i(TAG, "Fallback voice command parser detected level change: $levelCmd")
-            applyDifficultyChange(levelCmd)
-            scope.launch {
-                val sent = runCatching {
-                    val promptText = if (_lesson.value?.mode == SessionMode.STORY_LISTENING) {
-                        "System: The learner changed story difficulty level to ${levelCmd.displayName} (${levelCmd.cefr}). " +
-                            "Confirm warmly in one short sentence (e.g. \"Adapting the story to ${levelCmd.displayName} level!\") and immediately continue narrating the next events of the story adapted to this level."
-                    } else {
-                        "System: The learner requested to switch difficulty level to ${levelCmd.displayName} (${levelCmd.cefr}). " +
-                            "Confirm warmly in one short sentence and adapt your vocabulary and sentence length to this level."
-                    }
-                    liveClient.sendText(promptText)
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback level update to Live client", sent.exceptionOrNull())
-                    announcer.announce("Difficulty level set to ${levelCmd.displayName}")
-                }
-            }
-            return
-        }
+    private fun clearUtterance() {
+        utteranceBuffer.setLength(0)
+        utteranceStartedAt = 0L
+        pendingFallbackJob?.cancel()
+        pendingFallbackJob = null
+    }
 
-        val viCmd = VoiceCommandParser.parseVietnameseHelpCommand(text)
-        if (viCmd != null && learnerSettings.allowVietnameseHelp != viCmd) {
-            Log.i(TAG, "Fallback voice command parser detected Vietnamese help change: $viCmd")
-            applyVietnameseHelpChange(viCmd)
-            scope.launch {
-                val sent = runCatching {
-                    liveClient.sendText(
-                        "System: The learner requested to ${if (viCmd) "enable" else "disable"} Vietnamese help. " +
-                            "Confirm warmly in one short sentence and continue."
-                    )
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback Vietnamese help update to Live client", sent.exceptionOrNull())
-                    announcer.announce(if (viCmd) "Vietnamese help enabled" else "English only mode enabled")
-                }
-            }
-            return
-        }
-
-        val langCmd = VoiceCommandParser.parseAppLanguageCommand(text)
-        if (langCmd != null && learnerSettings.appLanguage != langCmd) {
-            Log.i(TAG, "Fallback voice command parser detected app language change: $langCmd")
-            applyAppLanguageChange(langCmd)
-            scope.launch {
-                val sent = runCatching {
-                    liveClient.sendText(
-                        "System: The learner requested to change the app interface and explanation language to ${langCmd.englishName} (${langCmd.nativeName}). " +
-                            "Confirm warmly in one short sentence in ${langCmd.englishName} or Vietnamese, and continue the conversation in English."
-                    )
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback app language update to Live client", sent.exceptionOrNull())
-                    announcer.announce("App language set to ${langCmd.englishName}")
-                }
-            }
-            return
-        }
-
-        val styleCmd = VoiceCommandParser.parseStorytellingStyleCommand(
-            text,
-            inStorySession = _lesson.value?.mode == SessionMode.STORY_LISTENING
+    /**
+     * Client-side safety net for voice commands, run once per finished learner utterance (not on
+     * every streaming chunk). The model is normally the one changing settings through its tools; if
+     * it calls the tool for the same setting, the safety net steps aside. Otherwise, after a short
+     * grace period, the recognised command is applied here.
+     */
+    private fun finalizeUtterance(aiStarted: Boolean) {
+        val text = utteranceBuffer.toString().trim()
+        val startedAt = utteranceStartedAt
+        utteranceBuffer.setLength(0)
+        utteranceStartedAt = 0L
+        if (text.isEmpty()) return
+        lastLearnerUtterance = text
+        val lesson = _lesson.value ?: return
+        val context = CommandContext(
+            state = _state.value,
+            mode = lesson.mode,
+            currentLevel = lesson.level,
+            settings = learnerSettings,
+            drillTarget = _drillTarget.value,
+            lastAiText = _transcript.value.lastOrNull { it.speaker == Speaker.AI }?.text,
+            hasPendingLevelRecommendation = pendingLevelRecommendation != null
         )
-        if (styleCmd != null && learnerSettings.storytellingStyle != styleCmd) {
-            Log.i(TAG, "Fallback voice command parser detected storytelling style change: $styleCmd")
-            applyStorytellingStyleChange(styleCmd)
-            onStorytellingStyleChanged()
-            scope.launch {
-                val sent = runCatching {
-                    liveClient.sendText(PromptTemplates.storytellingStyleSwitchMessage(styleCmd))
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback storytelling style update to Live client", sent.exceptionOrNull())
-                    announcer.announce("Storytelling mode set to ${styleCmd.displayName}")
-                }
-            }
-            return
+        val command = VoiceCommandRecognizer.recognize(text, context) ?: return
+        val category = command.category
+        if ((lastToolCallAt[category] ?: Long.MIN_VALUE) >= startedAt) return // the model already handled it
+        val grace = when {
+            !liveClient.settingsToolsActive -> 0L
+            aiStarted -> TOOL_GRACE_AFTER_AI_MS
+            else -> TOOL_GRACE_MS
         }
+        val sessionId = lesson.sessionId
+        pendingFallbackJob?.cancel()
+        pendingFallbackJob = scope.launch {
+            delay(grace)
+            if (_lesson.value?.sessionId != sessionId || _state.value != ConversationState.ACTIVE) return@launch
+            if ((lastToolCallAt[category] ?: Long.MIN_VALUE) >= startedAt) return@launch
+            Log.i(TAG, "Voice command from the transcript: $command")
+            lastFallbackAppliedAt[category] = clock()
+            // If the AI is already answering, add a note instead of asking for a second answer.
+            val aiAnswering = lastAiTranscriptAt >= startedAt
+            applyVoiceCommand(command, aiAnswering)
+        }
+    }
 
-        val strictnessCmd = VoiceCommandParser.parsePronunciationStrictnessCommand(text)
-        if (strictnessCmd != null && learnerSettings.pronunciationStrictness != strictnessCmd) {
-            Log.i(TAG, "Fallback voice command parser detected pronunciation strictness change: $strictnessCmd")
-            applyPronunciationStrictnessChange(strictnessCmd)
-            scope.launch {
+    /** Sends a "System:" note about a change; announces [fallback] out loud if that fails. */
+    private fun notifyModel(note: String, aiAnswering: Boolean, fallback: String? = null) {
+        scope.launch {
+            val sent = suspendRunCatching { if (aiAnswering) liveClient.sendContext(note) else liveClient.sendText(note) }
+            if (sent.isFailure) {
+                Log.w(TAG, "Could not tell the model about a voice command", sent.exceptionOrNull())
+                fallback?.let(announcer::announce)
+            }
+        }
+    }
+
+    private fun applyVoiceCommand(command: VoiceCommand, aiAnswering: Boolean) {
+        when (command) {
+            is VoiceCommand.SwitchMode -> applySessionModeSwitch(command.mode)
+            is VoiceCommand.SetLevel -> {
+                val level = command.level
+                applyDifficultyChange(level)
+                val note = if (_lesson.value?.mode == SessionMode.STORY_LISTENING) {
+                    "System: The learner changed story difficulty level to ${level.displayName} (${level.cefr}). " +
+                        "Confirm warmly in one short sentence (e.g. \"Adapting the story to ${level.displayName} level!\") and immediately continue narrating the next events of the story adapted to this level."
+                } else {
+                    "System: The learner requested to switch difficulty level to ${level.displayName} (${level.cefr}). " +
+                        "Confirm warmly in one short sentence and adapt your vocabulary and sentence length to this level."
+                }
+                notifyModel(note, aiAnswering, "Difficulty level set to ${level.displayName}")
+            }
+            is VoiceCommand.SetVietnameseHelp -> {
+                val enabled = command.enabled
+                applyVietnameseHelpChange(enabled)
+                notifyModel(
+                    "System: The learner requested to ${if (enabled) "enable" else "disable"} Vietnamese help. " +
+                        "Confirm warmly in one short sentence and continue.",
+                    aiAnswering,
+                    if (enabled) "Vietnamese help enabled" else "English only mode enabled"
+                )
+            }
+            is VoiceCommand.SetAppLanguage -> {
+                val language = command.language
+                applyAppLanguageChange(language)
+                notifyModel(
+                    "System: The learner requested to change the app interface and explanation language to ${language.englishName} (${language.nativeName}). " +
+                        "Confirm warmly in one short sentence in ${language.englishName} or Vietnamese, and continue the conversation in English.",
+                    aiAnswering,
+                    "App language set to ${language.englishName}"
+                )
+            }
+            is VoiceCommand.SetStorytellingStyle -> {
+                val style = command.style
+                applyStorytellingStyleChange(style)
+                onStorytellingStyleChanged()
+                notifyModel(PromptTemplates.storytellingStyleSwitchMessage(style), aiAnswering, "Storytelling mode set to ${style.displayName}")
+            }
+            is VoiceCommand.SetStrictness -> {
+                val strictness = command.strictness
+                applyPronunciationStrictnessChange(strictness)
                 val currentLevel = _lesson.value?.level ?: learnerSettings.level
-                val promptText = if (strictnessCmd == PronunciationStrictness.AUTO) {
-                    val resolved = strictnessCmd.resolveForLevel(currentLevel)
-                    "System: The learner requested to change pronunciation strictness to Auto by Level (${resolved.displayName} for level ${currentLevel.displayName}). " +
-                        "Confirm warmly in one short sentence and adapt your grading accordingly."
-                } else {
-                    "System: The learner requested to change pronunciation strictness to ${strictnessCmd.displayName} (${strictnessCmd.labelVi}). " +
-                        "Confirm warmly in one short sentence and adapt your grading accordingly."
-                }
-                val sent = runCatching {
-                    liveClient.sendText(promptText)
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback strictness update to Live client", sent.exceptionOrNull())
-                    val feedbackMsg = if (strictnessCmd == PronunciationStrictness.AUTO) {
-                        val resolved = strictnessCmd.resolveForLevel(currentLevel)
+                val (note, feedback) = if (strictness == PronunciationStrictness.AUTO) {
+                    val resolved = strictness.resolveForLevel(currentLevel)
+                    ("System: The learner requested to change pronunciation strictness to Auto by Level (${resolved.displayName} for level ${currentLevel.displayName}). " +
+                        "Confirm warmly in one short sentence and adapt your grading accordingly.") to
                         "Pronunciation strictness set to Auto by Level (${resolved.displayName})"
-                    } else {
-                        "Pronunciation strictness set to ${strictnessCmd.displayName}"
-                    }
-                    announcer.announce(feedbackMsg)
-                }
-            }
-            return
-        }
-
-        val bargeInCmd = VoiceCommandParser.parseBargeInCommand(text)
-        if (bargeInCmd != null && learnerSettings.allowBargeIn != bargeInCmd) {
-            Log.i(TAG, "Fallback voice command parser detected barge-in change: $bargeInCmd")
-            applyBargeInChange(bargeInCmd)
-            scope.launch {
-                val sent = runCatching {
-                    liveClient.sendText(
-                        "System: The learner requested to ${if (bargeInCmd) "enable" else "disable"} barge-in / interruption mode. " +
-                            "Confirm warmly in one short sentence and continue."
-                    )
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback barge-in update to Live client", sent.exceptionOrNull())
-                    announcer.announce(if (bargeInCmd) "Barge in enabled" else "Barge in disabled")
-                }
-            }
-            return
-        }
-
-        val randomVoiceCmd = VoiceCommandParser.parseRandomVoiceCommand(text)
-        if (randomVoiceCmd != null && learnerSettings.randomVoice != randomVoiceCmd) {
-            Log.i(TAG, "Fallback voice command parser detected random voice change: $randomVoiceCmd")
-            applyRandomVoiceChange(randomVoiceCmd)
-            scope.launch {
-                val sent = runCatching {
-                    liveClient.sendText(
-                        "System: The learner requested to ${if (randomVoiceCmd) "enable" else "disable"} random AI voice selection for lessons. " +
-                            "Confirm warmly in one short sentence (e.g. \"${if (randomVoiceCmd) "Đã bật chọn giọng ngẫu nhiên mỗi bài học" else "Đã tắt giọng ngẫu nhiên, giữ giọng hiện tại"}\" or in English) and continue."
-                    )
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback random voice update to Live client", sent.exceptionOrNull())
-                    announcer.announce(if (randomVoiceCmd) "Random AI voice enabled" else "Random AI voice disabled")
-                }
-            }
-            return
-        }
-
-        val voiceCmd = VoiceCommandParser.parseVoiceCommand(text)
-        if (voiceCmd != null && (learnerSettings.voiceId != voiceCmd.id || learnerSettings.randomVoice)) {
-            Log.i(TAG, "Fallback voice command parser detected voice change: $voiceCmd")
-            applyVoiceChange(voiceCmd)
-            scope.launch {
-                val sent = runCatching {
-                    liveClient.sendText(
-                        "System: The learner requested to change preferred AI voice to ${voiceCmd.name} (${voiceCmd.labelVi}). " +
-                            "Confirm warmly in one short sentence that the new voice will be used starting in the next session, and continue."
-                    )
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback voice update to Live client", sent.exceptionOrNull())
-                    announcer.announce("AI voice set to ${voiceCmd.name}")
-                }
-            }
-            return
-        }
-
-        val storyDurationCmd = VoiceCommandParser.parseStoryDurationCommand(text)
-        if (storyDurationCmd != null && learnerSettings.storyDuration != storyDurationCmd) {
-            Log.i(TAG, "Fallback voice command parser detected story duration change: $storyDurationCmd")
-            applyStoryDurationChange(storyDurationCmd)
-            scope.launch {
-                val sent = runCatching {
-                    liveClient.sendText(
-                        "System: The learner requested to set story duration to ${storyDurationCmd.displayName}. " +
-                            "Confirm in one short sentence and adjust the story scope."
-                    )
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback story duration update to Live client", sent.exceptionOrNull())
-                    announcer.announce("Story duration set to ${storyDurationCmd.displayName}")
-                }
-            }
-            return
-        }
-
-        val multiVoiceCmd = VoiceCommandParser.parseMultiVoiceCommand(text)
-        if (multiVoiceCmd != null && learnerSettings.multiVoiceStorytelling != multiVoiceCmd) {
-            val enabled: Boolean = multiVoiceCmd
-            Log.i(TAG, "Fallback voice command parser detected multi-voice change: $enabled")
-            applyMultiVoiceChange(enabled)
-            scope.launch {
-                val sent = runCatching {
-                    liveClient.sendText(
-                        "System: The learner requested to ${if (enabled) "enable" else "disable"} multi-voice audio drama mode. " +
-                            "Confirm warmly in one short sentence and continue."
-                    )
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback multi-voice update to Live client", sent.exceptionOrNull())
-                    announcer.announce(if (enabled) "Multi-voice drama enabled" else "Single voice enabled")
-                }
-            }
-            return
-        }
-
-        if (VoiceCommandParser.parseResumeStoryCommand(text)) {
-            Log.i(TAG, "Fallback voice command parser detected resume story request")
-            resumeStory()
-            return
-        }
-
-        if (_lesson.value?.mode == SessionMode.STORY_LISTENING) {
-            if (VoiceCommandParser.parseNextStoryCommand(text)) {
-                Log.i(TAG, "Fallback voice command parser detected next story request")
-                nextStory()
-                return
-            }
-            if (VoiceCommandParser.parseReplayStoryCommand(text)) {
-                Log.i(TAG, "Fallback voice command parser detected replay story request")
-                replayStory()
-                return
-            }
-        }
-
-        if (_lesson.value?.mode == SessionMode.REPEAT_AFTER_ME) {
-            if (VoiceCommandParser.parseRepeatDrillSentenceCommand(text)) {
-                Log.i(TAG, "Fallback voice command parser detected repeat drill sentence request")
-                repeat()
-                return
-            }
-            if (VoiceCommandParser.parseSkipDrillSentenceCommand(text)) {
-                Log.i(TAG, "Fallback voice command parser detected skip drill sentence request")
-                next()
-                return
-            }
-        }
-
-        val drillLengthCmd = VoiceCommandParser.parseDrillSentenceLengthCommand(text)
-        if (drillLengthCmd != null && learnerSettings.drillSentenceLength != drillLengthCmd) {
-            Log.i(TAG, "Fallback voice command parser detected drill sentence length change: $drillLengthCmd")
-            applyDrillSentenceLength(drillLengthCmd)
-            return
-        }
-
-        val drillCategoryCmd = VoiceCommandParser.parseDrillCategoryCommand(text)
-        if (drillCategoryCmd != null && learnerSettings.drillCategory != drillCategoryCmd) {
-            Log.i(TAG, "Fallback voice command parser detected drill category change: $drillCategoryCmd")
-            applyDrillCategory(drillCategoryCmd)
-            return
-        }
-
-        val applyRecommendationCmd = VoiceCommandParser.parseApplyRecommendationCommand(text)
-        if (applyRecommendationCmd != null) {
-            val accept: Boolean = applyRecommendationCmd
-            Log.i(TAG, "Fallback voice command parser detected level recommendation action: accept=$accept")
-            val currentLevel = learnerSettings.level
-            if (!accept) {
-                val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
-                val msg = if (isVi) "Giữ nguyên cấp độ ${currentLevel.getLabel(true)}" else "Kept current level ${currentLevel.displayName}"
-                announcer.announce(msg)
-            } else {
-                val nextLevel = currentLevel.nextLevel() ?: currentLevel
-                scope.launch { settings.setLevel(nextLevel) }
-                val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
-                val confirmation = if (isVi) {
-                    "Đã chuyển cấp độ sang ${nextLevel.getLabel(true)} cho buổi học tiếp theo!"
                 } else {
-                    "Updated learning level to ${nextLevel.displayName} for your next lesson!"
+                    ("System: The learner requested to change pronunciation strictness to ${strictness.displayName} (${strictness.labelVi}). " +
+                        "Confirm warmly in one short sentence and adapt your grading accordingly.") to
+                        "Pronunciation strictness set to ${strictness.displayName}"
                 }
-                announcer.announce(confirmation)
+                notifyModel(note, aiAnswering, feedback)
             }
-            return
-        }
-
-        val adaptiveLevelCmd = VoiceCommandParser.parseAdaptiveLevelCommand(text)
-        if (adaptiveLevelCmd != null && learnerSettings.adaptiveLevelRecommendation != adaptiveLevelCmd) {
-            val enabled: Boolean = adaptiveLevelCmd
-            Log.i(TAG, "Fallback voice command parser detected adaptive level toggle: $enabled")
-            scope.launch { settings.setAdaptiveLevelRecommendation(enabled) }
-            val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
-            val confirmation = if (enabled) {
-                if (isVi) "Đã bật tự động gợi ý điều chỉnh cấp độ." else "Adaptive level recommendation enabled."
-            } else {
-                if (isVi) "Đã tắt tự động gợi ý điều chỉnh cấp độ." else "Adaptive level recommendation disabled."
+            is VoiceCommand.SetBargeIn -> {
+                val enabled = command.enabled
+                applyBargeInChange(enabled)
+                notifyModel(
+                    "System: The learner requested to ${if (enabled) "enable" else "disable"} barge-in / interruption mode. " +
+                        "Confirm warmly in one short sentence and continue.",
+                    aiAnswering,
+                    if (enabled) "Barge in enabled" else "Barge in disabled"
+                )
             }
-            announcer.announce(confirmation)
-            return
-        }
-
-        val volumeCmd = VoiceCommandParser.parseVolumeCommand(text, learnerSettings.aiVolume)
-        if (volumeCmd != null && learnerSettings.aiVolume != volumeCmd) {
-            Log.i(TAG, "Fallback voice command parser detected volume change: $volumeCmd")
-            applyAiVolume(volumeCmd)
-            return
-        }
-
-        val autoPauseCmd = VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand(text)
-        if (autoPauseCmd != null && learnerSettings.autoPauseWhenUnfocused != autoPauseCmd) {
-            Log.i(TAG, "Fallback voice command parser detected auto pause toggle: $autoPauseCmd")
-            applyAutoPauseWhenUnfocusedChange(autoPauseCmd)
-            return
-        }
-
-        val translationSubtitlesCmd = VoiceCommandParser.parseTranslationSubtitlesCommand(text)
-        if (translationSubtitlesCmd != null && learnerSettings.showTranslationSubtitle != translationSubtitlesCmd) {
-            Log.i(TAG, "Fallback voice command parser detected translation subtitles toggle: $translationSubtitlesCmd")
-            applyTranslationSubtitlesChange(translationSubtitlesCmd)
-            scope.launch {
-                val sent = runCatching {
-                    liveClient.sendText(
-                        "System: The learner requested to ${if (translationSubtitlesCmd) "enable" else "disable"} translation subtitles. " +
-                            "Confirm warmly in one short sentence (e.g. \"${if (translationSubtitlesCmd) "Translation subtitles enabled!" else "Subtitles hidden, challenge mode on!"}\") and continue."
-                    )
-                }
-                if (sent.isFailure) {
-                    Log.w(TAG, "Could not send fallback translation subtitles update to Live client", sent.exceptionOrNull())
-                }
+            is VoiceCommand.SetRandomVoice -> {
+                val enabled = command.enabled
+                applyRandomVoiceChange(enabled)
+                notifyModel(
+                    "System: The learner requested to ${if (enabled) "enable" else "disable"} random AI voice selection for lessons. " +
+                        "Confirm warmly in one short sentence (e.g. \"${if (enabled) "Đã bật chọn giọng ngẫu nhiên mỗi bài học" else "Đã tắt giọng ngẫu nhiên, giữ giọng hiện tại"}\" or in English) and continue.",
+                    aiAnswering,
+                    if (enabled) "Random AI voice enabled" else "Random AI voice disabled"
+                )
             }
-            return
+            is VoiceCommand.SetVoice -> {
+                val voice = command.voice
+                applyVoiceChange(voice)
+                notifyModel(
+                    "System: The learner requested to change preferred AI voice to ${voice.name} (${voice.labelVi}). " +
+                        "Confirm warmly in one short sentence that the new voice will be used starting in the next session, and continue.",
+                    aiAnswering,
+                    "AI voice set to ${voice.name}"
+                )
+            }
+            is VoiceCommand.SetStoryDuration -> {
+                val duration = command.duration
+                applyStoryDurationChange(duration)
+                notifyModel(
+                    "System: The learner requested to set story duration to ${duration.displayName}. " +
+                        "Confirm in one short sentence and adjust the story scope.",
+                    aiAnswering,
+                    "Story duration set to ${duration.displayName}"
+                )
+            }
+            is VoiceCommand.SetMultiVoice -> {
+                val enabled = command.enabled
+                applyMultiVoiceChange(enabled)
+                notifyModel(
+                    "System: The learner requested to ${if (enabled) "enable" else "disable"} multi-voice audio drama mode. " +
+                        "Confirm warmly in one short sentence and continue.",
+                    aiAnswering,
+                    if (enabled) "Multi-voice drama enabled" else "Single voice enabled"
+                )
+            }
+            VoiceCommand.ResumeStory -> resumeStory()
+            VoiceCommand.NextStory -> nextStory()
+            VoiceCommand.ReplayStory -> replayStory()
+            VoiceCommand.RepeatDrillSentence -> repeat()
+            VoiceCommand.SkipDrillSentence -> next()
+            is VoiceCommand.SetDrillLength -> applyDrillSentenceLength(command.length)
+            is VoiceCommand.SetDrillCategory -> applyDrillCategory(command.drillCategory)
+            is VoiceCommand.AnswerLevelRecommendation -> answerLevelRecommendation(command.accept)
+            is VoiceCommand.SetAdaptiveLevel -> applyAdaptiveLevelChange(command.enabled)
+            is VoiceCommand.SetVolume -> applyAiVolume(command.volume)
+            is VoiceCommand.SetAutoPause -> applyAutoPauseWhenUnfocusedChange(command.enabled)
+            is VoiceCommand.SetSubtitles -> {
+                val enabled = command.enabled
+                applyTranslationSubtitlesChange(enabled)
+                notifyModel(
+                    "System: The learner requested to ${if (enabled) "enable" else "disable"} translation subtitles. " +
+                        "Confirm warmly in one short sentence (e.g. \"${if (enabled) "Translation subtitles enabled!" else "Subtitles hidden, challenge mode on!"}\") and continue.",
+                    aiAnswering
+                )
+            }
         }
     }
 
     private suspend fun onAudioFocusChanged(focus: AudioFocusState) {
         mutex.withLock {
             when (focus) {
-                AudioFocusState.LOSS_TRANSIENT, AudioFocusState.LOSS_TRANSIENT_CAN_DUCK -> pauseLocked(byFocus = true)
-                AudioFocusState.LOSS -> pauseLocked(byFocus = false)
-                AudioFocusState.GAIN -> if (_state.value == ConversationState.PAUSED && pausedByFocus) resumeLocked()
+                AudioFocusState.LOSS_TRANSIENT, AudioFocusState.LOSS_TRANSIENT_CAN_DUCK -> pauseLocked(PauseReason.FOCUS_TRANSIENT)
+                AudioFocusState.LOSS -> pauseLocked(PauseReason.FOCUS_LOSS)
+                AudioFocusState.GAIN -> {
+                    if (PauseReason.FOCUS_TRANSIENT in pauseReasons) {
+                        pauseReasons -= PauseReason.FOCUS_TRANSIENT
+                        // Only a pause caused by the call / prompt itself ends here; the learner's own
+                        // pause or an auto-pause in the background stays.
+                        if (_state.value == ConversationState.PAUSED && pauseReasons.isEmpty()) resumeLocked()
+                    }
+                }
                 AudioFocusState.NONE -> Unit
             }
         }
@@ -2101,13 +2241,14 @@ open class ConversationEngine @Inject constructor(
             if (!online && (state == ConversationState.ACTIVE || state == ConversationState.RECONNECTING)) {
                 goOffline()
             } else if (online && state == ConversationState.WAITING_FOR_NETWORK) {
-                reconnectLocked()
+                requestReconnectLocked()
             }
         }
     }
 
+    /** Runs while a lesson is active: nudges a silent learner, keeps podcast stories going. */
     private suspend fun silenceWatchdog() {
-        while (scope.isActive) {
+        while (_lesson.value != null) {
             delay(SILENCE_CHECK_INTERVAL_MS)
             mutex.withLock {
                 if (_state.value != ConversationState.ACTIVE || _activeSpeaker.value != null) return@withLock
@@ -2119,16 +2260,16 @@ open class ConversationEngine @Inject constructor(
                     storyAutoContinues++
                     unansweredNudges = 0
                     lastActivityAt = clock()
-                    runCatching { liveClient.sendText(PromptTemplates.CONTINUE_STORY_MESSAGE) }
+                    suspendRunCatching { liveClient.sendText(PromptTemplates.CONTINUE_STORY_MESSAGE) }
                     return@withLock
                 }
                 if (silentFor < SILENCE_NUDGE_AFTER_MS) return@withLock
                 if (unansweredNudges < MAX_UNANSWERED_NUDGES) {
                     unansweredNudges++
                     lastActivityAt = clock()
-                    runCatching { liveClient.sendText(PromptTemplates.SILENCE_NUDGE) }
+                    suspendRunCatching { liveClient.sendText(PromptTemplates.SILENCE_NUDGE) }
                 } else {
-                    pauseLocked(byFocus = false)
+                    pauseLocked(PauseReason.SILENCE)
                     announcer.announce(ANNOUNCE_AUTO_PAUSE)
                 }
             }
@@ -2170,6 +2311,17 @@ open class ConversationEngine @Inject constructor(
 
     private companion object {
         const val TAG = "ConversationEngine"
+
+        /** Answer to a tool call that belongs to a lesson that has already ended. */
+        val STALE_TOOL_RESPONSE: Map<String, Any> = mapOf("status" to "stale", "message" to "That lesson has ended.")
+
+        const val CONNECT_TIMEOUT_MS = 20_000L
+        /** How long the safety net waits for the model to call the matching tool itself. */
+        const val TOOL_GRACE_MS = 2_000L
+        const val TOOL_GRACE_AFTER_AI_MS = 600L
+        /** A tool call this soon after the safety net applied the same change is not applied again. */
+        const val FALLBACK_DEDUP_MS = 8_000L
+        const val DRILL_ECHO_SIMILARITY = 0.5
 
         const val RECENT_TOPICS_FOR_SUGGESTION = 3
         const val MAX_REVIEW_WORDS = 8

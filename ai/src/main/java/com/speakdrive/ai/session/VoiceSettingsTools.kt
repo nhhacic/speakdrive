@@ -375,6 +375,9 @@ object VoiceSettingsTools {
         switchSessionModeTool
     )
 
+    /** True when [word] (one or more words) appears as whole words in [normalized] text. */
+    private fun hasWord(normalized: String, word: String): Boolean = " $normalized ".contains(" $word ")
+
     /**
      * Resolves a translation subtitles toggle argument from Gemini Live tool calls or transcripts.
      */
@@ -383,12 +386,13 @@ object VoiceSettingsTools {
         is String -> {
             val normalized = TopicManager.normalize(value.trim())
             when {
-                normalized.contains("false") || normalized.contains("tat") || normalized.contains("disable") ||
-                    normalized.contains("off") || normalized.contains("an") || normalized.contains("hide") ||
-                    normalized.contains("khong") || normalized.contains("dung") -> false
-                normalized.contains("true") || normalized.contains("bat") || normalized.contains("enable") ||
-                    normalized.contains("on") || normalized.contains("hien") || normalized.contains("show") ||
-                    normalized.contains("co") -> true
+                normalized.contains("false") || hasWord(normalized, "tat") || normalized.contains("disable") ||
+                    hasWord(normalized, "off") || hasWord(normalized, "an") || normalized.contains("hide") ||
+                    hasWord(normalized, "khong") || hasWord(normalized, "dung") || hasWord(normalized, "dont") ||
+                    hasWord(normalized, "don t") -> false
+                normalized.contains("true") || hasWord(normalized, "bat") || normalized.contains("enable") ||
+                    hasWord(normalized, "on") || hasWord(normalized, "hien") || normalized.contains("show") ||
+                    hasWord(normalized, "co") -> true
                 else -> null
             }
         }
@@ -403,10 +407,11 @@ object VoiceSettingsTools {
         is String -> {
             val normalized = TopicManager.normalize(value.trim())
             when {
-                normalized.contains("false") || normalized.contains("tat") || normalized.contains("disable") ||
-                    normalized.contains("off") || normalized.contains("khong") || normalized.contains("dung") -> false
-                normalized.contains("true") || normalized.contains("bat") || normalized.contains("enable") ||
-                    normalized.contains("on") || normalized.contains("co") -> true
+                normalized.contains("false") || hasWord(normalized, "tat") || normalized.contains("disable") ||
+                    hasWord(normalized, "off") || hasWord(normalized, "khong") || hasWord(normalized, "dung") ||
+                    hasWord(normalized, "dont") || hasWord(normalized, "don t") -> false
+                normalized.contains("true") || hasWord(normalized, "bat") || normalized.contains("enable") ||
+                    hasWord(normalized, "on") || hasWord(normalized, "co") -> true
                 else -> null
             }
         }
@@ -438,16 +443,16 @@ object VoiceSettingsTools {
         }
 
         // Relative down / softer / quieter
-        if (normalized.contains("nho") || normalized.contains("giam") || normalized.contains("be") ||
+        if (hasWord(normalized, "nho") || normalized.contains("giam") || hasWord(normalized, "be") ||
             normalized.contains("soft") || normalized.contains("quiet") || normalized.contains("down") ||
-            normalized.contains("lower") || normalized.contains("ha")
+            normalized.contains("lower") || hasWord(normalized, "ha")
         ) {
             return (currentVolume - 20).coerceAtLeast(10)
         }
 
         // Relative up / louder
-        if (normalized.contains("to") || normalized.contains("tang") || normalized.contains("lon") ||
-            normalized.contains("loud") || normalized.contains("up") || normalized.contains("higher") ||
+        if (hasWord(normalized, "to") || normalized.contains("tang") || hasWord(normalized, "lon") ||
+            normalized.contains("loud") || hasWord(normalized, "up") || normalized.contains("higher") ||
             normalized.contains("increase")
         ) {
             return (currentVolume + 20).coerceAtMost(100)
@@ -460,7 +465,7 @@ object VoiceSettingsTools {
      * Resolves a level argument from Gemini or text commands, tolerating CEFR codes (A1, A2, A2-B1, B1, B2, C1-C2),
      * English names, Vietnamese names and common variations.
      */
-    fun parseLevel(value: String?): DifficultyLevel? {
+    fun parseLevel(value: String?, currentLevel: DifficultyLevel? = null): DifficultyLevel? {
         if (value.isNullOrBlank()) return null
         val trimmed = value.trim()
         DifficultyLevel.entries.firstOrNull {
@@ -468,6 +473,15 @@ object VoiceSettingsTools {
         }?.let { return it }
 
         val normalized = TopicManager.normalize(trimmed)
+        // Relative requests ("harder", "dễ hơn") step from the current level when it is known.
+        if (currentLevel != null) {
+            if (normalized.contains("harder") || normalized.contains("kho hon") || normalized.contains("more difficult") ||
+                normalized.contains("higher") || normalized.contains("nang len") || normalized.contains("tang cap")
+            ) return currentLevel.nextLevel() ?: currentLevel
+            if (normalized.contains("easier") || normalized.contains("de hon") || normalized.contains("simpler") ||
+                normalized.contains("lower") || normalized.contains("ha cap") || normalized.contains("giam cap")
+            ) return currentLevel.previousLevel() ?: currentLevel
+        }
         return when {
             // Pre-intermediate first to avoid false-matching intermediate
             normalized.contains("pre intermediate") || normalized.contains("preintermediate") ||
@@ -489,7 +503,7 @@ object VoiceSettingsTools {
             // Beginner (A1, cơ bản, người mới bắt đầu, A1-A2)
             normalized.contains("beginner") || normalized.contains("co ban") ||
                 normalized.contains("moi bat dau") ||
-                normalized.contains("easy") || normalized.contains("de") ||
+                normalized.contains("easy") || hasWord(normalized, "de") ||
                 normalized.contains("a1") -> DifficultyLevel.BEGINNER
 
             // Intermediate (B1, trung cấp, B1-B2)
@@ -499,7 +513,7 @@ object VoiceSettingsTools {
 
             // Advanced (C1, C2, nâng cao, khó)
             normalized.contains("advanced") || normalized.contains("nang cao") ||
-                normalized.contains("hard") || normalized.contains("difficult") || normalized.contains("kho") ||
+                normalized.contains("hard") || normalized.contains("difficult") || hasWord(normalized, "kho") ||
                 normalized.contains("c1") || normalized.contains("c2") -> DifficultyLevel.ADVANCED
 
             else -> null
@@ -633,8 +647,7 @@ object VoiceSettingsTools {
         val normalized = value.trim().lowercase()
         return when {
             normalized.contains("charon") || normalized.contains("nam tram am") || normalized.contains("nam trầm ấm") ||
-                normalized.contains("tram am") || normalized.contains("trầm ấm") ||
-                normalized.contains("tram") || normalized.contains("trầm") -> AiVoice.CHARON
+                normalized.contains("tram am") || normalized.contains("trầm ấm") -> AiVoice.CHARON
 
             normalized.contains("puck") || normalized.contains("nam vui ve") || normalized.contains("nam vui vẻ") ||
                 normalized.contains("vui ve") || normalized.contains("vui vẻ") -> AiVoice.PUCK
@@ -788,9 +801,9 @@ object VoiceSettingsTools {
             normalized.contains("phan xa") || normalized.contains("giao tiep") || normalized.contains("reflex") ||
                 normalized.contains("hang ngay") || normalized.contains("conversation") || normalized.contains("tro chuyen") -> DrillCategory.CONVERSATIONAL_REFLEX
 
-            normalized.contains("lai") || normalized.contains("driving") || normalized.contains("xe") ||
+            hasWord(normalized, "lai") || normalized.contains("driving") || hasWord(normalized, "xe") ||
                 normalized.contains("oto") || normalized.contains("o to") ||
-                normalized.contains("giao thong") || normalized.contains("traffic") || normalized.contains("car") ||
+                normalized.contains("giao thong") || normalized.contains("traffic") || hasWord(normalized, "car") ||
                 normalized.contains("duong pho") -> DrillCategory.DRIVING_PHRASES
 
             normalized.contains("cong so") || normalized.contains("business") || normalized.contains("van phong") ||
@@ -801,7 +814,7 @@ object VoiceSettingsTools {
                 normalized.contains("airport") || normalized.contains("khach san") || normalized.contains("hotel") ||
                 normalized.contains("doi song") || normalized.contains("nha hang") -> DrillCategory.TRAVEL_DAILY
 
-            normalized.contains("tat ca") || normalized.contains("all") || normalized.contains("tong hop") ||
+            normalized.contains("tat ca") || hasWord(normalized, "all") || normalized.contains("tong hop") ||
                 normalized.contains("ngau nhien") || normalized.contains("da dang") ||
                 normalized.contains("phong phu") || normalized.contains("variety") -> DrillCategory.ALL
 

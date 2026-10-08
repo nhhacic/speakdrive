@@ -8,6 +8,8 @@ import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.EngineError
+import com.speakdrive.ai.model.LevelAdjustmentDirection
+import com.speakdrive.ai.model.LevelRecommendation
 import com.speakdrive.ai.model.LessonRequest
 import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.ReviewWord
@@ -24,10 +26,15 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestResult
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+
+private const val SPEAKER_IDLE_MS = 1_200L
+private const val TOOL_GRACE_MS = 2_000L
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConversationEngineTest {
@@ -42,6 +49,7 @@ class ConversationEngineTest {
     private val assessor = FakeAssessor()
     private var micGranted = true
     private var engine: ConversationEngine? = null
+    private val uncaughtErrors = mutableListOf<Throwable>()
 
     private fun TestScope.createEngine(): ConversationEngine {
         val created = ConversationEngine(
@@ -58,6 +66,7 @@ class ConversationEngineTest {
             dispatcher = StandardTestDispatcher(testScheduler)
         )
         created.clock = { testScheduler.currentTime }
+        created.onUncaughtError = { uncaughtErrors += it }
         engine = created
         runCurrent()
         return created
@@ -70,6 +79,7 @@ class ConversationEngineTest {
     private fun engineTest(block: suspend TestScope.() -> Unit): TestResult = runTest {
         try {
             block()
+            assertThat(uncaughtErrors).isEmpty()
         } finally {
             engine?.shutdown()
         }
@@ -77,6 +87,16 @@ class ConversationEngineTest {
 
     private fun TestScope.say(speaker: Speaker, text: String) {
         live.emit(if (speaker == Speaker.USER) LiveEvent.UserTranscript(text) else LiveEvent.AiTranscript(text))
+        runCurrent()
+    }
+
+    /**
+     * The learner says [text] and stops talking. Voice commands from the transcript are applied
+     * once the utterance is finished and the model had a moment to call the tool itself.
+     */
+    private fun TestScope.sayCommand(text: String) {
+        say(Speaker.USER, text)
+        advanceTimeBy(SPEAKER_IDLE_MS + TOOL_GRACE_MS + 1)
         runCurrent()
     }
 
@@ -691,7 +711,7 @@ class ConversationEngineTest {
         engine.start(LessonRequest(level = DifficultyLevel.BEGINNER))
         assertThat(engine.lesson.value?.level).isEqualTo(DifficultyLevel.BEGINNER)
 
-        say(Speaker.USER, "chuyển sang cấp độ khó B1-B2")
+        sayCommand("chuyển sang cấp độ khó B1-B2")
         runCurrent()
 
         assertThat(engine.lesson.value?.level).isEqualTo(DifficultyLevel.INTERMEDIATE)
@@ -729,7 +749,7 @@ class ConversationEngineTest {
         engine.start(LessonRequest(level = DifficultyLevel.BEGINNER))
         assertThat(engine.lesson.value?.level).isEqualTo(DifficultyLevel.BEGINNER)
 
-        say(Speaker.USER, "chuyển sang cấp độ sơ cấp A2")
+        sayCommand("chuyển sang cấp độ sơ cấp A2")
         runCurrent()
 
         assertThat(engine.lesson.value?.level).isEqualTo(DifficultyLevel.ELEMENTARY)
@@ -837,7 +857,7 @@ class ConversationEngineTest {
         engine.start(LessonRequest(mode = SessionMode.STORY_LISTENING))
         val initialScenario = engine.lesson.value?.scenario
 
-        say(Speaker.USER, "đổi chuyện khác đi bạn")
+        sayCommand("đổi chuyện khác đi bạn")
         runCurrent()
 
         assertThat(live.sentTexts.last()).contains("Switch immediately to the new story")
@@ -850,7 +870,7 @@ class ConversationEngineTest {
         engine.start(LessonRequest(mode = SessionMode.STORY_LISTENING))
         assertThat(settings.settings.storytellingStyle).isEqualTo(com.speakdrive.ai.model.StorytellingStyle.INTERACTIVE)
 
-        say(Speaker.USER, "chuyển sang chế độ podcast")
+        sayCommand("chuyển sang chế độ podcast")
         runCurrent()
 
         assertThat(settings.settings.storytellingStyle).isEqualTo(com.speakdrive.ai.model.StorytellingStyle.CONTINUOUS)
@@ -864,7 +884,7 @@ class ConversationEngineTest {
         val engine = createEngine()
         engine.start(LessonRequest(mode = SessionMode.STORY_LISTENING))
 
-        say(Speaker.USER, "switch to interactive mode")
+        sayCommand("switch to interactive mode")
         runCurrent()
 
         assertThat(settings.settings.storytellingStyle).isEqualTo(com.speakdrive.ai.model.StorytellingStyle.INTERACTIVE)
@@ -961,7 +981,7 @@ class ConversationEngineTest {
         val engine = createEngine()
         engine.start(LessonRequest(mode = SessionMode.STORY_LISTENING))
 
-        say(Speaker.USER, "chuyển sang chế độ podcast")
+        sayCommand("chuyển sang chế độ podcast")
         runCurrent()
 
         assertThat(live.sentTexts.count { it.startsWith("System: The storytelling mode is now") }).isEqualTo(1)
@@ -1057,22 +1077,22 @@ class ConversationEngineTest {
         val engine = createEngine()
         engine.start(LessonRequest())
 
-        say(Speaker.USER, "chấm phát âm dễ hơn một chút")
+        sayCommand("chấm phát âm dễ hơn một chút")
         runCurrent()
         assertThat(settings.settings.pronunciationStrictness).isEqualTo(PronunciationStrictness.ELEMENTARY)
         assertThat(live.sentTexts.last()).contains("Elementary")
 
-        say(Speaker.USER, "chấm theo cấp độ đi bạn")
+        sayCommand("chấm theo cấp độ đi bạn")
         runCurrent()
         assertThat(settings.settings.pronunciationStrictness).isEqualTo(PronunciationStrictness.AUTO)
         assertThat(live.sentTexts.last()).contains("Auto by Level")
 
-        say(Speaker.USER, "bật ngắt lời đi bạn")
+        sayCommand("bật ngắt lời đi bạn")
         runCurrent()
         assertThat(settings.settings.allowBargeIn).isTrue()
         assertThat(live.sentTexts.last()).contains("barge-in")
 
-        say(Speaker.USER, "đổi sang giọng Puck")
+        sayCommand("đổi sang giọng Puck")
         runCurrent()
         assertThat(settings.settings.voiceId).isEqualTo(AiVoice.PUCK.id)
         assertThat(live.sentTexts.last()).contains("PUCK")
@@ -1085,13 +1105,13 @@ class ConversationEngineTest {
         engine.start(LessonRequest())
         live.sendTextFailsWith = RuntimeException("Live client disconnected")
 
-        say(Speaker.USER, "chấm khắt khe")
+        sayCommand("chấm khắt khe")
         runCurrent()
 
         assertThat(settings.settings.pronunciationStrictness).isEqualTo(PronunciationStrictness.UPPER_INTERMEDIATE)
         assertThat(announcer.announcements.last()).contains("Pronunciation strictness set to Upper-Intermediate")
 
-        say(Speaker.USER, "tắt ngắt lời")
+        sayCommand("tắt ngắt lời")
         runCurrent()
         assertThat(settings.settings.allowBargeIn).isFalse()
         assertThat(announcer.announcements.last()).contains("Barge in disabled")
@@ -1137,12 +1157,12 @@ class ConversationEngineTest {
         engine.start(LessonRequest())
         assertThat(settings.settings.randomVoice).isFalse()
 
-        say(Speaker.USER, "chọn giọng ngẫu nhiên mỗi bài học")
+        sayCommand("chọn giọng ngẫu nhiên mỗi bài học")
         runCurrent()
         assertThat(settings.settings.randomVoice).isTrue()
         assertThat(live.sentTexts.last()).contains("random AI voice")
 
-        say(Speaker.USER, "tắt giọng ngẫu nhiên")
+        sayCommand("tắt giọng ngẫu nhiên")
         runCurrent()
         assertThat(settings.settings.randomVoice).isFalse()
         assertThat(live.sentTexts.last()).contains("disable")
@@ -1176,17 +1196,17 @@ class ConversationEngineTest {
         engine.start(LessonRequest(mode = SessionMode.REPEAT_AFTER_ME))
         assertThat(settings.settings.drillSentenceLength).isEqualTo(DrillSentenceLength.AUTO_ON_CAR)
 
-        say(Speaker.USER, "chế độ câu ngắn khi lặp lại")
+        sayCommand("chế độ câu ngắn khi lặp lại")
         runCurrent()
         assertThat(settings.settings.drillSentenceLength).isEqualTo(DrillSentenceLength.ALWAYS_SHORT)
         assertThat(live.sentTexts.last()).contains("ALWAYS_SHORT")
 
-        say(Speaker.USER, "tự động rút ngắn câu khi kết nối ô tô")
+        sayCommand("tự động rút ngắn câu khi kết nối ô tô")
         runCurrent()
         assertThat(settings.settings.drillSentenceLength).isEqualTo(DrillSentenceLength.AUTO_ON_CAR)
         assertThat(live.sentTexts.last()).contains("AUTO_ON_CAR")
 
-        say(Speaker.USER, "để độ dài câu tiêu chuẩn")
+        sayCommand("để độ dài câu tiêu chuẩn")
         runCurrent()
         assertThat(settings.settings.drillSentenceLength).isEqualTo(DrillSentenceLength.STANDARD)
         assertThat(live.sentTexts.last()).contains("STANDARD")
@@ -1292,13 +1312,13 @@ class ConversationEngineTest {
         runCurrent()
 
         // User says "đọc lại câu này"
-        say(Speaker.USER, "đọc lại câu này")
+        sayCommand("đọc lại câu này")
         runCurrent()
         assertThat(announcer.announcements.last()).contains("Đọc lại câu")
         assertThat(live.sentTexts.last()).contains("Repeat after me: Where is the nearest station?")
 
         // User says "câu tiếp theo"
-        say(Speaker.USER, "câu tiếp theo")
+        sayCommand("câu tiếp theo")
         runCurrent()
         assertThat(engine.drillTarget.value).isNull()
         assertThat(live.sentTexts.last()).contains("The learner skipped to the next sentence")
@@ -1497,11 +1517,11 @@ class ConversationEngineTest {
         val engine = createEngine()
         engine.start(LessonRequest(topicId = "travel"))
 
-        say(Speaker.USER, "tắt tự động tạm dừng khi tắt màn hình")
+        sayCommand("tắt tự động tạm dừng khi tắt màn hình")
         runCurrent()
         assertThat(announcer.announcements.last()).contains("Đã tắt tự động tạm dừng")
 
-        say(Speaker.USER, "bật tự động tạm dừng khi rời app")
+        sayCommand("bật tự động tạm dừng khi rời app")
         runCurrent()
         assertThat(announcer.announcements.last()).contains("Đã bật tự động tạm dừng")
     }
@@ -1533,7 +1553,7 @@ class ConversationEngineTest {
         val engine = createEngine()
         engine.start(LessonRequest(topicId = "travel", mode = SessionMode.FREE_TALK))
 
-        say(Speaker.USER, "chuyển sang luyện phát âm")
+        sayCommand("chuyển sang luyện phát âm")
         runCurrent()
         assertThat(announcer.announcements.last()).contains("chế độ luyện phát âm shadowing")
 
@@ -1541,6 +1561,326 @@ class ConversationEngineTest {
         runCurrent()
         assertThat(engine.lesson.value?.mode).isEqualTo(SessionMode.REPEAT_AFTER_ME)
     }
+
+    // region Voice commands from the transcript: only real commands, applied once
+
+    @Test
+    fun `ordinary conversation never changes settings or the lesson mode`(): TestResult = engineTest {
+        val before = settings.settings
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.FREE_TALK))
+        val afterStart = settings.settings
+
+        listOf(
+            "Tôi đang học tiếng Anh",
+            "I use English at work every day",
+            "Tôi lái xe 2 tiếng mỗi ngày",
+            "Anh trai tôi lớn hơn tôi",
+            "I love Korean food",
+            "Rõ ràng là trời đẹp",
+            "Tôi đồng ý với bạn",
+            "Can you tell me a story about your weekend?",
+            "Hôm qua tôi học từ vựng rất lâu",
+            "Tôi đang lái xe đi làm",
+            "Tôi nhớ lại chuyến đi đó"
+        ).forEach { sayCommand(it) }
+
+        assertThat(settings.settings).isEqualTo(afterStart)
+        assertThat(settings.settings.aiVolume).isEqualTo(before.aiVolume)
+        assertThat(engine.lesson.value?.mode).isEqualTo(SessionMode.FREE_TALK)
+        assertThat(live.connects).hasSize(1)
+    }
+
+    @Test
+    fun `repeating a drill sentence that sounds like a command is graded, not obeyed`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.REPEAT_AFTER_ME))
+        val sentBefore = live.sentTexts.size
+        val levelBefore = engine.lesson.value?.level
+
+        for (sentence in listOf("Could you say that again?", "It is easier said than done.", "Actions always speak louder than words.")) {
+            say(Speaker.AI, "Repeat after me: $sentence")
+            sayCommand(sentence)
+        }
+
+        assertThat(live.sentTexts.drop(sentBefore).none { it.contains("hear the sentence again") }).isTrue()
+        assertThat(announcer.announcements).doesNotContain("Đọc lại câu")
+        assertThat(settings.settings.aiVolume).isEqualTo(80)
+        assertThat(engine.lesson.value?.level).isEqualTo(levelBefore)
+    }
+
+    @Test
+    fun `a command split over several transcript chunks is applied once`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+
+        say(Speaker.USER, "nói nhỏ")
+        say(Speaker.USER, " lại")
+        say(Speaker.USER, " một chút")
+        assertThat(settings.settings.aiVolume).isEqualTo(80) // not before the learner has finished
+        advanceTimeBy(SPEAKER_IDLE_MS + TOOL_GRACE_MS + 1)
+        runCurrent()
+
+        assertThat(settings.settings.aiVolume).isEqualTo(60)
+    }
+
+    @Test
+    fun `the safety net steps aside when the model calls the tool itself`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+
+        say(Speaker.USER, "nói nhỏ lại")
+        val response = live.connects.single().toolHandler!!.handle(
+            LiveToolCall(VoiceSettingsTools.SET_AI_VOLUME_FUNCTION, mapOf("volume" to "softer"))
+        )
+        advanceTimeBy(SPEAKER_IDLE_MS + TOOL_GRACE_MS + 1)
+        runCurrent()
+
+        assertThat(response["new_volume"]).isEqualTo(60)
+        assertThat(settings.settings.aiVolume).isEqualTo(60) // 80 -> 60 once, not 40
+    }
+
+    @Test
+    fun `a late tool call for a change the safety net already made is not applied twice`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+
+        sayCommand("nói nhỏ lại")
+        assertThat(settings.settings.aiVolume).isEqualTo(60)
+        val response = live.connects.single().toolHandler!!.handle(
+            LiveToolCall(VoiceSettingsTools.SET_AI_VOLUME_FUNCTION, mapOf("volume" to "softer"))
+        )
+        runCurrent()
+
+        assertThat(response["already_applied"]).isEqualTo(true)
+        assertThat(settings.settings.aiVolume).isEqualTo(60)
+    }
+
+    @Test
+    fun `asking to go on while a story plays does not restart the story`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.STORY_LISTENING))
+        val sessionId = engine.lesson.value?.sessionId
+
+        sayCommand("kể tiếp đi")
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        assertThat(engine.lesson.value?.sessionId).isEqualTo(sessionId)
+        assertThat(live.connects).hasSize(1)
+    }
+
+    @Test
+    fun `agreeing applies the level suggested by the last summary, in its direction`(): TestResult = engineTest {
+        settings.settings = settings.settings.copy(level = DifficultyLevel.INTERMEDIATE)
+        summaries.nextRecommendation = LevelRecommendation(
+            LevelAdjustmentDirection.LEVEL_DOWN, DifficultyLevel.PRE_INTERMEDIATE, "Ôn lại nền tảng"
+        )
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        sayCommand("đồng ý") // nothing pending yet: just conversation
+        assertThat(settings.settings.level).isEqualTo(DifficultyLevel.INTERMEDIATE)
+        say(Speaker.USER, "I went to work")
+        engine.end()
+        runCurrent()
+
+        engine.start(LessonRequest())
+        sayCommand("đồng ý")
+
+        assertThat(settings.settings.level).isEqualTo(DifficultyLevel.PRE_INTERMEDIATE)
+    }
+
+    @Test
+    fun `unusable tool arguments change nothing`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        val handler = live.connects.single().toolHandler!!
+
+        val mode = handler.handle(LiveToolCall(VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION, mapOf("mode" to "xyz")))
+        val help = handler.handle(LiveToolCall(VoiceSettingsTools.SET_VIETNAMESE_HELP_FUNCTION, mapOf("enabled" to "maybe")))
+        val volume = handler.handle(LiveToolCall(VoiceSettingsTools.SET_AI_VOLUME_FUNCTION, mapOf("volume" to 70L)))
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        assertThat(mode["status"]).isEqualTo("error")
+        assertThat(help["status"]).isEqualTo("error")
+        assertThat(engine.lesson.value?.mode).isEqualTo(SessionMode.FREE_TALK)
+        assertThat(settings.settings.allowVietnameseHelp).isTrue()
+        assertThat(volume["new_volume"]).isEqualTo(70) // a number from the model is a number, not "softer"
+    }
+
+    @Test
+    fun `a tool call after the lesson ended cannot bring it back`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        val handler = live.connects.single().toolHandler!!
+        engine.end()
+
+        val response = handler.handle(
+            LiveToolCall(VoiceSettingsTools.SET_DIFFICULTY_LEVEL_FUNCTION, mapOf("level" to "ADVANCED"))
+        )
+
+        assertThat(response["status"]).isEqualTo("stale")
+        assertThat(engine.lesson.value).isNull()
+    }
+
+    // endregion
+
+    // region Pauses, reconnects and ending
+
+    @Test
+    fun `focus coming back does not resume a lesson paused because the app went to the background`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        advanceTimeBy(6_000)
+        engine.setAppFocused(false)
+        runCurrent()
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+
+        focus.state.value = AudioFocusState.LOSS_TRANSIENT_CAN_DUCK // a navigation prompt
+        runCurrent()
+        focus.state.value = AudioFocusState.GAIN
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+    }
+
+    @Test
+    fun `pausing during a phone call keeps the lesson paused after the call`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        focus.state.value = AudioFocusState.LOSS_TRANSIENT
+        runCurrent()
+
+        engine.pause()
+        focus.state.value = AudioFocusState.GAIN
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+        assertThat(engine.resume()).isTrue()
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `a call that starts while offline keeps the AI quiet when the network returns`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        connectivity.online.value = false
+        runCurrent()
+        assertThat(engine.state.value).isEqualTo(ConversationState.WAITING_FOR_NETWORK)
+        val sentBefore = live.sentTexts.size
+
+        focus.state.value = AudioFocusState.LOSS_TRANSIENT
+        runCurrent()
+        connectivity.online.value = true
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.PAUSED)
+        assertThat(live.sentTexts).hasSize(sentBefore) // no "welcome back" over the call
+        assertThat(live.audioPaused).isTrue()
+
+        focus.state.value = AudioFocusState.GAIN
+        runCurrent()
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+        assertThat(live.sentTexts.size).isGreaterThan(sentBefore)
+    }
+
+    @Test
+    fun `stop works at once while a reconnect hangs`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        say(Speaker.USER, "Hello there")
+        live.connectGate = CompletableDeferred()
+        live.isConnected = false
+        live.emit(LiveEvent.Disconnected(null))
+        runCurrent()
+        assertThat(engine.state.value).isEqualTo(ConversationState.RECONNECTING)
+
+        val savedId = engine.end()
+
+        assertThat(savedId).isNotNull()
+        assertThat(engine.state.value).isEqualTo(ConversationState.ENDED)
+    }
+
+    @Test
+    fun `a connection that never answers counts as a failed attempt`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        say(Speaker.USER, "Hello there")
+        live.connectGate = CompletableDeferred()
+        live.emit(LiveEvent.Disconnected(null))
+        advanceTimeBy(120_000)
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.ENDED)
+        assertThat(engine.error.value).isInstanceOf(EngineError.ConnectionFailed::class.java)
+    }
+
+    @Test
+    fun `go away followed by a disconnect reconnects only once`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        say(Speaker.AI, "Once upon a time")
+
+        live.emit(LiveEvent.GoAway)
+        runCurrent()
+        live.isConnected = false
+        live.emit(LiveEvent.Disconnected(null))
+        runCurrent()
+        assertThat(live.connects).hasSize(2)
+
+        advanceTimeBy(45_000)
+        runCurrent()
+
+        assertThat(live.connects).hasSize(2)
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `a late goodbye does not end the lesson started right after`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        say(Speaker.USER, "Let us stop")
+        live.emit(LiveEvent.EndLessonRequested)
+        runCurrent()
+
+        engine.start(LessonRequest(topicId = "travel"))
+        advanceTimeBy(5_000)
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `broken storage does not crash a lesson`(): TestResult = engineTest {
+        store.failReads = true
+        val engine = createEngine()
+
+        assertThat(engine.start(LessonRequest(mode = SessionMode.VOCAB_REVIEW))).isTrue()
+        settings.failWrites = true
+        sayCommand("nói nhỏ lại")
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `an idle engine has no endless background work`(): TestResult = engineTest {
+        createEngine()
+        advanceUntilIdle() // would never return if a watchdog looped without a lesson
+    }
+
+    @Test
+    fun `a story counts as finished only when the AI tells its ending`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.STORY_LISTENING))
+        say(Speaker.AI, "She walked to the end of the street. The moral was not clear yet.")
+        engine.end()
+        runCurrent()
+
+        assertThat(store.saved.last().isCompleted).isFalse()
+    }
+
+    // endregion
 }
-
-

@@ -1075,5 +1075,30 @@ class VoiceCommandParserTest {
         assertThat(VoiceCommandParser.parseSessionModeCommand("hôm nay thời tiết đẹp quá")).isNull()
         assertThat(VoiceCommandParser.parseSessionModeCommand("can you speak louder")).isNull()
     }
-}
 
+    @Test
+    fun `everyday sentences with command-like words are not parsed as settings`() {
+        // "tiếng" means hour / sound / language: a number next to it is not a volume.
+        assertThat(VoiceCommandParser.parseVolumeCommand("tôi lái xe 2 tiếng mỗi ngày", 80)).isNull()
+        assertThat(VoiceCommandParser.parseVolumeCommand("anh trai tôi lớn hơn tôi", 80)).isNull()
+        assertThat(VoiceCommandParser.parseVolumeCommand("tôi nhớ lại rồi", 80)).isNull()
+        assertThat(VoiceCommandParser.parseVolumeCommand("nho lai di", 80)).isEqualTo(60)
+        assertThat(VoiceCommandParser.parseVolumeCommand("cho âm lượng 70 phần trăm", 80)).isEqualTo(70)
+
+        assertThat(VoiceCommandParser.parseAppLanguageCommand("Tôi đang học tiếng Anh")).isNull()
+        assertThat(VoiceCommandParser.parseAppLanguageCommand("I use English at work")).isNull()
+        assertThat(VoiceCommandParser.parseAppLanguageCommand("Tôi đói, tiếng Anh nói thế nào")).isNull()
+
+        assertThat(VoiceCommandParser.parseVoiceCommand("I love Korean food")).isNull()
+        assertThat(VoiceCommandParser.parseVoiceCommand("rõ ràng là vậy")).isNull()
+        assertThat(VoiceCommandParser.parseVoiceCommand("hôm nay tôi rất vui vẻ")).isNull()
+
+        assertThat(VoiceCommandParser.parseDrillCategoryCommand("tôi đang lái xe")).isNull()
+        assertThat(VoiceCommandParser.parseDrillCategoryCommand("tôi làm việc ở ngân hàng")).isNull()
+        assertThat(VoiceCommandParser.parseDrillCategoryCommand("tôi thích đi du lịch")).isNull()
+
+        // Whole words only.
+        assertThat(VoiceCommandParser.parseAutoPauseWhenUnfocusedCommand("the video auto paused")).isNull()
+        assertThat(VoiceCommandParser.parseTranslationSubtitlesCommand("there were no translations")).isNull()
+    }
+}

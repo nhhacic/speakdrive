@@ -34,13 +34,7 @@ class TranscriptAccumulator(private val clock: () -> Long = System::currentTimeM
         nextId = 1L
     }
 
-    private fun join(current: String, chunk: String): String = when {
-        current.isEmpty() -> chunk.trimStart()
-        // The API usually sends chunks with their own leading space; add one only when two words would merge.
-        chunk.firstOrNull()?.isWhitespace() == true || current.last().isWhitespace() -> current + chunk
-        chunk.first() in NO_SPACE_BEFORE -> current + chunk
-        else -> "$current $chunk"
-    }
+    private fun join(current: String, chunk: String): String = joinChunks(current, chunk)
 
     private fun normalizeSpaces(text: String): String {
         return text
@@ -50,7 +44,17 @@ class TranscriptAccumulator(private val clock: () -> Long = System::currentTimeM
             .trim()
     }
 
-    private companion object {
-        val NO_SPACE_BEFORE = setOf('.', ',', '!', '?', ';', ':', '\'', ')', '’')
+    companion object {
+        private val NO_SPACE_BEFORE = setOf('.', ',', '!', '?', ';', ':', '\'', ')', '’')
+
+        /** Joins a streaming transcription chunk onto the text so far without merging or doubling spaces. */
+        fun joinChunks(current: String, chunk: String): String = when {
+            current.isEmpty() -> chunk.trimStart()
+            chunk.isEmpty() -> current
+            // The API usually sends chunks with their own leading space; add one only when two words would merge.
+            chunk.first().isWhitespace() || current.last().isWhitespace() -> current + chunk
+            chunk.first() in NO_SPACE_BEFORE -> current + chunk
+            else -> "$current $chunk"
+        }
     }
 }
