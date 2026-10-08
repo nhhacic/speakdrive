@@ -244,70 +244,49 @@ def send_bytes_ssh(data_bytes, remote_path):
 
 
 def stream_tar_to_linux(source_dir, items_list, remote_target_dir):
-    """Đóng gói file trên local và đẩy trực tiếp qua SSH pipe giải nén trên Linux"""
+    """Đóng gói file trên local bằng Python tarfile và đẩy trực tiếp qua SSH pipe giải nén trên Linux"""
     if not items_list:
         return
-    temp_dir = Path(os.environ.get("TEMP", "/tmp")) / "speakdrive_sync"
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    temp_list = temp_dir / "tar_items.txt"
-    with open(temp_list, "w", encoding="utf-8", newline="\n") as f:
-        f.write("\n".join(items_list) + "\n")
+    import tarfile
+    import io
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for item in items_list:
+            full_p = Path(source_dir) / item
+            if full_p.exists():
+                tar.add(str(full_p), arcname=item)
     
-    tar_archive = temp_dir / "transfer_batch.tar.gz"
-    run_cmd(f"tar -czf \"{tar_archive}\" -C \"{source_dir}\" -T \"{temp_list}\"", check=True)
-    
-    with open(tar_archive, "rb") as f:
-        ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -xzf - -C '{remote_target_dir}'"]
-        p = subprocess.run(ssh_cmd, input=f.read(), check=True)
-        if p.returncode != 0:
-            raise RuntimeError(f"Lỗi truyền tải dữ liệu tar stream (exit {p.returncode})")
-    try:
-        tar_archive.unlink()
-        temp_list.unlink()
-    except Exception:
-        pass
+    tar_bytes = buf.getvalue()
+    ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -xzf - -C '{remote_target_dir}'"]
+    p = subprocess.run(ssh_cmd, input=tar_bytes, check=True)
+    if p.returncode != 0:
+        raise RuntimeError(f"Lỗi truyền tải dữ liệu tar stream (exit {p.returncode})")
 
 
 def stream_tar_from_linux(remote_source_dir, items_list, local_target_dir):
-    """Kéo file từ Linux về và giải nén an toàn trên local Windows (xử lý Windows file lock)"""
+    """Kéo file từ Linux về và giải nén an toàn trên local Windows bằng Python tarfile"""
     if not items_list:
         return
-    import tempfile
-    staging_dir = Path(tempfile.gettempdir()) / "speakdrive_pull_staging"
-    if staging_dir.exists():
-        shutil.rmtree(staging_dir, ignore_errors=True)
-    staging_dir.mkdir(parents=True, exist_ok=True)
-
+    import tarfile
+    import io
     items_str = " ".join([f"'{item}'" for item in items_list])
     ssh_cmd = ["ssh", "-o", "StrictHostKeyChecking=no", LINUX_HOST, f"tar -czf - -C '{remote_source_dir}' {items_str}"]
-    tar_cmd = ["tar", "-xzf", "-", "-C", str(staging_dir)]
     
-    p1 = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE)
-    p2 = subprocess.Popen(tar_cmd, stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    p1.stdout.close()
-    out, err = p2.communicate()
+    p = subprocess.run(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+    tar_bytes = p.stdout
+    if not tar_bytes:
+        return
 
-    # Chép từ staging sang local_target_dir, nhẹ nhàng bỏ qua các file đang bị khóa bởi tiến trình đang chạy
     os.makedirs(local_target_dir, exist_ok=True)
-    for root, dirs, files in os.walk(staging_dir):
-        rel_path = os.path.relpath(root, staging_dir)
-        dest_dir = Path(local_target_dir) if rel_path == '.' else Path(local_target_dir) / rel_path
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        for f in files:
-            src_f = Path(root) / f
-            dst_f = dest_dir / f
+    with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:gz") as tar:
+        for member in tar.getmembers():
             try:
-                shutil.copy2(src_f, dst_f)
+                tar.extract(member, path=local_target_dir)
             except (PermissionError, OSError):
-                # File đang được mở / memory-mapped bởi chính phiên Antigravity hiện tại trên Windows
+                # Bỏ qua file đang bị mở bởi phiên Antigravity hiện tại trên Windows
                 pass
             except Exception as e:
-                print(f"   [Cảnh báo copy] {f}: {e}")
-
-    try:
-        shutil.rmtree(staging_dir, ignore_errors=True)
-    except Exception:
-        pass
+                print(f"   [Cảnh báo giải nén] {member.name}: {e}")
 
 
 # ==================== GIT CODE SYNC ====================
