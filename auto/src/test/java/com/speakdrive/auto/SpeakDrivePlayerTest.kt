@@ -155,6 +155,7 @@ class SpeakDrivePlayerTest {
         var resumeCallCount = 0
         var nextCallCount = 0
         var nextStoryCallCount = 0
+        var repeatCallCount = 0
 
         override fun next(): Boolean {
             nextCallCount++
@@ -163,6 +164,11 @@ class SpeakDrivePlayerTest {
 
         override fun nextStory(): Boolean {
             nextStoryCallCount++
+            return true
+        }
+
+        override fun repeat(): Boolean {
+            repeatCallCount++
             return true
         }
 
@@ -434,15 +440,15 @@ class SpeakDrivePlayerTest {
     }
 
     @Test
-    fun `steering wheel next during free talk switches to another topic`() = runTest(testDispatcher) {
+    fun `steering wheel next during free talk advances to next sentence`() = runTest(testDispatcher) {
         activeLesson(SessionMode.FREE_TALK)
 
         player.seekToNext()
         testDispatcher.scheduler.advanceUntilIdle()
         shadowOf(Looper.getMainLooper()).idle()
 
-        assertThat(testEngine.lastStartRequest).isNotNull()
-        assertThat(testEngine.lastStartRequest?.topicId).isNotEqualTo("travel")
+        assertThat(testEngine.nextCallCount).isEqualTo(1)
+        assertThat(testEngine.lastStartRequest).isNull()
     }
 
     @Test
@@ -466,5 +472,73 @@ class SpeakDrivePlayerTest {
         shadowOf(Looper.getMainLooper()).idle()
 
         assertThat(testEngine.nextStoryCallCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `steering wheel previous during repeat drill repeats the current sentence`() = runTest(testDispatcher) {
+        activeLesson(SessionMode.REPEAT_AFTER_ME)
+
+        player.seekToPrevious()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.repeatCallCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `steering wheel previous during free talk repeats what AI just said`() = runTest(testDispatcher) {
+        activeLesson(SessionMode.FREE_TALK)
+
+        player.seekToPrevious()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.repeatCallCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `available commands include seek to previous and seek to next`() = runTest(testDispatcher) {
+        activeLesson(SessionMode.REPEAT_AFTER_ME)
+
+        assertThat(player.availableCommands.contains(Player.COMMAND_SEEK_TO_NEXT)).isTrue()
+        assertThat(player.availableCommands.contains(Player.COMMAND_SEEK_TO_PREVIOUS)).isTrue()
+    }
+
+    @Test
+    fun `steering wheel previous during story listening calls engine repeat`() = runTest(testDispatcher) {
+        activeLesson(SessionMode.STORY_LISTENING)
+
+        player.seekToPrevious()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.repeatCallCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `steering wheel previous when not in lesson does not call repeat`() = runTest(testDispatcher) {
+        stateFlow.value = ConversationState.IDLE
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        player.seekToPrevious()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.repeatCallCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `steering wheel next when not in lesson starts a new random topic`() = runTest(testDispatcher) {
+        stateFlow.value = ConversationState.IDLE
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        player.seekToNext()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.lastStartRequest).isNotNull()
+        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.FREE_TALK)
     }
 }

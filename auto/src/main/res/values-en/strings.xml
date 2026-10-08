@@ -1,0 +1,4 @@
+<resources>
+    <string name="action_repeat">Repeat sentence</string>
+    <string name="action_next">Next sentence</string>
+</resources>

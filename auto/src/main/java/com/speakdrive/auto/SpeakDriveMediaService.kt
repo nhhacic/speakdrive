@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -14,11 +15,14 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionError
+import androidx.media3.session.SessionResult
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -212,7 +216,48 @@ class SpeakDriveMediaService : MediaLibraryService() {
                 Log.w(TAG, "Rejected media controller ${controller.packageName}")
                 return MediaSession.ConnectionResult.reject()
             }
-            return super.onConnect(session, controller)
+            val repeatCommand = SessionCommand(CUSTOM_ACTION_REPEAT, Bundle.EMPTY)
+            val nextCommand = SessionCommand(CUSTOM_ACTION_NEXT, Bundle.EMPTY)
+            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+                .add(repeatCommand)
+                .add(nextCommand)
+                .build()
+
+            val repeatButton = CommandButton.Builder(R.drawable.ic_repeat)
+                .setDisplayName(getString(R.string.action_repeat))
+                .setSessionCommand(repeatCommand)
+                .setEnabled(true)
+                .build()
+
+            val nextButton = CommandButton.Builder(R.drawable.ic_skip_next)
+                .setDisplayName(getString(R.string.action_next))
+                .setSessionCommand(nextCommand)
+                .setEnabled(true)
+                .build()
+
+            return MediaSession.ConnectionResult.AcceptedResultBuilder()
+                .setAvailableSessionCommands(sessionCommands)
+                .setCustomLayout(ImmutableList.of(repeatButton, nextButton))
+                .build()
+        }
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle
+        ): ListenableFuture<SessionResult> {
+            when (customCommand.customAction) {
+                CUSTOM_ACTION_REPEAT -> {
+                    engine.repeat()
+                    return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                }
+                CUSTOM_ACTION_NEXT -> {
+                    engine.next()
+                    return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                }
+            }
+            return super.onCustomCommand(session, controller, customCommand, args)
         }
 
         override fun onGetLibraryRoot(
@@ -295,8 +340,10 @@ class SpeakDriveMediaService : MediaLibraryService() {
         }
     }
 
-    private companion object {
+    companion object {
         const val TAG = "SpeakDriveMediaService"
+        const val CUSTOM_ACTION_REPEAT = "com.speakdrive.auto.ACTION_REPEAT"
+        const val CUSTOM_ACTION_NEXT = "com.speakdrive.auto.ACTION_NEXT"
 
         /** Media controllers allowed to connect besides this app and system apps. */
         val TRUSTED_CONTROLLERS = setOf(
