@@ -2671,32 +2671,37 @@ open class ConversationEngine @Inject constructor(
         val name = e::class.simpleName.orEmpty()
         val message = e.message.orEmpty()
         val lower = message.lowercase()
+        // What the server said: "Channel was closed by the server. Details: <reason>".
+        val raw = message.ifBlank { name }
         return when {
             name == "PermissionMissingException" || e is SecurityException -> EngineError.MissingMicPermission
-            // The SDK hides the server's close reason behind this message. While online it almost
-            // always means App Check rejected the token (close code 1008), e.g. the debug token of
-            // this install is not registered in Firebase Console.
-            (name == "ServiceConnectionHandshakeFailedException" || "channel was closed by the server" in lower) &&
-                connectivity.isOnlineNow() -> EngineError.AiNotConfigured(
-                "Server từ chối kết nối – thường do Firebase App Check token không hợp lệ " +
-                    "(Debug Token của bản cài này chưa được đăng ký trong Firebase Console)"
-            )
-            name in setOf("InvalidAPIKeyException", "APINotConfiguredException", "ServiceDisabledException") ||
-                "firebaseapp" in lower || "api key" in lower || "api_key" in lower ||
-                "permission_denied" in lower || "service_blocked" in lower || "service_disabled" in lower ||
-                "app attestation failed" in lower || "403" in lower -> {
-                val detail = when {
-                    "service_blocked" in lower || "api_key" in lower -> "API Key bị chặn hoặc chưa bật Gemini Developer API trong Firebase/Google Cloud"
-                    "app attestation failed" in lower -> "App Check xác thực thất bại (chưa đăng ký Debug Token)"
-                    "permission_denied" in lower -> "Quyền truy cập bị từ chối (Permission Denied 403)"
-                    else -> message.ifBlank { name }
-                }
-                EngineError.AiNotConfigured(detail)
-            }
             !connectivity.isOnlineNow() -> EngineError.NoNetwork
-            else -> EngineError.ConnectionFailed(message.ifBlank { name })
+            name in setOf("InvalidAPIKeyException", "APINotConfiguredException", "ServiceDisabledException") ||
+                isAuthRejection(lower) -> EngineError.AiNotConfigured(
+                when {
+                    "service_blocked" in lower || "api_key" in lower || "api key" in lower ->
+                        "API Key bị chặn hoặc chưa bật Gemini Developer API trong Firebase/Google Cloud"
+                    "too many attempts" in lower ->
+                        "App Check đang tạm khoá sau nhiều lần bị từ chối – bấm Thử lại hoặc đóng hẳn app rồi mở lại"
+                    "app check" in lower || "appcheck" in lower || "attestation" in lower ->
+                        "Firebase App Check từ chối bản cài này (Debug Token chưa đăng ký hoặc sai app)"
+                    "permission_denied" in lower || "403" in lower -> "Quyền truy cập bị từ chối (403)"
+                    else -> "Server từ chối xác thực"
+                } + " — $raw"
+            )
+            // The server closed the channel without saying why: most often App Check.
+            (name == "ServiceConnectionHandshakeFailedException" || "channel was closed by the server" in lower) &&
+                "details:" !in lower -> EngineError.AiNotConfigured(
+                "Server đóng kết nối không nêu lý do – thường do Firebase App Check (Debug Token chưa đăng ký) — $raw"
+            )
+            else -> EngineError.ConnectionFailed(raw)
         }
     }
+
+    private fun isAuthRejection(lower: String): Boolean = listOf(
+        "app check", "appcheck", "attestation", "too many attempts", "unauthenticated", "permission_denied",
+        "permission denied", "api key", "api_key", "service_blocked", "service_disabled", "firebaseapp", "403"
+    ).any { it in lower }
 
     private companion object {
         const val TAG = "ConversationEngine"

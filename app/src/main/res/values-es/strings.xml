@@ -385,6 +385,11 @@
     <string name="about_appcheck_pending">Aún no se ha generado. Empieza una lección y vuelve a abrir esta pantalla.</string>
     <string name="about_appcheck_copy">Copiar token</string>
     <string name="about_appcheck_copied">Token copiado</string>
+    <string name="about_appcheck_test">Comprobar con Firebase</string>
+    <string name="appcheck_checking">Comprobando App Check…</string>
+    <string name="appcheck_ok">✅ App Check: Firebase acepta esta instalación, así que el token no es el problema.</string>
+    <string name="appcheck_failed">❌ App Check: Firebase rechaza esta instalación (%1$s).</string>
+    <string name="appcheck_failed_hint_debug">Copia el token de depuración en la pantalla Acerca de, añádelo en Firebase Console → App Check → Apps → com.speakdrive.ai → Manage debug tokens y luego toca Reintentar.</string>
     <string name="settings_azure_region">Región de Azure (p. ej., southeastasia)</string>
     <string name="settings_azure_key">Clave de Azure Speech</string>
     <string name="settings_azure_key_hint">Tu propia clave del portal de Azure. Solo se guarda en este móvil.</string>

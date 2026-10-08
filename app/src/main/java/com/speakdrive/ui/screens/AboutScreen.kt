@@ -1,5 +1,12 @@
 package com.speakdrive.ui.screens
 
+import com.speakdrive.AppCheckStatus
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -408,6 +415,9 @@ private fun TechInfoCard() {
 @Composable
 private fun AppCheckDebugTokenCard(token: String?) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
+    var checkResult by remember { mutableStateOf<String?>(null) }
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(20.dp),
@@ -452,6 +462,26 @@ private fun AppCheckDebugTokenCard(token: String?) {
                 ) {
                     Text(stringResource(R.string.about_appcheck_copy))
                 }
+            }
+            OutlinedButton(
+                onClick = {
+                    checking = true
+                    scope.launch {
+                        // Starts over even if the SDK is backing off after earlier refusals.
+                        AppCheckInstaller.resetBackoff()
+                        val problem = AppCheckStatus.problem(forceRefresh = true)
+                        checkResult = if (problem == null) context.getString(R.string.appcheck_ok)
+                        else context.getString(R.string.appcheck_failed, problem)
+                        checking = false
+                    }
+                },
+                enabled = !checking,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(if (checking) R.string.appcheck_checking else R.string.about_appcheck_test))
+            }
+            checkResult?.let {
+                Text(text = it, style = MaterialTheme.typography.bodySmall)
             }
         }
     }

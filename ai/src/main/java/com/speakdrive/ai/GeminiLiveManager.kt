@@ -142,52 +142,41 @@ class GeminiLiveManager @Inject constructor(
         gate.reset()
         utterance.reset()
 
-        val allDeclarations = listOf(endLessonDeclaration) + config.tools.map(::toDeclaration)
-        var usedDeclarations = allDeclarations
-        toolsActive = true
-        val newSession = try {
-            connectWithTimeout(config, allDeclarations)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // The Live API preview may reject a session with many function declarations. Only then
-            // retry with the core tools; a network or App Check failure would fail again anyway.
-            if (config.tools.isNotEmpty() && isToolSchemaRejection(e)) {
-                Log.w(TAG, "Live connection with ${allDeclarations.size} tools was rejected, retrying with core tools...", e)
-                val coreTools = listOf(endLessonDeclaration) +
-                    config.tools.filter { it.name == PronunciationDrill.CHECK_ATTEMPT_FUNCTION }.map(::toDeclaration)
-                usedDeclarations = coreTools
-                toolsActive = false
-                try {
-                    connectWithTimeout(config, coreTools).also {
-                        Log.i(TAG, "Fallback connection succeeded with core tools (${coreTools.size}); settings tools are off")
-                    }
-                } catch (e2: CancellationException) {
-                    throw e2
-                } catch (e2: Exception) {
-                    if (isToolSchemaRejection(e2)) {
-                        Log.w(TAG, "Core tools also rejected, retrying with minimal end_lesson tool only...", e2)
-                        usedDeclarations = listOf(endLessonDeclaration)
-                        connectWithTimeout(config, listOf(endLessonDeclaration)).also {
-                            Log.i(TAG, "Fallback connection succeeded with minimal end_lesson tool")
-                        }
-                    } else {
-                        Log.e(TAG, "Fallback with core tools failed", e2)
-                        throw e2
-                    }
-                }
-            } else {
-                Log.e(TAG, "Live connection failed", e)
+        // The Live API preview may refuse a session because of the tool declarations (and the reason it
+        // gives is not always recognisable), so fall back to fewer tools on any failure that is not about
+        // authentication, the network or a timeout: lessons still work, settings then go by voice parser.
+        val toolSets = listOf(
+            config.tools,
+            config.tools.filter { it.name == PronunciationDrill.CHECK_ATTEMPT_FUNCTION },
+            emptyList()
+        ).distinct()
+        var firstError: Exception? = null
+        var newSession: LiveSession? = null
+        var usedDeclarations = 0
+        for ((index, tools) in toolSets.withIndex()) {
+            val declarations = listOf(endLessonDeclaration) + tools.map(::toDeclaration)
+            try {
+                newSession = connectWithTimeout(config, declarations)
+                usedDeclarations = declarations.size
+                toolsActive = index == 0
+                if (index > 0) Log.w(TAG, "Connected with ${declarations.size} tools only; settings tools are off")
+                break
+            } catch (e: CancellationException) {
                 throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Live connection with ${declarations.size} tools failed: ${e.message}", e)
+                firstError?.addSuppressed(e) ?: run { firstError = e }
+                if (!canRetryWithFewerTools(e)) break
             }
         }
+        if (newSession == null) throw firstError ?: IllegalStateException("Live connection failed")
         session = newSession
         resetAiTurn()
         startPipeline(newSession)
         startWatchdog(newSession)
         // The caller sends a kick-off / resume message next and the AI answers out loud.
         expectAiResponse()
-        Log.i(TAG, "Connected to ${BuildConfig.LIVE_MODEL} with ${usedDeclarations.size} tools (half-duplex MicGate active)")
+        Log.i(TAG, "Connected to ${BuildConfig.LIVE_MODEL} with $usedDeclarations tools (half-duplex MicGate active)")
         Unit
     }
 
@@ -521,11 +510,17 @@ class GeminiLiveManager @Inject constructor(
         }
     }
 
-    /** True when the server refused the session because of the tool declarations. */
-    private fun isToolSchemaRejection(e: Exception): Boolean {
+    /**
+     * False when fewer tools cannot help: App Check / API key refusals, no network, or a timeout (which
+     * would only make the learner wait twice as long).
+     */
+    private fun canRetryWithFewerTools(e: Exception): Boolean {
+        if (e is java.net.UnknownHostException || e is java.net.ConnectException || e is java.net.NoRouteToHostException) return false
         val text = (e.message.orEmpty() + " " + e.cause?.message.orEmpty()).lowercase()
-        return listOf("invalid_argument", "invalid argument", "400", "1007", "function", "tool", "schema", "too large", "too many")
-            .any { it in text }
+        return listOf(
+            "timed out", "app check", "appcheck", "attestation", "too many attempts", "unauthenticated",
+            "permission", "api key", "api_key", "service_blocked", "service_disabled", "403"
+        ).none { it in text }
     }
 
     private fun answerToolCall(target: LiveSession, call: FunctionCallPart) {

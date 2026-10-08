@@ -27,6 +27,16 @@ object AppCheckInstaller {
     }
 
     /**
+     * After each refusal the SDK waits exponentially longer (up to 4 hours, kept in memory) before it
+     * asks Firebase again, so a token registered meanwhile is not tried until then. A fresh provider
+     * starts without that wait. Called when the learner taps Retry.
+     */
+    fun resetBackoff() {
+        runCatching { Firebase.appCheck.installAppCheckProviderFactory(DebugAppCheckProviderFactory.getInstance()) }
+            .onFailure { Log.w(TAG, "Could not reset App Check", it) }
+    }
+
+    /**
      * The debug token of this install, or null until the SDK has generated it (it does so on the first
      * request to Gemini). Release builds always return null.
      */

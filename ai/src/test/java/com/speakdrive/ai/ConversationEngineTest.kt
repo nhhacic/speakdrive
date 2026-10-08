@@ -378,6 +378,57 @@ class ConversationEngineTest {
     }
 
     @Test
+    fun `server close reason is shown instead of blaming App Check`(): TestResult = engineTest {
+        live.failNextConnects = 1
+        live.connectFailure = IllegalStateException(
+            "Channel was closed by the server. Details: models/gemini-x is not found for API version v1beta"
+        )
+        val engine = createEngine()
+
+        assertThat(engine.start(LessonRequest())).isFalse()
+
+        val error = engine.error.value
+        assertThat(error).isInstanceOf(EngineError.ConnectionFailed::class.java)
+        assertThat((error as EngineError.ConnectionFailed).detail).contains("is not found")
+    }
+
+    @Test
+    fun `App Check refusal names App Check and keeps the server text`(): TestResult = engineTest {
+        live.failNextConnects = 1
+        live.connectFailure = IllegalStateException("Channel was closed by the server. Details: Firebase App Check token is invalid.")
+        val engine = createEngine()
+
+        engine.start(LessonRequest())
+
+        val error = engine.error.value as EngineError.AiNotConfigured
+        assertThat(error.detail).contains("App Check")
+        assertThat(error.detail).contains("token is invalid")
+    }
+
+    @Test
+    fun `App Check backoff tells the learner to retry`(): TestResult = engineTest {
+        live.failNextConnects = 1
+        live.connectFailure = IllegalStateException("Too many attempts.")
+        val engine = createEngine()
+
+        engine.start(LessonRequest())
+
+        val error = engine.error.value as EngineError.AiNotConfigured
+        assertThat(error.detail).contains("Thử lại")
+    }
+
+    @Test
+    fun `server close without a reason still points at App Check`(): TestResult = engineTest {
+        live.failNextConnects = 1
+        live.connectFailure = IllegalStateException("Channel was closed by the server.")
+        val engine = createEngine()
+
+        engine.start(LessonRequest())
+
+        assertThat(engine.error.value).isInstanceOf(EngineError.AiNotConfigured::class.java)
+    }
+
+    @Test
     fun `failed connection releases audio focus`(): TestResult = engineTest {
         live.failNextConnects = 1
         val engine = createEngine()

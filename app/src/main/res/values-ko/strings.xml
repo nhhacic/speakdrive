@@ -385,6 +385,11 @@
     <string name="about_appcheck_pending">아직 만들어지지 않았어요. 수업을 한 번 시작한 뒤 이 화면을 다시 여세요.</string>
     <string name="about_appcheck_copy">토큰 복사</string>
     <string name="about_appcheck_copied">토큰을 복사했어요</string>
+    <string name="about_appcheck_test">Firebase로 확인</string>
+    <string name="appcheck_checking">App Check 확인 중…</string>
+    <string name="appcheck_ok">✅ App Check: Firebase가 이 설치를 허용했습니다. 토큰은 원인이 아닙니다.</string>
+    <string name="appcheck_failed">❌ App Check: Firebase가 이 설치를 거부했습니다 (%1$s).</string>
+    <string name="appcheck_failed_hint_debug">정보 화면의 디버그 토큰을 복사해 Firebase Console → App Check → Apps → com.speakdrive.ai → Manage debug tokens에 추가한 뒤 다시 시도를 누르세요.</string>
     <string name="settings_azure_region">Azure 지역(예: southeastasia)</string>
     <string name="settings_azure_key">Azure Speech 키</string>
     <string name="settings_azure_key_hint">Azure 포털에서 받은 내 키입니다. 이 휴대폰에만 저장됩니다.</string>

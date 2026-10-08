@@ -1,5 +1,8 @@
 package com.speakdrive.ui.screens
 
+import com.speakdrive.BuildConfig
+import com.speakdrive.AppCheckStatus
+import androidx.compose.runtime.produceState
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -370,6 +373,7 @@ fun ConversationContent(
             }
         }
     ) { padding ->
+        val appCheckText = appCheckDiagnosisText(state.error.takeIf { !state.state.isInLesson })
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -386,13 +390,16 @@ fun ConversationContent(
                 )
                 state.error != null && !state.state.isInLesson -> MessageCard(
                     title = if (state.error is EngineError.AiNotConfigured) stringResource(R.string.convo_error_ai_not_configured) else stringResource(R.string.convo_error_cannot_start),
-                    message = when (val err = state.error) {
-                        is EngineError.ConnectionFailed -> {
-                            if (!err.detail.isNullOrBlank()) "${err.getMessage(isVi)}\n\n${stringResource(R.string.convo_tech_detail)}: ${err.detail}"
-                            else err.getMessage(isVi)
-                        }
-                        else -> err.getMessage(isVi)
-                    },
+                    message = listOfNotNull(
+                        when (val err = state.error) {
+                            is EngineError.ConnectionFailed -> {
+                                if (!err.detail.isNullOrBlank()) "${err.getMessage(isVi)}\n\n${stringResource(R.string.convo_tech_detail)}: ${err.detail}"
+                                else err.getMessage(isVi)
+                            }
+                            else -> err.getMessage(isVi)
+                        },
+                        appCheckText
+                    ).joinToString("\n\n"),
                     primaryLabel = stringResource(R.string.convo_btn_retry),
                     onPrimary = onRetry,
                     secondaryLabel = if (state.error == EngineError.MissingMicPermission) stringResource(R.string.convo_btn_grant_permission) else null,
@@ -734,3 +741,32 @@ private fun MessageCard(
     }
 }
 
+private sealed interface AppCheckResult {
+    data object Checking : AppCheckResult
+    data object Accepted : AppCheckResult
+    data class Refused(val reason: String) : AppCheckResult
+}
+
+/**
+ * When the AI cannot connect, asks Firebase whether App Check accepts this install, so the error card
+ * says whether the debug token is the problem or the cause is elsewhere.
+ */
+@Composable
+private fun appCheckDiagnosisText(error: EngineError?): String? {
+    val relevant = error is EngineError.AiNotConfigured || error is EngineError.ConnectionFailed
+    val result by produceState<AppCheckResult?>(initialValue = null, error) {
+        if (!relevant) {
+            value = null
+            return@produceState
+        }
+        value = AppCheckResult.Checking
+        value = AppCheckStatus.check()?.let { AppCheckResult.Refused(it) } ?: AppCheckResult.Accepted
+    }
+    return when (val current = result) {
+        null -> null
+        AppCheckResult.Checking -> stringResource(R.string.appcheck_checking)
+        AppCheckResult.Accepted -> stringResource(R.string.appcheck_ok)
+        is AppCheckResult.Refused -> stringResource(R.string.appcheck_failed, current.reason) +
+            if (BuildConfig.DEBUG) "\n" + stringResource(R.string.appcheck_failed_hint_debug) else ""
+    }
+}

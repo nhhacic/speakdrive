@@ -403,6 +403,11 @@
     <string name="about_appcheck_pending">Not generated yet. Start a lesson once, then reopen this screen.</string>
     <string name="about_appcheck_copy">Copy token</string>
     <string name="about_appcheck_copied">Token copied</string>
+    <string name="about_appcheck_test">Check with Firebase</string>
+    <string name="appcheck_checking">Checking App Check…</string>
+    <string name="appcheck_ok">✅ App Check: Firebase accepts this install, so the token is not the problem.</string>
+    <string name="appcheck_failed">❌ App Check: Firebase refuses this install (%1$s).</string>
+    <string name="appcheck_failed_hint_debug">Copy the debug token on the About screen, add it in Firebase Console → App Check → Apps → com.speakdrive.ai → Manage debug tokens, then tap Retry.</string>
     <string name="settings_azure_region">Azure region (e.g. southeastasia)</string>
     <string name="settings_azure_key">Azure Speech key</string>
     <string name="settings_azure_key_hint">Your own key from Azure Portal. It is stored only on this phone.</string>

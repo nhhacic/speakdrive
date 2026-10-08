@@ -385,6 +385,11 @@
     <string name="about_appcheck_pending">尚未生成。请先开始一节课，然后重新打开此页面。</string>
     <string name="about_appcheck_copy">复制令牌</string>
     <string name="about_appcheck_copied">令牌已复制</string>
+    <string name="about_appcheck_test">用 Firebase 检查</string>
+    <string name="appcheck_checking">正在检查 App Check…</string>
+    <string name="appcheck_ok">✅ App Check：Firebase 已接受此安装，令牌不是问题所在。</string>
+    <string name="appcheck_failed">❌ App Check：Firebase 拒绝了此安装（%1$s）。</string>
+    <string name="appcheck_failed_hint_debug">在“关于”页面复制调试令牌，添加到 Firebase Console → App Check → Apps → com.speakdrive.ai → Manage debug tokens，然后点按重试。</string>
     <string name="settings_azure_region">Azure 区域（例如 southeastasia）</string>
     <string name="settings_azure_key">Azure Speech 密钥</string>
     <string name="settings_azure_key_hint">你在 Azure 门户获取的密钥，只保存在这部手机上。</string>

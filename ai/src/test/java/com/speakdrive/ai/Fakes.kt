@@ -37,6 +37,8 @@ class FakeLiveClient : LiveConversationClient {
     val sentTexts = mutableListOf<String>()
     val sentContexts = mutableListOf<String>()
     var failNextConnects = 0
+    /** What a failing connect() throws. */
+    var connectFailure: Exception = IllegalStateException("connect failed")
     var audioPaused = false
     var disconnects = 0
     override var settingsToolsActive = true
@@ -48,7 +50,7 @@ class FakeLiveClient : LiveConversationClient {
         connectGate?.await()
         if (failNextConnects > 0) {
             failNextConnects--
-            throw IllegalStateException("connect failed")
+            throw connectFailure
         }
         connects += config
         isConnected = true

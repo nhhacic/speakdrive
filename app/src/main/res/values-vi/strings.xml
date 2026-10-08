@@ -403,6 +403,11 @@
     <string name="about_appcheck_pending">Chưa được tạo. Hãy bắt đầu một buổi học rồi mở lại màn hình này.</string>
     <string name="about_appcheck_copy">Sao chép mã</string>
     <string name="about_appcheck_copied">Đã sao chép mã</string>
+    <string name="about_appcheck_test">Kiểm tra với Firebase</string>
+    <string name="appcheck_checking">Đang kiểm tra App Check…</string>
+    <string name="appcheck_ok">✅ App Check: Firebase đã chấp nhận bản cài này, token không phải nguyên nhân.</string>
+    <string name="appcheck_failed">❌ App Check: Firebase từ chối bản cài này (%1$s).</string>
+    <string name="appcheck_failed_hint_debug">Sao chép Debug Token ở màn Giới thiệu, thêm vào Firebase Console → App Check → Apps → com.speakdrive.ai → Manage debug tokens, rồi bấm Thử lại.</string>
     <string name="settings_azure_region">Vùng Azure (ví dụ southeastasia)</string>
     <string name="settings_azure_key">Khoá Azure Speech</string>
     <string name="settings_azure_key_hint">Khoá riêng của bạn lấy từ Azure Portal. Chỉ lưu trên điện thoại này.</string>

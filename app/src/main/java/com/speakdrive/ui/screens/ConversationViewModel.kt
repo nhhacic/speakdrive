@@ -1,5 +1,6 @@
 package com.speakdrive.ui.screens
 
+import com.speakdrive.AppCheckInstaller
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -191,6 +192,8 @@ class ConversationViewModel @Inject constructor(
     }
 
     fun retry(mediaId: String?) {
+        // A debug token registered after earlier refusals is otherwise not tried for up to 4 hours.
+        AppCheckInstaller.resetBackoff()
         startRequested = false
         _startError.value = null
         start(mediaId)

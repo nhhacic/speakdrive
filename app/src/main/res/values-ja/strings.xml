@@ -385,6 +385,11 @@
     <string name="about_appcheck_pending">まだ作成されていません。一度レッスンを始めてから、この画面を開き直してください。</string>
     <string name="about_appcheck_copy">トークンをコピー</string>
     <string name="about_appcheck_copied">トークンをコピーしました</string>
+    <string name="about_appcheck_test">Firebase で確認</string>
+    <string name="appcheck_checking">App Check を確認中…</string>
+    <string name="appcheck_ok">✅ App Check: Firebase はこのインストールを受け入れています。トークンは原因ではありません。</string>
+    <string name="appcheck_failed">❌ App Check: Firebase がこのインストールを拒否しました (%1$s)。</string>
+    <string name="appcheck_failed_hint_debug">「アプリについて」画面のデバッグトークンをコピーし、Firebase Console → App Check → Apps → com.speakdrive.ai → Manage debug tokens に追加してから「再試行」をタップしてください。</string>
     <string name="settings_azure_region">Azure のリージョン（例：southeastasia）</string>
     <string name="settings_azure_key">Azure Speech のキー</string>
     <string name="settings_azure_key_hint">Azure ポータルで取得したあなた自身のキーです。このスマホにのみ保存されます。</string>

@@ -385,6 +385,11 @@
     <string name="about_appcheck_pending">Pas encore généré. Lance une leçon, puis rouvre cet écran.</string>
     <string name="about_appcheck_copy">Copier le jeton</string>
     <string name="about_appcheck_copied">Jeton copié</string>
+    <string name="about_appcheck_test">Vérifier avec Firebase</string>
+    <string name="appcheck_checking">Vérification d\'App Check…</string>
+    <string name="appcheck_ok">✅ App Check : Firebase accepte cette installation, le jeton n\'est donc pas en cause.</string>
+    <string name="appcheck_failed">❌ App Check : Firebase refuse cette installation (%1$s).</string>
+    <string name="appcheck_failed_hint_debug">Copie le jeton de débogage sur l\'écran À propos, ajoute-le dans Firebase Console → App Check → Apps → com.speakdrive.ai → Manage debug tokens, puis touche Réessayer.</string>
     <string name="settings_azure_region">Région Azure (ex. southeastasia)</string>
     <string name="settings_azure_key">Clé Azure Speech</string>
     <string name="settings_azure_key_hint">Ta propre clé du portail Azure. Elle est enregistrée uniquement sur ce téléphone.</string>

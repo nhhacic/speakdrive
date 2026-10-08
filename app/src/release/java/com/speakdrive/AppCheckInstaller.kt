@@ -17,6 +17,16 @@ object AppCheckInstaller {
         }.onFailure { Log.w("AppCheck", "App Check not installed", it) }
     }
 
+    /**
+     * After each refusal the SDK waits exponentially longer (up to 4 hours, kept in memory) before it
+     * asks Firebase again, so a token registered meanwhile is not tried until then. A fresh provider
+     * starts without that wait. Called when the learner taps Retry.
+     */
+    fun resetBackoff() {
+        runCatching { Firebase.appCheck.installAppCheckProviderFactory(PlayIntegrityAppCheckProviderFactory.getInstance()) }
+            .onFailure { Log.w("AppCheck", "Could not reset App Check", it) }
+    }
+
     /** Debug tokens only exist in debug builds. */
     @Suppress("UNUSED_PARAMETER")
     fun debugToken(context: Context): String? = null
