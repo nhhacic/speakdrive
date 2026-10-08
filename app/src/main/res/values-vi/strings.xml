@@ -387,7 +387,7 @@
     <string name="privacy_data_title">Nội dung hội thoại</string>
     <string name="privacy_data_desc">Bản ghi chữ (transcript), điểm số, lỗi sai và từ mới được lưu ngay trên điện thoại của bạn. Khi buổi học kết thúc, transcript được gửi tới Gemini một lần để tạo nhận xét. Ứng dụng không có máy chủ riêng và không bán dữ liệu.</string>
     <string name="privacy_third_party_title">Dịch vụ bên thứ ba</string>
-    <string name="privacy_third_party_desc">Firebase (Google) xử lý yêu cầu AI và dùng App Check để chống lạm dụng. Xem chính sách của Google tại policies.google.com/privacy.</string>
+    <string name="privacy_third_party_desc">Firebase (Google) xử lý yêu cầu AI và dùng App Check để chống lạm dụng. Xem chính sách của Google tại policies.google.com/privacy. Microsoft Azure Speech chỉ được dùng khi bạn tự bật chấm điểm Azure bằng khoá của mình.</string>
     <string name="privacy_rights_title">Quyền của bạn</string>
     <string name="privacy_rights_desc">Bạn có thể xoá toàn bộ dữ liệu học tập bất cứ lúc nào bằng nút bên dưới, hoặc gỡ cài đặt ứng dụng.</string>
     <string name="privacy_driving_title">An toàn khi lái xe</string>

@@ -8,9 +8,9 @@ Gia sư AI dùng **Gemini Live API** để hội thoại bằng giọng nói the
 ## ✨ Tính năng
 
 - 🎤 **Hội thoại giọng nói real-time** với AI: ngắt lời được, có transcript, AI sửa lỗi một cách tự nhiên
-- 🚗 **Android Auto**: 4 tab (Bắt đầu, Chủ đề, Nhập vai, Độ khó), điều khiển bằng nút vô-lăng,
+- 🚗 **Android Auto**: 4 tab (Bắt đầu, Luyện nghe kể chuyện, Chủ đề, Nhập vai), điều khiển bằng nút vô-lăng (Next đổi chủ đề / câu / truyện),
   ra lệnh *"Hey Google, play travel English on SpeakDrive"*, nói *"end the lesson"* để kết thúc
-- 📚 **8 chủ đề, 32 tình huống nhập vai**, 3 cấp độ (A1 đến C2), cho phép giải thích bằng tiếng Việt khi bí
+- 📚 **15 chủ đề hội thoại cùng nhiều tình huống nhập vai và truyện**, 6 cấp độ (A1 đến C2), cho phép giải thích bằng tiếng Việt khi bí
 - 🛡️ **An toàn khi lái xe**: tự tạm dừng khi có cuộc gọi hoặc giọng chỉ đường, tự kết nối lại khi mất sóng
   hoặc khi kết nối Live hết hạn (~10 phút), nhắc nhẹ khi người học im lặng lâu
 - 🗣️ **Luyện phát âm "nhắc lại theo AI"**: chấm từng câu bằng AI + so từng từ, thêm **Azure** (tuỳ chọn) chấm
@@ -26,6 +26,10 @@ Gia sư AI dùng **Gemini Live API** để hội thoại bằng giọng nói the
   (7 ngày liên tiếp được 1 lượt, giữ tối đa 2)
 - 📊 **Tiến trình**: streak, mục tiêu phút mỗi ngày, biểu đồ 7 ngày, lịch sử từng buổi
 - 🔒 Không cần tài khoản, dữ liệu học lưu trên máy, có nút xoá toàn bộ dữ liệu
+
+- 🎙️ **Mọi cài đặt đều chỉnh được bằng giọng nói** (tiếng Việt có dấu, không dấu, tiếng Anh); lệnh chỉ được
+  nhận khi bạn nói xong và thật sự là yêu cầu, nên câu nói thường hay câu đang luyện không bị hiểu nhầm
+- 🌐 Giao diện 8 ngôn ngữ: Tiếng Việt, English, Deutsch, Español, Français, 日本語, 한국어, 中文
 
 ## 🏗️ Kiến trúc
 

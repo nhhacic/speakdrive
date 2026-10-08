@@ -369,7 +369,7 @@
     <string name="privacy_data_title">对话数据</string>
     <string name="privacy_data_desc">对话记录、分数、纠正和单词都保存在你的设备上。课程结束时，对话记录会发送给 Gemini 一次，用于生成总结。应用没有自己的服务器，也不出售数据。</string>
     <string name="privacy_third_party_title">第三方服务</string>
-    <string name="privacy_third_party_desc">AI 请求由 Firebase（Google）处理，并使用 App Check 防止滥用。Google 的政策见 policies.google.com/privacy。</string>
+    <string name="privacy_third_party_desc">AI 请求由 Firebase（Google）处理，并使用 App Check 防止滥用。Google 的政策见 policies.google.com/privacy。仅当你用自己的密钥开启 Azure 评分时，才会使用 Microsoft Azure Speech。</string>
     <string name="privacy_rights_title">你的权利</string>
     <string name="privacy_rights_desc">你可以随时用下方按钮或卸载应用来删除所有学习数据。</string>
     <string name="privacy_driving_title">驾驶安全</string>

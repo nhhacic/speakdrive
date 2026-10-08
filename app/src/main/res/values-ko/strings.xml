@@ -369,7 +369,7 @@
     <string name="privacy_data_title">대화 데이터</string>
     <string name="privacy_data_desc">대화 기록, 점수, 교정, 단어는 기기에 저장됩니다. 수업이 끝나면 요약을 만들기 위해 대화 기록을 Gemini에 한 번 보냅니다. 앱 자체 서버는 없으며 데이터를 판매하지 않습니다.</string>
     <string name="privacy_third_party_title">제3자 서비스</string>
-    <string name="privacy_third_party_desc">AI 요청은 Firebase(Google)가 처리하며, 남용을 막기 위해 App Check를 사용합니다. Google 정책은 policies.google.com/privacy에서 확인하세요.</string>
+    <string name="privacy_third_party_desc">AI 요청은 Firebase(Google)가 처리하며, 남용을 막기 위해 App Check를 사용합니다. Google 정책은 policies.google.com/privacy에서 확인하세요. Microsoft Azure Speech는 내 키로 Azure 채점을 켠 경우에만 사용됩니다.</string>
     <string name="privacy_rights_title">사용자의 권리</string>
     <string name="privacy_rights_desc">아래 버튼을 누르거나 앱을 삭제하면 언제든지 모든 학습 데이터를 지울 수 있습니다.</string>
     <string name="privacy_driving_title">운전 안전</string>

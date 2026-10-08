@@ -369,7 +369,7 @@
     <string name="privacy_data_title">会話データ</string>
     <string name="privacy_data_desc">書き起こし、スコア、訂正、単語は端末に保存されます。レッスン終了時に書き起こしを一度だけ Gemini に送り、まとめを作成します。アプリ独自のサーバーはなく、データを販売することもありません。</string>
     <string name="privacy_third_party_title">第三者のサービス</string>
-    <string name="privacy_third_party_desc">AI へのリクエストは Firebase（Google）が処理し、不正利用を防ぐために App Check を使用します。Google のポリシーは policies.google.com/privacy をご覧ください。</string>
+    <string name="privacy_third_party_desc">AI へのリクエストは Firebase（Google）が処理し、不正利用を防ぐために App Check を使用します。Google のポリシーは policies.google.com/privacy をご覧ください。Microsoft Azure Speech は、ご自身のキーで Azure 採点をオンにした場合にのみ使用されます。</string>
     <string name="privacy_rights_title">あなたの権利</string>
     <string name="privacy_rights_desc">下のボタン、またはアプリのアンインストールで、いつでも学習データをすべて削除できます。</string>
     <string name="privacy_driving_title">運転中の安全</string>

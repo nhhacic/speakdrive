@@ -369,7 +369,7 @@
     <string name="privacy_data_title">Gesprächsdaten</string>
     <string name="privacy_data_desc">Protokolle, Punkte, Korrekturen und Wörter werden lokal auf deinem Gerät gespeichert. Das Protokoll wird nach der Lektion einmal an Gemini gesendet, um die Zusammenfassung zu erstellen. Die App hat keinen eigenen Server und verkauft keine Daten.</string>
     <string name="privacy_third_party_title">Dienste Dritter</string>
-    <string name="privacy_third_party_desc">Firebase (Google) verarbeitet die KI-Anfragen und nutzt App Check gegen Missbrauch. Siehe die Richtlinie von Google unter policies.google.com/privacy.</string>
+    <string name="privacy_third_party_desc">Firebase (Google) verarbeitet die KI-Anfragen und nutzt App Check gegen Missbrauch. Siehe die Richtlinie von Google unter policies.google.com/privacy. Microsoft Azure Speech wird nur verwendet, wenn du die Azure-Bewertung mit deinem eigenen Schlüssel einschaltest.</string>
     <string name="privacy_rights_title">Deine Rechte</string>
     <string name="privacy_rights_desc">Du kannst alle Lerndaten jederzeit mit der Schaltfläche unten oder durch Deinstallieren der App löschen.</string>
     <string name="privacy_driving_title">Sicherheit beim Fahren</string>

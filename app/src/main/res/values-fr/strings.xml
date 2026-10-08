@@ -369,7 +369,7 @@
     <string name="privacy_data_title">Données des conversations</string>
     <string name="privacy_data_desc">Les transcriptions, scores, corrections et le vocabulaire sont stockés sur ton appareil. La transcription est envoyée une fois à Gemini à la fin de la leçon pour créer le résumé. L\'app n\'a pas de serveur propre et ne vend pas de données.</string>
     <string name="privacy_third_party_title">Services tiers</string>
-    <string name="privacy_third_party_desc">Firebase (Google) traite les requêtes à l\'IA et utilise App Check contre les abus. Voir la politique de Google sur policies.google.com/privacy.</string>
+    <string name="privacy_third_party_desc">Firebase (Google) traite les requêtes à l\'IA et utilise App Check contre les abus. Voir la politique de Google sur policies.google.com/privacy. Microsoft Azure Speech n\'est utilisé que si tu actives la notation Azure avec ta propre clé.</string>
     <string name="privacy_rights_title">Tes droits</string>
     <string name="privacy_rights_desc">Tu peux supprimer toutes tes données d\'apprentissage à tout moment avec le bouton ci-dessous ou en désinstallant l\'app.</string>
     <string name="privacy_driving_title">Sécurité au volant</string>

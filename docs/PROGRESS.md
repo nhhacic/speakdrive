@@ -1,6 +1,6 @@
 # Tiến độ triển khai SpeakDrive
 
-*Cập nhật: 02/10/2026*
+*Cập nhật: 09/10/2026 (v1.3.2)*
 
 Ký hiệu:
 - ✅ xong, đã có test tự động
@@ -15,7 +15,7 @@ Ký hiệu:
 |---|---|
 | Project 4 module, version catalog, Hilt; build thành công | ✅ `assembleDebug`, `assembleRelease` (APK release 2,8 MB) |
 | Firebase project thật | 👤 [FIREBASE_SETUP.md](FIREBASE_SETUP.md). Repo đang dùng `google-services.json` mẫu |
-| Audio layer: ghi âm 16 kHz, phát 24 kHz, audio focus | ✅ Dùng audio pipeline của Firebase SDK (có khử tiếng vọng); audio focus có test |
+| Audio layer: ghi âm 16 kHz, phát 24 kHz, audio focus | ✅ `LiveAudioIO` riêng (đường cuộc gọi có khử vọng phần cứng, dự phòng đường media + MicGate); audio focus có test |
 | Gemini Live: nói vào mic → AI trả lời bằng giọng | 🧪 `GeminiLiveManager` dùng `LiveSession.startAudioConversation` |
 | Barge-in (ngắt lời AI) | 🧪 Đã bật `enableInterruptions` |
 | Độ trễ < 2 giây | 🧪 Đo trên máy thật ([TESTING.md §4](TESTING.md)) |
@@ -49,9 +49,9 @@ Ký hiệu:
 ### Phase 5 – Testing
 | Hạng mục | Trạng thái |
 |---|---|
-| Unit test + Robolectric + Compose UI test | ✅ **79 test**, tất cả pass; lint không còn lỗi |
+| Unit test + Robolectric + Compose UI test | ✅ hơn 400 test (4 module), tất cả pass; lint chặn lỗi mới (baseline cho lỗi cũ) |
 | Smoke test khởi động app thật (Hilt + Room + Firebase) | ✅ |
-| CI GitHub Actions | ✅ `.github/workflows/android.yml` (chạy khi bạn đẩy code lên GitHub) |
+| CI GitHub Actions | ✅ `.github/workflows/android.yml`: test, lint, build debug + release mỗi lần push |
 | Test trên DHU / xe thật | 👤🧪 Kịch bản chi tiết trong [TESTING.md](TESTING.md) |
 
 ### Phase 6 – Deployment
@@ -94,21 +94,40 @@ Ký hiệu:
 | Luyện offline khi mất sóng: TTS + nhận dạng giọng nói trên máy, tự quay lại AI khi có sóng | ✅ test coach và engine; 🧪 **cần thử trên máy thật**: máy phải có gói nhận dạng tiếng Anh offline (Cài đặt → Google → Giọng nói → Nhận dạng giọng nói ngoại tuyến). Không có thì app chuyển sang nghe và nói theo, không chấm điểm |
 | Điều khiển bằng giọng nói cho mọi setting mới (tool Gemini, parser dự phòng, bộ nhận dạng lệnh) | ✅ test tiếng Việt và tiếng Anh |
 
+## Rà soát & sửa lỗi 08–09/10/2026 (v1.3.2)
+
+| Nội dung | Trạng thái |
+|---|---|
+| CI treo 45 phút từ 05/10 (`CarConnectionAutoStarterTest` lặp vô hạn) | ✅ đã sửa, thêm timeout cho mọi task test |
+| Khoá Azure và App Check debug token bị nhúng vào APK công khai | ✅ đã gỡ; khoá Azure nhập trong Cài đặt, token App Check sinh riêng mỗi máy (màn Giới thiệu). 👤 xem mục "Việc bạn cần làm" |
+| Lệnh giọng nói dự phòng bắt nhầm câu nói thường ("Tôi học tiếng Anh", "đồng ý", câu luyện "Could you say that again?") | ✅ chỉ xét khi nói xong lượt, có cổng chặn; test hồi quy với toàn bộ câu luyện |
+| Phiên học: tạm dừng do cuộc gọi/rời app, AI nói đè cuộc gọi sau khi mất mạng, Stop bị treo khi kết nối lại, kết nối lại 2 lần | ✅ test engine |
+| Android Auto: 4 tab, nút Next trên vô-lăng, dịch vụ không crash khi bấm Play lúc app đã tắt, chỉ controller tin cậy được kết nối | ✅ test; 🧪 DHU |
+| Âm thanh: quyền `MODIFY_AUDIO_SETTINGS`, âm lượng không bị nhân đôi, không rò micro khi lỗi | ✅ |
+| Điều khiển giọng nói cho mọi cài đặt (thêm: tự bắt đầu khi lên xe, mục tiêu ngày, Azure, màn hình khi học) | ✅ test tiếng Việt và tiếng Anh |
+| Giao diện đủ 8 ngôn ngữ (de/es/fr/ja/ko/zh trước đây chỉ dịch 72/369 chuỗi) | ✅ lint chặn thiếu bản dịch |
+| Script đồng bộ hai máy: không tự commit việc làm dở, pull chỉ fast-forward, receiver chỉ nghe trên Tailscale | ✅ (đồng bộ tự động đã tắt theo yêu cầu) |
+
 ## Thay đổi so với kế hoạch gốc
 
-- **Audio**: không tự viết `MicrophoneRecorder`/`AudioPlayer` nữa mà dùng audio pipeline của Firebase SDK.
-  SDK đã có khử tiếng vọng, barge-in và phát ở 24 kHz. Module `audio` chỉ còn audio focus và
-  thông báo bằng giọng nói.
+- **Audio**: module `audio` có pipeline riêng (`LiveAudioIO`): ưu tiên đường cuộc gọi (khử vọng phần
+  cứng, Bluetooth hands-free), dự phòng đường media; khi Android Auto chiếu thì dùng đường media.
 - **Đường điều khiển chung**: điện thoại cũng bắt đầu bài học qua Media3 service giống Android Auto,
   nhờ vậy bài học không bị dừng khi tắt màn hình.
-- **Model**: `gemini-3.1-flash-live-preview` cho hội thoại, `gemini-2.5-flash` cho tóm tắt
-  (đổi được trong `gradle.properties`).
+- **Model**: `speakdrive.liveModel` cho hội thoại, `speakdrive.textModel` cho tóm tắt và dịch phụ đề
+  (đổi trong `gradle.properties`; model "preview" có thể bị Google ngừng bất cứ lúc nào).
 - **Mô hình kinh doanh** (gói Free/Plus/Pro): chưa làm. Cần sản phẩm trên Play Console và Play Billing.
 
 ## Việc bạn cần làm tiếp
 
+0. **Bảo mật (làm ngay):** các APK debug cũ trên GitHub Releases chứa khoá Azure và App Check token.
+   - Azure Portal → Speech resource → **Keys and Endpoint** → **Regenerate Key 1**, rồi nhập khoá mới trong Cài đặt app.
+   - Firebase Console → App Check → **Manage debug tokens**: xoá token cũ, thêm token mới hiện trong màn Giới thiệu.
+   - Google Cloud Console: đặt cảnh báo ngân sách / giới hạn quota cho Gemini (Firebase AI Logic).
+   - Nếu còn dùng receiver đồng bộ: tạo `~/.speakdrive_sync_token` (cùng nội dung trên cả 2 máy), vì token cũ đã lộ.
 1. Tạo Firebase project và thay `google-services.json`: [FIREBASE_SETUP.md](FIREBASE_SETUP.md)
 2. Cài lên điện thoại, chạy kịch bản P1–P11, rồi A1–A9 trên DHU: [TESTING.md](TESTING.md)
 3. Tạo khóa ký và tài khoản Play Console, điền email vào chính sách bảo mật, upload lên Internal testing:
    [RELEASE.md](RELEASE.md)
-4. (Tuỳ chọn) Tạo repo GitHub và push lên, CI sẽ tự chạy test mỗi lần push
+4. Thử trên máy thật / DHU các điểm có 🧪 ở trên, đặc biệt: micro khi khoá máy (A8), nút Next trên vô-lăng,
+   giọng chỉ đường của Maps trong lúc học, cuộc gọi đến khi đang mất sóng.

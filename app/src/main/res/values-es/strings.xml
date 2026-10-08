@@ -369,7 +369,7 @@
     <string name="privacy_data_title">Datos de las conversaciones</string>
     <string name="privacy_data_desc">Las transcripciones, puntuaciones, correcciones y el vocabulario se guardan en tu dispositivo. La transcripción se envía una vez a Gemini al terminar la lección para crear el resumen. La app no tiene servidor propio y no vende datos.</string>
     <string name="privacy_third_party_title">Servicios de terceros</string>
-    <string name="privacy_third_party_desc">Firebase (Google) gestiona las solicitudes a la IA y usa App Check para evitar abusos. Consulta la política de Google en policies.google.com/privacy.</string>
+    <string name="privacy_third_party_desc">Firebase (Google) gestiona las solicitudes a la IA y usa App Check para evitar abusos. Consulta la política de Google en policies.google.com/privacy. Microsoft Azure Speech solo se usa si activas la puntuación de Azure con tu propia clave.</string>
     <string name="privacy_rights_title">Tus derechos</string>
     <string name="privacy_rights_desc">Puedes borrar todos los datos de aprendizaje cuando quieras con el botón de abajo o desinstalando la app.</string>
     <string name="privacy_driving_title">Seguridad al conducir</string>

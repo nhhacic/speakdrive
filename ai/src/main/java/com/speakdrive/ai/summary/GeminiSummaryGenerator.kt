@@ -15,6 +15,7 @@ import com.speakdrive.ai.model.TranscriptTurn
 import com.speakdrive.ai.pronunciation.PronunciationAttempt
 import com.speakdrive.ai.pronunciation.PronunciationDrill
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,10 +24,8 @@ class GeminiSummaryGenerator @Inject constructor() : SummaryGenerator {
 
     private val candidateModels = listOf(
         BuildConfig.TEXT_MODEL,
-        "gemini-3.8-flash",
         "gemini-3.5-flash-lite",
-        "gemini-2.5-flash",
-        "gemini-1.5-flash-8b"
+        "gemini-2.5-flash"
     ).filter { it.isNotBlank() }.distinct()
 
     override suspend fun summarize(
@@ -60,7 +59,8 @@ class GeminiSummaryGenerator @Inject constructor() : SummaryGenerator {
                         temperature = 0.4f
                     }
                 )
-                val response = model.generateContent(prompt)
+                // One slow model must not keep the summary spinner going for minutes.
+                val response = withTimeoutOrNull(MODEL_TIMEOUT_MS) { model.generateContent(prompt) } ?: continue
                 val raw = response.text
                 if (!raw.isNullOrBlank()) {
                     return SummaryParser.parse(
@@ -85,7 +85,8 @@ class GeminiSummaryGenerator @Inject constructor() : SummaryGenerator {
                         temperature = 0.4f
                     }
                 )
-                val response = model.generateContent(prompt)
+                // One slow model must not keep the summary spinner going for minutes.
+                val response = withTimeoutOrNull(MODEL_TIMEOUT_MS) { model.generateContent(prompt) } ?: continue
                 val raw = response.text
                 if (!raw.isNullOrBlank()) {
                     return SummaryParser.parse(
@@ -109,6 +110,7 @@ class GeminiSummaryGenerator @Inject constructor() : SummaryGenerator {
 
     private companion object {
         const val TAG = "GeminiSummary"
+        const val MODEL_TIMEOUT_MS = 30_000L
         const val MIN_LEARNER_TURNS = 2
         const val MIN_DRILL_ATTEMPTS = 2
 

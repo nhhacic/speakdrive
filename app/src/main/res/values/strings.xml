@@ -387,7 +387,7 @@
     <string name="privacy_data_title">Conversation Data</string>
     <string name="privacy_data_desc">Transcripts, scores, corrections, and vocabulary are stored locally on your device. Transcripts are sent once to Gemini upon session completion to generate summary feedback. The app has no private server and does not sell data.</string>
     <string name="privacy_third_party_title">Third-party Services</string>
-    <string name="privacy_third_party_desc">Firebase (Google) handles AI requests and uses App Check to prevent abuse. See Google\'s policy at policies.google.com/privacy.</string>
+    <string name="privacy_third_party_desc">Firebase (Google) handles AI requests and uses App Check to prevent abuse. See Google\'s policy at policies.google.com/privacy. Microsoft Azure Speech is used only if you turn on Azure scoring with your own key.</string>
     <string name="privacy_rights_title">Your Rights</string>
     <string name="privacy_rights_desc">You can delete all learning data at any time using the button below or by uninstalling the app.</string>
     <string name="privacy_driving_title">Driving Safety</string>
