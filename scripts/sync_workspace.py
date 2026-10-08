@@ -48,6 +48,9 @@ STATE_FILE_WIN = os.path.join(r"d:\@Vibe_code_projects\English Speaking App", ".
 WIN_PROJECT_DIR = r"d:\@Vibe_code_projects\English Speaking App"
 WIN_GEMINI_DIR = os.path.expanduser(r"~\.gemini\antigravity")
 WIN_APP_STORAGE = os.path.expandvars(r"%APPDATA%\Antigravity\app_storage.json")
+WIN_TAILSCALE_IP = "100.94.114.23"
+WIN_RECEIVER_PORT = 49200
+SYNC_SECRET_TOKEN = "speakdrive_sync_token_secure_49200"
 
 # Đường dẫn trên Linux
 LINUX_HOST = "root@100.107.110.66"
@@ -872,6 +875,33 @@ conn.close()
     print(f"  ✅ Đã đồng bộ thành công {len(remote_rows)} phiên hội thoại từ Linux về Windows!")
 
 
+def notify_windows_receiver():
+    """Gửi tín hiệu notify từ Linux sang Windows Sync Receiver qua Tailscale"""
+    print("\n--- BƯỚC 2: BẮN THÔNG BÁO ĐỒNG BỘ VỀ MÁY WINDOWS ---")
+    url = f"http://{WIN_TAILSCALE_IP}:{WIN_RECEIVER_PORT}/notify-sync"
+    req_data = json.dumps({"source": "linux_auto_push", "timestamp": datetime.now(timezone.utc).isoformat()}).encode("utf-8")
+    
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            url, data=req_data,
+            headers={
+                "Content-Type": "application/json",
+                "X-Sync-Token": SYNC_SECRET_TOKEN
+            }
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            if resp.status == 200:
+                print("  ✅ ĐÃ BẮN THÔNG BÁO THÀNH CÔNG SANG MÁY WINDOWS!")
+                print("  🚀 Máy Windows đang tự động kéo Code và Phiên làm việc về trong nền.")
+            else:
+                print(f"  [Cảnh báo] Windows receiver phản hồi mã trạng thái: {resp.status}")
+    except Exception as e:
+        print(f"  ℹ️ Không thể kết nối tới Windows Sync Receiver ({e}).")
+        print("  -> Máy Windows hiện có thể đang tắt. Code đã được lưu an toàn trên GitHub,")
+        print("     dữ liệu phiên sẵn sàng trên Linux chờ máy Windows đồng bộ khi bật máy.")
+
+
 # ==================== MAIN CLI ====================
 def main():
     parser = argparse.ArgumentParser(description="SpeakDrive Multi-Machine Workspace Synchronizer")
@@ -909,7 +939,7 @@ def main():
                 if current_os == 'windows':
                     sync_conversations_from_linux(since_hours=args.since_hours, sync_all=args.all)
                 else:
-                    print("  [Thông báo] Đã đẩy mã nguồn Git lên GitHub từ Linux.")
+                    notify_windows_receiver()
         
         print("\n================================================================")
         print("🎉 TẤT CẢ DỮ LIỆU ĐÃ ĐƯỢC ĐỒNG BỘ HOÀN TẤT & AN TOÀN!")
