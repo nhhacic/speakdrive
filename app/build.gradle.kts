@@ -14,8 +14,8 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
-val defaultAzureKey = localProperties.getProperty("azure.speechKey")?.takeIf { it.isNotBlank() }
-    ?: ""
+// The Azure Speech key is NOT compiled into the app (APKs are published publicly and the key would be
+// extractable). Learners enter their own key in Settings; only the default region is built in.
 val defaultAzureRegion = localProperties.getProperty("azure.speechRegion")?.takeIf { it.isNotBlank() }
     ?: "southeastasia"
 
@@ -72,12 +72,12 @@ android {
         versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "AZURE_SPEECH_KEY", "\"$defaultAzureKey\"")
         buildConfigField("String", "AZURE_SPEECH_REGION", "\"$defaultAzureRegion\"")
     }
 
     signingConfigs {
-        if (keystoreProperties.isNotEmpty()) {
+        // Only sign when keystore.properties is complete; a partial file must not break configuration.
+        if (!keystoreProperties.getProperty("storeFile").isNullOrBlank()) {
             create("release") {
                 storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
                 storePassword = keystoreProperties.getProperty("storePassword")
@@ -88,19 +88,9 @@ android {
     }
 
     buildTypes {
-        debug {
-            buildConfigField("String", "AZURE_SPEECH_KEY", "\"$defaultAzureKey\"")
-            buildConfigField("String", "AZURE_SPEECH_REGION", "\"$defaultAzureRegion\"")
-            // Fixed App Check debug token so reinstalls keep working (register it once in Firebase Console).
-            buildConfigField(
-                "String",
-                "APP_CHECK_DEBUG_TOKEN",
-                "\"${localProperties.getProperty("appcheck.debugToken", "").trim()}\""
-            )
-        }
+        // No App Check debug token is pinned into builds either: each install generates its own and shows it
+        // on the About screen (debug builds only) so it can be registered in Firebase Console.
         release {
-            buildConfigField("String", "AZURE_SPEECH_KEY", "\"$defaultAzureKey\"")
-            buildConfigField("String", "AZURE_SPEECH_REGION", "\"$defaultAzureRegion\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

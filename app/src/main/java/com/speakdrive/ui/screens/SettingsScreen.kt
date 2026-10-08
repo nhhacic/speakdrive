@@ -41,6 +41,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.Alignment
@@ -53,7 +54,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
@@ -565,9 +569,12 @@ fun SettingsContent(
             SettingsGroupCard(title = stringResource(R.string.settings_group_azure), icon = Icons.Filled.Cloud) {
                 AzureSection(
                     enabled = prefs.learner.azureEnabled,
+                    savedRegion = prefs.learner.azureRegion,
+                    savedKey = prefs.learner.azureKey,
                     testState = azureTest,
                     onEnabledChange = onSetAzureEnabled,
-                    onTestConnection = onTestAzure
+                    onTestConnection = onTestAzure,
+                    onSaveAndTest = onSaveAndTestAzure
                 )
             }
 
@@ -651,13 +658,19 @@ private fun SettingsGroupCard(
 }
 
 
-/** Optional third judge for pronunciation drills: Azure Pronunciation Assessment. */
+/**
+ * Optional third judge for pronunciation drills: Azure Pronunciation Assessment. The learner brings
+ * their own key (free tier: 5 hours/month); it is stored only on this device, never in the APK.
+ */
 @Composable
 private fun AzureSection(
     enabled: Boolean,
+    savedRegion: String,
+    savedKey: String,
     testState: AzureTestState,
     onEnabledChange: (Boolean) -> Unit,
-    onTestConnection: () -> Unit
+    onTestConnection: () -> Unit,
+    onSaveAndTest: (String, String) -> Unit
 ) {
     ListItem(
         headlineContent = { Text(stringResource(R.string.settings_azure_enable)) },
@@ -667,13 +680,39 @@ private fun AzureSection(
         trailingContent = { Switch(checked = enabled, onCheckedChange = onEnabledChange) }
     )
 
+    var region by rememberSaveable(savedRegion) { mutableStateOf(savedRegion) }
+    var key by rememberSaveable(savedKey) { mutableStateOf(savedKey) }
+    val changed = region.trim() != savedRegion || key.trim() != savedKey
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
+        OutlinedTextField(
+            value = region,
+            onValueChange = { region = it },
+            label = { Text(stringResource(R.string.settings_azure_region)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = key,
+            onValueChange = { key = it },
+            label = { Text(stringResource(R.string.settings_azure_key)) },
+            supportingText = { Text(stringResource(R.string.settings_azure_key_hint)) },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
         Button(
-            onClick = onTestConnection,
-            enabled = testState != AzureTestState.Testing,
+            onClick = { if (changed) onSaveAndTest(region, key) else onTestConnection() },
+            enabled = testState != AzureTestState.Testing && region.isNotBlank() && key.isNotBlank(),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (testState == AzureTestState.Testing) stringResource(R.string.settings_azure_status_testing) else stringResource(R.string.settings_azure_status_idle))
+            Text(
+                when {
+                    testState == AzureTestState.Testing -> stringResource(R.string.settings_azure_status_testing)
+                    changed -> stringResource(R.string.settings_azure_save_test)
+                    else -> stringResource(R.string.settings_azure_status_idle)
+                }
+            )
         }
         val (message, color) = when (testState) {
             AzureTestState.Idle -> "" to MaterialTheme.colorScheme.onSurfaceVariant

@@ -2,9 +2,11 @@ package com.speakdrive.data.repository
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -20,12 +22,19 @@ import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.ai.session.LearningSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_preferences")
+// A corrupted preferences file must not crash every launch: start over with defaults instead.
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "user_preferences",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() }
+)
 
 enum class ScreenAwakeMode(
     val shortLabelVi: String,
@@ -107,7 +116,9 @@ class UserPreferencesRepository @Inject constructor(
 
     private val dataStore = context.dataStore
 
-    val preferences: Flow<UserPreferences> = dataStore.data.map { prefs ->
+    val preferences: Flow<UserPreferences> = dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { prefs ->
         val appLang = AppLanguage.fromCode(prefs[APP_LANGUAGE])
         val showSubs = prefs[SHOW_TRANSLATION_SUBTITLE] ?: true
         UserPreferences(
@@ -117,9 +128,9 @@ class UserPreferencesRepository @Inject constructor(
                 allowVietnameseHelp = prefs[ALLOW_VIETNAMESE_HELP] ?: true,
                 allowBargeIn = prefs[ALLOW_BARGE_IN] ?: false,
                 azureEnabled = prefs[AZURE_ENABLED] ?: false,
-                // Defaults to preconfigured BuildConfig credentials if not explicitly overridden.
+                // The key is never shipped inside the APK: each learner enters their own in Settings.
                 azureRegion = prefs[AZURE_REGION]?.takeIf { it.isNotBlank() } ?: BuildConfig.AZURE_SPEECH_REGION,
-                azureKey = prefs[AZURE_KEY]?.takeIf { it.isNotBlank() } ?: BuildConfig.AZURE_SPEECH_KEY,
+                azureKey = prefs[AZURE_KEY].orEmpty(),
                 lastTopicId = prefs[LAST_TOPIC_ID],
                 lastSessionMode = prefs[LAST_SESSION_MODE]?.let { modeStr ->
                     runCatching { com.speakdrive.ai.model.SessionMode.valueOf(modeStr) }.getOrNull()
@@ -149,7 +160,7 @@ class UserPreferencesRepository @Inject constructor(
 
     override suspend fun snapshot(): LearnerSettings = preferences.first().learner
 
-    override fun observeLearnerSettings(): Flow<LearnerSettings> = preferences.map { it.learner }
+    override fun observeLearnerSettings(): Flow<LearnerSettings> = preferences.map { it.learner }.distinctUntilChanged()
 
     override suspend fun setLevel(level: DifficultyLevel) {
         dataStore.edit { it[DIFFICULTY_LEVEL] = level.name }

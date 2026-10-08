@@ -1,6 +1,7 @@
 package com.speakdrive
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import com.google.firebase.Firebase
 import com.google.firebase.appcheck.appCheck
@@ -15,4 +16,8 @@ object AppCheckInstaller {
             Firebase.appCheck.installAppCheckProviderFactory(PlayIntegrityAppCheckProviderFactory.getInstance())
         }.onFailure { Log.w("AppCheck", "App Check not installed", it) }
     }
+
+    /** Debug tokens only exist in debug builds. */
+    @Suppress("UNUSED_PARAMETER")
+    fun debugToken(context: Context): String? = null
 }

@@ -396,4 +396,13 @@
     <string name="privacy_confirm_dialog_desc">Bạn có chắc muốn xoá toàn bộ lịch sử học, từ vựng và thống kê? Hành động này không thể hoàn tác.</string>
     <string name="privacy_dialog_delete">Xoá</string>
     <string name="privacy_dialog_cancel">Huỷ</string>
+    <string name="about_appcheck_title">Mã App Check (bản debug)</string>
+    <string name="about_appcheck_desc">Chỉ có ở bản debug. Đăng ký mã này một lần trong Firebase Console → App Check → Manage debug tokens để máy này dùng được Gemini.</string>
+    <string name="about_appcheck_pending">Chưa được tạo. Hãy bắt đầu một buổi học rồi mở lại màn hình này.</string>
+    <string name="about_appcheck_copy">Sao chép mã</string>
+    <string name="about_appcheck_copied">Đã sao chép mã</string>
+    <string name="settings_azure_region">Vùng Azure (ví dụ southeastasia)</string>
+    <string name="settings_azure_key">Khoá Azure Speech</string>
+    <string name="settings_azure_key_hint">Khoá riêng của bạn lấy từ Azure Portal. Chỉ lưu trên điện thoại này.</string>
+    <string name="settings_azure_save_test">Lưu &amp; kiểm tra</string>
 </resources>

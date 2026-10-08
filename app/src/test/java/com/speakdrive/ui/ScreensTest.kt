@@ -481,7 +481,10 @@ class ScreensTest {
         compose.setContent {
             SpeakDriveTheme {
                 SettingsContent(
-                    prefs = UserPreferences(),
+                    // The test button needs a region and the learner's own key (none is built into the app).
+                    prefs = UserPreferences(
+                        learner = LearnerSettings(azureRegion = "southeastasia", azureKey = "test-key")
+                    ),
                     azureTest = AzureTestState.Ok,
                     onBack = {},
                     onOpenProgress = {},

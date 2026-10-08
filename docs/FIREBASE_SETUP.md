@@ -46,16 +46,20 @@ App đã cài sẵn App Check: bản **debug** dùng *debug provider*, bản **r
    Lấy bằng lệnh `keytool -list -v -keystore ~/.android/debug.keystore -storepass android`.
    Sau này thêm cả khóa release.
 2. **Security → App Check → Apps** → chọn app Android → **Play Integrity** → **Save**.
-3. Cài bản debug lên máy, mở app một lần, rồi tìm trong Logcat dòng `Firebase App Check debug token: …`.
+3. Cài bản debug lên máy, bắt đầu một buổi học (lần đầu sẽ báo lỗi kết nối – bình thường),
+   rồi mở **Cài đặt → Giới thiệu ứng dụng**: thẻ **Mã App Check (bản debug)** hiện token của máy này,
+   bấm **Sao chép mã** (hoặc tìm trong Logcat dòng `Firebase App Check debug token: …`).
 4. App Check → menu ⋮ của app → **Manage debug tokens** → **Add debug token** → dán token vừa copy.
 
-Mỗi lần **gỡ cài đặt** app hoặc xoá dữ liệu app, token debug sẽ đổi và phải thêm token mới.
-Cài đè bằng `./gradlew installDebug` thì token được giữ nguyên.
+Mỗi máy / mỗi lần cài mới có **token riêng**, phải đăng ký một lần. Gỡ cài đặt hoặc xoá dữ liệu app thì
+token đổi; cài đè bằng `./gradlew installDebug` thì giữ nguyên.
 
-**Khuyên dùng – token cố định:** thêm dòng `appcheck.debugToken=<một UUID>` vào `local.properties`
-(đã git-ignore). Bản debug sẽ luôn dùng token này dù gỡ/cài lại hay đổi máy, nên chỉ cần đăng ký
-nó **một lần** trong **Manage debug tokens**. Nếu token sai, server đóng kết nối Gemini Live với lý do
-`Firebase App Check token is invalid` (SDK chỉ hiện "Channel was closed by the server").
+**Không nhúng token vào APK.** Trước bản 1.3.0, app nhúng một token cố định (`appcheck.debugToken` trong
+`local.properties`) vào mọi bản debug. Vì APK được đăng công khai trên GitHub Releases, ai tải về cũng lấy
+được token đó và gọi Gemini bằng quota của bạn. Từ 1.3.0 tuỳ chọn này đã bị bỏ: hãy **thu hồi token cũ**
+trong **Manage debug tokens**. Lần đầu mở bản mới, app tự xoá token cũ đã lưu và sinh token mới.
+
+Nên đặt thêm giới hạn quota / cảnh báo ngân sách cho Gemini (Firebase AI Logic) trong Google Cloud Console.
 
 ## 4. SHA-256 cho Play Integrity (khi phát hành)
 

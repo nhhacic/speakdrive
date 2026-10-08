@@ -33,22 +33,16 @@ bị đánh dấu phát âm sai, bị thiếu, hoặc có độ chính xác dư�
 
 ## 2. Nhập vào app
 
-**Cách A: trên điện thoại.** Mở **Cài đặt → Chấm phát âm bằng Azure**, bật lên, nhập **Region** và **Key**,
-rồi bấm **Lưu & kiểm tra kết nối**. Thấy dòng *✓ Kết nối Azure thành công* là xong.
+Mở **Cài đặt → Dịch vụ chấm phát âm Azure**, bật **Chấm phát âm bằng Azure**, nhập **Vùng Azure** và
+**Khoá Azure Speech**, rồi bấm **Lưu & kiểm tra**. Thấy dòng *✓ Kết nối Azure thành công* là xong.
 
-**Cách B: khi build bản debug.** Thêm vào `local.properties` (file này không được commit):
-
-```properties
-azure.speechKey=KEY_1_CUA_BAN
-azure.speechRegion=southeastasia
-```
-
-Sau đó build lại (`./gradlew installDebug`) và bật công tắc trong Cài đặt. Key nhập trên điện thoại
-sẽ ưu tiên hơn key trong `local.properties`.
+Từ bản 1.3.0, app **không còn** đọc `azure.speechKey` trong `local.properties` để nhúng vào APK
+(APK được đăng công khai nên khoá sẽ bị lộ). Chỉ `azure.speechRegion` (vùng mặc định) vẫn được đọc.
 
 ## 3. Bảo mật
 
-- Key chỉ lưu trên điện thoại và chỉ gửi tới máy chủ Azure. Bản **release** không bao giờ chứa key có sẵn.
+- Key chỉ lưu trên điện thoại (không sao lưu lên Google Drive) và chỉ gửi tới máy chủ Azure. Không bản build nào chứa key có sẵn.
+- Các bản debug trước 1.3.0 đã nhúng key vào APK: nếu bạn từng dùng chúng, hãy **Regenerate Key 1** ngay.
 - Không đưa key vào code hay Git. Nếu lỡ lộ, vào Azure portal → **Keys and Endpoint** → **Regenerate Key 1**.
 - Khi phát hành cho nhiều người dùng, không nên dùng chung một key trong app. Nên làm một máy chủ nhỏ
   (ví dụ Firebase Cloud Functions) để cấp token tạm thời qua endpoint `issueToken`.

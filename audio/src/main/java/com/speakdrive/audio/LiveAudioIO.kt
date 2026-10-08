@@ -1,5 +1,6 @@
 package com.speakdrive.audio
 
+import android.annotation.SuppressLint
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -243,6 +244,9 @@ class LiveAudioIO @Inject constructor(
      * Creates and starts a recorder for [source]. With [probeChunks] > 0 it must deliver real
      * sound (not only zeros) within that many 100 ms chunks, otherwise null is returned.
      */
+    // startCapture() checks RECORD_AUDIO before any recorder is opened; a revoked permission throws
+    // and is caught below.
+    @SuppressLint("MissingPermission")
     private fun openRecord(source: Int, bufferSize: Int, probeChunks: Int): AudioRecord? {
         val candidate = runCatching {
             AudioRecord(source, IN_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize)

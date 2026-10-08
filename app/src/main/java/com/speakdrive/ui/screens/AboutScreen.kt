@@ -1,5 +1,7 @@
 package com.speakdrive.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -56,6 +58,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.speakdrive.AppCheckInstaller
 import com.speakdrive.BuildConfig
 
 import androidx.compose.ui.platform.LocalConfiguration
@@ -118,6 +121,11 @@ fun AboutScreen(
 
             // Thông tin kỹ thuật & Model AI
             TechInfoCard()
+
+            // Bản debug: mã App Check riêng của máy này để đăng ký trên Firebase Console
+            if (BuildConfig.DEBUG) {
+                AppCheckDebugTokenCard(token = AppCheckInstaller.debugToken(context))
+            }
 
             // Các hành động liên kết
             Card(
@@ -398,6 +406,58 @@ private fun TechInfoCard() {
             InfoItem(label = "Gemini Text Model", value = com.speakdrive.ai.BuildConfig.TEXT_MODEL)
             InfoItem(label = stringResource(R.string.about_platform_label), value = "Android 8.0+ & Android Auto (Jetpack Compose)")
             InfoItem(label = stringResource(R.string.about_architecture_label), value = "Clean Architecture, Media3 Service, Hilt, Room")
+        }
+    }
+}
+
+@Composable
+private fun AppCheckDebugTokenCard(token: String?) {
+    val context = LocalContext.current
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(20.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Filled.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    text = stringResource(R.string.about_appcheck_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Text(
+                text = stringResource(R.string.about_appcheck_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = token ?: stringResource(R.string.about_appcheck_pending),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            if (token != null) {
+                OutlinedButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        clipboard?.setPrimaryClip(ClipData.newPlainText("App Check debug token", token))
+                        Toast.makeText(context, context.getString(R.string.about_appcheck_copied), Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.about_appcheck_copy))
+                }
+            }
         }
     }
 }

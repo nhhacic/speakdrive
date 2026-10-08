@@ -10,14 +10,10 @@ import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.initialize
 
 /**
- * Debug builds: prints a debug token to Logcat ("DebugAppCheckProvider") that you register in
- * Firebase Console → App Check → Manage debug tokens. See docs/FIREBASE_SETUP.md.
- *
- * By default the SDK generates a NEW random token for every fresh install (reinstall, "Clear data",
- * a new device...), and the server then closes the Gemini Live connection with
- * "Firebase App Check token is invalid" (shown by the SDK as "Channel was closed by the server").
- * Setting `appcheck.debugToken=<uuid>` in local.properties pins one token for all installs, so it
- * only has to be registered once.
+ * Debug builds use the App Check debug provider. Each install generates its own random debug token
+ * (nothing is compiled into the APK, which is published publicly). The token is shown on the About
+ * screen so it can be registered once in Firebase Console → App Check → Manage debug tokens.
+ * See docs/FIREBASE_SETUP.md.
  */
 object AppCheckInstaller {
     private const val TAG = "AppCheck"
@@ -25,25 +21,36 @@ object AppCheckInstaller {
     fun install(app: Application) {
         runCatching {
             Firebase.initialize(app)
-            pinDebugToken(app)
+            dropTokenPinnedByOlderBuilds(app)
             Firebase.appCheck.installAppCheckProviderFactory(DebugAppCheckProviderFactory.getInstance())
         }.onFailure { Log.w(TAG, "App Check not installed", it) }
     }
 
-    /** Pre-seeds the debug provider's own storage so it reuses our fixed token instead of a random one. */
-    private fun pinDebugToken(app: Application) {
-        val token = BuildConfig.APP_CHECK_DEBUG_TOKEN.trim()
-        if (token.isEmpty()) return
-        val persistenceKey = FirebaseApp.getInstance().persistenceKey
-        val prefs = app.getSharedPreferences(
-            "com.google.firebase.appcheck.debug.store.$persistenceKey",
-            Context.MODE_PRIVATE
-        )
-        if (prefs.getString(DEBUG_SECRET_KEY, null) != token) {
-            prefs.edit().putString(DEBUG_SECRET_KEY, token).commit()
-        }
-        Log.i(TAG, "Using pinned App Check debug token from local.properties: $token")
+    /**
+     * The debug token of this install, or null until the SDK has generated it (it does so on the first
+     * request to Gemini). Release builds always return null.
+     */
+    fun debugToken(context: Context): String? = runCatching {
+        debugStore(context).getString(DEBUG_SECRET_KEY, null)?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
+    /**
+     * Builds up to 1.2.20 pinned one shared token from local.properties into every APK. That token is
+     * public now and will be revoked, so forget it once and let the SDK generate a private one.
+     */
+    private fun dropTokenPinnedByOlderBuilds(app: Application) {
+        val flags = app.getSharedPreferences(FLAGS_PREFS, Context.MODE_PRIVATE)
+        if (flags.getBoolean(KEY_PER_INSTALL_TOKEN, false)) return
+        debugStore(app).edit().remove(DEBUG_SECRET_KEY).commit()
+        flags.edit().putBoolean(KEY_PER_INSTALL_TOKEN, true).apply()
     }
 
+    private fun debugStore(context: Context) = context.getSharedPreferences(
+        "com.google.firebase.appcheck.debug.store.${FirebaseApp.getInstance().persistenceKey}",
+        Context.MODE_PRIVATE
+    )
+
     private const val DEBUG_SECRET_KEY = "com.google.firebase.appcheck.debug.DEBUG_SECRET"
+    private const val FLAGS_PREFS = "speakdrive_appcheck"
+    private const val KEY_PER_INSTALL_TOKEN = "per_install_token_v2"
 }
