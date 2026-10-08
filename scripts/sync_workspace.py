@@ -333,22 +333,38 @@ def sync_conversations_to_linux():
     print("  Đang chuyển dữ liệu phiên hội thoại sang Linux...")
     run_cmd(f"scp -o StrictHostKeyChecking=no \"{temp_sync_json}\" {LINUX_HOST}:/tmp/speakdrive_sync.json")
 
-    # Sync individual conversation DB files and brain folders
-    print("  Đang đồng bộ các file chi tiết (.db và brain/)...")
+    # Sync conversation DB files in a single batched tar archive
+    print("  Đang đóng gói và đồng bộ các file SQLite hội thoại...")
+    conv_dir = Path(WIN_GEMINI_DIR) / "conversations"
+    conv_files_to_sync = []
     for cid in cids:
-        # DB files
-        conv_dir = Path(WIN_GEMINI_DIR) / "conversations"
         for ext in ["", "-wal", "-shm"]:
-            db_file = conv_dir / f"{cid}.db{ext}"
-            if db_file.exists():
-                run_cmd(f"scp -o StrictHostKeyChecking=no \"{db_file}\" {LINUX_HOST}:{LINUX_GEMINI_DIR}/conversations/")
+            f = conv_dir / f"{cid}.db{ext}"
+            if f.exists():
+                conv_files_to_sync.append(f"{cid}.db{ext}")
 
-        # Brain folder
-        brain_folder = Path(WIN_GEMINI_DIR) / "brain" / cid
-        if brain_folder.exists():
-            # Use tar over SSH for fast directory transfer
-            tar_cmd = f"tar -czf - -C \"{Path(WIN_GEMINI_DIR) / 'brain'}\" \"{cid}\" | ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"tar -xzf - -C {LINUX_GEMINI_DIR}/brain/\""
-            run_cmd(tar_cmd)
+    if conv_files_to_sync:
+        conv_list_file = temp_dir / "conv_files.txt"
+        with open(conv_list_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(conv_files_to_sync))
+        conv_tar = temp_dir / "conv_batch.tar.gz"
+        run_cmd(f"tar -czf \"{conv_tar}\" -C \"{conv_dir}\" -T \"{conv_list_file}\"")
+        run_cmd(f"scp -o StrictHostKeyChecking=no \"{conv_tar}\" {LINUX_HOST}:/tmp/conv_batch.tar.gz")
+        run_cmd(f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"tar -xzf /tmp/conv_batch.tar.gz -C {LINUX_GEMINI_DIR}/conversations/ && rm -f /tmp/conv_batch.tar.gz\"")
+
+    # Sync brain folders in a single batched tar archive
+    print("  Đang đóng gói và đồng bộ các thư mục não bộ / ký ức (brain/)...")
+    brain_dir = Path(WIN_GEMINI_DIR) / "brain"
+    brain_folders_to_sync = [cid for cid in cids if (brain_dir / cid).exists()]
+
+    if brain_folders_to_sync:
+        brain_list_file = temp_dir / "brain_folders.txt"
+        with open(brain_list_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(brain_folders_to_sync))
+        brain_tar = temp_dir / "brain_batch.tar.gz"
+        run_cmd(f"tar -czf \"{brain_tar}\" -C \"{brain_dir}\" -T \"{brain_list_file}\"")
+        run_cmd(f"scp -o StrictHostKeyChecking=no \"{brain_tar}\" {LINUX_HOST}:/tmp/brain_batch.tar.gz")
+        run_cmd(f"ssh -o StrictHostKeyChecking=no {LINUX_HOST} \"tar -xzf /tmp/brain_batch.tar.gz -C {LINUX_GEMINI_DIR}/brain/ && rm -f /tmp/brain_batch.tar.gz\"")
 
     # Update Linux SQLite & agyhub_summaries_proto.pb via Python script on Linux
     remote_apply_script = """
