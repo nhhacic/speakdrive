@@ -1,9 +1,14 @@
 package com.speakdrive.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,37 +21,37 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyGridScope
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.ui.text.style.TextOverflow
-import com.speakdrive.ai.model.CustomScenario
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -59,8 +64,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,11 +74,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -82,12 +89,20 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.speakdrive.R
 import com.speakdrive.ai.TopicManager
 import com.speakdrive.ai.model.CompletedSession
+import com.speakdrive.ai.model.CustomScenario
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.Topic
 import com.speakdrive.auto.MediaIds
-import com.speakdrive.ui.components.StatTile
 import com.speakdrive.ui.components.TopicCard
+import com.speakdrive.ui.theme.AppColors
 import java.util.Calendar
+
+private enum class TopicCategoryTab(val labelRes: Int) {
+    ALL(R.string.home_filter_all),
+    DAILY(R.string.home_filter_daily),
+    WORK(R.string.home_filter_work),
+    TRAVEL(R.string.home_filter_travel)
+}
 
 @Composable
 fun HomeScreen(
@@ -122,6 +137,7 @@ fun HomeContent(
 ) {
     var sheetTopic by remember { mutableStateOf<Topic?>(null) }
     var showStorySheet by remember { mutableStateOf(false) }
+    var selectedCategory by rememberSaveable { mutableStateOf(TopicCategoryTab.ALL) }
     val isVi = LocalConfiguration.current.locales[0].language == "vi"
 
     val currentHour = remember { Calendar.getInstance().get(Calendar.HOUR_OF_DAY) }
@@ -131,163 +147,153 @@ fun HomeContent(
         else -> stringResource(R.string.home_greeting_evening_emoji)
     }
 
+    val filteredTopics = remember(state.topics, selectedCategory) {
+        when (selectedCategory) {
+            TopicCategoryTab.ALL -> state.topics
+            TopicCategoryTab.DAILY -> state.topics.filter {
+                it.topic.id in setOf("daily", "social_dating", "food", "shopping", "entertainment")
+            }
+            TopicCategoryTab.WORK -> state.topics.filter {
+                it.topic.id in setOf(
+                    "work", "interview", "startup_tech", "tech_it",
+                    "medical_expert", "civil_engineering", "transport_engineering"
+                )
+            }
+            TopicCategoryTab.TRAVEL -> state.topics.filter {
+                it.topic.id in setOf("travel", "driving_emergency", "health")
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_speakdrive_logo),
-                            contentDescription = "SpeakDrive Logo",
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            "SpeakDrive",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onOpenProgress) {
-                        Icon(Icons.Filled.Insights, contentDescription = stringResource(R.string.nav_progress), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_title), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+            HomeTopBar(
+                isCarConnected = state.isCarConnected,
+                onOpenProgress = onOpenProgress,
+                onOpenSettings = onOpenSettings
             )
         }
     ) { padding ->
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Android Auto Connection Status
-            if (state.isCarConnected) fullWidth { CarBanner() }
+            // 1. Chào hỏi cá nhân hóa & sẵn sàng rảnh tay
+            item(key = "greeting_header") {
+                HomeGreetingHeader(greeting = greeting)
+            }
 
-            // Active lesson in progress
-            state.currentLesson?.let { lesson ->
-                fullWidth {
-                    ActiveLessonBanner(
-                        title = "${lesson.topic.emoji} ${lesson.getTitle(isVi)}",
-                        level = lesson.level.getLabel(isVi),
-                        onClick = onOpenCurrentLesson
-                    )
+            // 2. HERO ONE-TAP CARD (Tâm điểm thị giác chính của màn hình)
+            item(key = "hero_action_card") {
+                HeroActionCard(
+                    state = state,
+                    isVi = isVi,
+                    onResumeLesson = {
+                        if (state.currentLesson != null) {
+                            onOpenCurrentLesson()
+                        } else {
+                            onStartLesson(MediaIds.RESUME)
+                        }
+                    },
+                    onRandomLesson = { onStartLesson(MediaIds.RANDOM) }
+                )
+            }
+
+            // 3. BENTO DASHBOARD: Tiến độ hôm nay & Hàng đợi ôn tập song song
+            item(key = "bento_dashboard") {
+                BentoDashboardSection(
+                    state = state,
+                    isVi = isVi,
+                    onOpenProgress = onOpenProgress,
+                    onStartReview = { onStartLesson(MediaIds.REVIEW) },
+                    onStartMistakes = { onStartLesson(MediaIds.MISTAKES) },
+                    onStartPronunciation = { onStartLesson(MediaIds.pronunciation(state.lastTopic?.id)) }
+                )
+            }
+
+            // 4. CHẾ ĐỘ HỌC NHANH (Quick Practice Carousel)
+            item(key = "quick_modes_row") {
+                QuickModesSection(
+                    state = state,
+                    onOpenStories = {
+                        if (state.unfinishedStory != null) {
+                            onStartLesson(MediaIds.STORY_RESUME)
+                        } else {
+                            showStorySheet = true
+                        }
+                    },
+                    onOpenPronunciation = { onStartLesson(MediaIds.pronunciation(state.lastTopic?.id)) },
+                    onOpenRandom = { onStartLesson(MediaIds.RANDOM) }
+                )
+            }
+
+            // 5. CHỦ ĐỀ LUYỆN NÓI: Header & Bộ lọc Tabs
+            item(key = "topics_header") {
+                TopicSectionHeader(
+                    totalCount = filteredTopics.size,
+                    selectedCategory = selectedCategory,
+                    onSelectCategory = { selectedCategory = it }
+                )
+            }
+
+            // 6. DANH SÁCH CHỦ ĐỀ (Lưới 2 cột cân đối, hiển thị 2 dòng không cắt chữ)
+            filteredTopics.chunked(2).forEachIndexed { index, rowItems ->
+                item(key = "topics_row_$index") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        rowItems.forEach { item ->
+                            TopicCard(
+                                emoji = item.topic.emoji,
+                                title = if (isVi) item.topic.titleVi else item.topic.titleEn,
+                                subtitle = if (isVi) item.topic.titleEn else item.topic.titleVi,
+                                completedLessons = item.completedLessons,
+                                onClick = { sheetTopic = item.topic },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (rowItems.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
 
-            // Daily Progress & Streak Header
-            fullWidth {
-                DailyGoalSection(
-                    greeting = greeting,
-                    state = state
-                )
-            }
-
-            // Hero Quick Practice Card
-            fullWidth {
-                QuickStartHeroCard(
-                    lastTopic = state.lastTopic,
-                    isVi = isVi,
-                    onResume = { onStartLesson(MediaIds.RESUME) },
-                    onRandom = { onStartLesson(MediaIds.RANDOM) }
-                )
-            }
-
-            // Special Learning Modes (Pronunciation & SRS Review)
-            fullWidth {
-                SpecialModesRow(
-                    lastTopic = state.lastTopic,
-                    dueWordCount = state.stats.dueWordCount,
-                    dueMistakeCount = state.stats.dueMistakeCount,
-                    onPronunciation = { onStartLesson(MediaIds.pronunciation(state.lastTopic?.id)) },
-                    onReview = { onStartLesson(MediaIds.REVIEW) },
-                    onMistakes = { onStartLesson(MediaIds.MISTAKES) }
-                )
-            }
-
-            // AI Story Listening Mode
-            fullWidth {
-                StoryListeningHeroCard(
-                    unfinishedStory = state.unfinishedStory,
-                    level = state.level,
-                    isVi = isVi,
-                    onResumeStory = { onStartLesson(MediaIds.STORY_RESUME) },
-                    onRecommended = { onStartLesson(MediaIds.STORY_RECOMMENDED) },
-                    onRandom = { onStartLesson(MediaIds.STORY_RANDOM) },
-                    onExploreStories = { showStorySheet = true }
-                )
-            }
-
-            // Topic section title
-            fullWidth {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.home_topics_section_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        stringResource(R.string.home_topics_count, state.topics.size),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Topic Cards Grid
-            items(state.topics, key = { it.topic.id }) { item ->
-                TopicCard(
-                    emoji = item.topic.emoji,
-                    title = if (isVi) item.topic.titleVi else item.topic.titleEn,
-                    subtitle = if (isVi) item.topic.titleEn else item.topic.titleVi,
-                    completedLessons = item.completedLessons,
-                    onClick = { sheetTopic = item.topic }
-                )
-            }
-
-            // Custom Scenarios Section
+            // 7. KỊCH BẢN TÙY CHỈNH (Nếu người dùng đã tạo)
             if (state.customScenarios.isNotEmpty()) {
-                fullWidth {
+                item(key = "custom_scenarios_header") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 16.dp, bottom = 6.dp),
+                            .padding(top = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            stringResource(R.string.home_custom_scenarios_title),
+                            text = stringResource(R.string.home_custom_scenarios_title),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            "${state.customScenarios.size}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "${state.customScenarios.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
 
-                items(state.customScenarios, key = { it.id }) { scenario ->
+                items(state.customScenarios, key = { "custom_${it.id}" }) { scenario ->
                     CustomScenarioCard(
                         scenario = scenario,
                         isVi = isVi,
@@ -297,30 +303,14 @@ fun HomeContent(
                 }
             }
 
-            // Hands-free tip footer
-            fullWidth {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.padding(vertical = 8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("💡", fontSize = 18.sp)
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            stringResource(R.string.home_driving_tip),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            // 8. Mẹo Lái Xe Rảnh Tay
+            item(key = "driving_tip_footer") {
+                DrivingTipFooter()
             }
         }
     }
 
+    // Sheet xem chi tiết và kịch bản của Topic
     sheetTopic?.let { topic ->
         ModalBottomSheet(
             onDismissRequest = { sheetTopic = null },
@@ -338,6 +328,7 @@ fun HomeContent(
         }
     }
 
+    // Sheet khám phá câu chuyện AI
     if (showStorySheet) {
         ModalBottomSheet(
             onDismissRequest = { showStorySheet = false },
@@ -358,409 +349,714 @@ fun HomeContent(
     }
 }
 
-private fun LazyGridScope.fullWidth(content: @Composable () -> Unit) {
-    item(span = { GridItemSpan(maxLineSpan) }) { content() }
-}
-
+/** TopBar tối giản kèm trạng thái xe và nút truy cập nhanh Cài đặt, Tiến trình */
 @Composable
-private fun CarBanner() {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-        modifier = Modifier.fillMaxWidth()
+private fun HomeTopBar(
+    isCarConnected: Boolean,
+    onOpenProgress: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_speakdrive_logo),
+                contentDescription = "SpeakDrive Logo",
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.tertiary),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.DirectionsCar,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onTertiary,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-            Spacer(Modifier.width(12.dp))
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+            )
+            Spacer(Modifier.width(10.dp))
             Column {
                 Text(
-                    stringResource(R.string.home_car_connected_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                    text = "SpeakDrive",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-0.5).sp
                 )
                 Text(
-                    stringResource(R.string.home_car_connected_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
+                    text = "Voice-First English",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (isCarConnected) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)),
+                    modifier = Modifier.padding(end = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.tertiary)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            Icons.Filled.DirectionsCar,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+            }
+
+            IconButton(onClick = onOpenProgress) {
+                Icon(
+                    imageVector = Icons.Filled.Insights,
+                    contentDescription = stringResource(R.string.nav_progress),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = onOpenSettings) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = stringResource(R.string.settings_title),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
 }
 
+/** Chào hỏi thân thiện theo buổi */
 @Composable
-private fun ActiveLessonBanner(
-    title: String,
-    level: String,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.secondary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.Radio,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(
-                        stringResource(R.string.home_active_lesson_banner),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                    )
-                    Text(
-                        title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Text(
-                        level,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
-                    )
-                }
-            }
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer
-            )
-        }
-    }
-}
-
-@Composable
-private fun DailyGoalSection(
-    greeting: String,
-    state: HomeUiState
-) {
+private fun HomeGreetingHeader(greeting: String) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             text = greeting,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
+        Text(
+            text = stringResource(R.string.home_ready_drive),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
 
-        // 3 KPI metric tiles
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val freezes = if (state.stats.streakFreezes > 0) "  " + stringResource(R.string.home_streak_freezes, state.stats.streakFreezes) else ""
-            StatTile("🔥 ${state.stats.streakDays}$freezes", stringResource(R.string.home_streak_label), Modifier.weight(1f))
-            StatTile("${state.stats.minutesToday}", stringResource(R.string.home_minutes_today_label), Modifier.weight(1f))
-            StatTile("${state.stats.wordsToday}", stringResource(R.string.home_new_words_label), Modifier.weight(1f))
-        }
+/** HERO CARD: 1-Tap & Drive Action Card */
+@Composable
+private fun HeroActionCard(
+    state: HomeUiState,
+    isVi: Boolean,
+    onResumeLesson: () -> Unit,
+    onRandomLesson: () -> Unit
+) {
+    val isLessonActive = state.currentLesson != null
+    val lastTopic = state.lastTopic
 
-        // Daily Progress Bar
-        val goal = state.dailyGoalMinutes.coerceAtLeast(1)
-        val progress = (state.stats.minutesToday.toFloat() / goal).coerceIn(0f, 1f)
+    val heroGradient = if (isLessonActive) {
+        Brush.linearGradient(
+            listOf(
+                MaterialTheme.colorScheme.secondary,
+                MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f)
+            )
+        )
+    } else {
+        AppColors.PrimaryGradient
+    }
 
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    shape = RoundedCornerShape(16.dp)
-                )
+                .background(heroGradient)
+                .padding(20.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Header Tags Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.2f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (isLessonActive) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Red)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = stringResource(R.string.home_hero_tag_active),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                Text(
+                                    text = "🌟 ${stringResource(R.string.home_hero_tag_interactive)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    // Level Badge
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White.copy(alpha = 0.2f)
+                    ) {
+                        Text(
+                            text = "${state.level.cefr} • ${if (isVi) state.level.labelVi else state.level.displayName}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                // Tiêu đề bài học
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val topicTitle = if (isLessonActive && state.currentLesson != null) {
+                        "${state.currentLesson.topic.emoji} ${state.currentLesson.getTitle(isVi)}"
+                    } else if (lastTopic != null) {
+                        val topicName = if (isVi) lastTopic.titleVi else lastTopic.titleEn
+                        stringResource(R.string.home_reflex_resume_prefix, "${lastTopic.emoji} $topicName")
+                    } else {
+                        stringResource(R.string.home_reflex_card_title)
+                    }
+
+                    Text(
+                        text = topicTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Text(
+                        text = if (isLessonActive && state.currentLesson != null) {
+                            state.currentLesson.level.getLabel(isVi)
+                        } else {
+                            lastTopic?.description ?: stringResource(R.string.home_reflex_default_desc)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.85f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // NÚT CTA CHÍNH (Cao 54dp, to rõ, dễ bấm 1 chạm)
+                Button(
+                    onClick = onResumeLesson,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = if (isLessonActive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isLessonActive) Icons.Filled.Radio else Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(
+                            if (isLessonActive) R.string.home_hero_active_button
+                            else if (lastTopic != null) R.string.home_btn_resume
+                            else R.string.home_btn_start
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+
+                // Gợi ý khẩu lệnh giọng nói & nút ngẫu nhiên
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Mic,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.home_voice_prompt_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+
+                    if (!isLessonActive) {
+                        Surface(
+                            onClick = onRandomLesson,
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color.White.copy(alpha = 0.2f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.Shuffle,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    stringResource(R.string.home_hero_random_btn),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** BENTO DASHBOARD: Gom Streak, Mục tiêu ngày và Hàng đợi ôn tập vào 2 cột đối xứng */
+@Composable
+private fun BentoDashboardSection(
+    state: HomeUiState,
+    isVi: Boolean,
+    onOpenProgress: () -> Unit,
+    onStartReview: () -> Unit,
+    onStartMistakes: () -> Unit,
+    onStartPronunciation: () -> Unit
+) {
+    val goal = state.dailyGoalMinutes.coerceAtLeast(1)
+    val progress = (state.stats.minutesToday.toFloat() / goal).coerceIn(0f, 1f)
+    val progressPercent = (progress * 100).toInt()
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Cột trái: Streak & Mục tiêu ngày
+        val freezes = if (state.stats.streakFreezes > 0) "  " + stringResource(R.string.home_streak_freezes, state.stats.streakFreezes) else ""
+        val streakDesc = "🔥 ${state.stats.streakDays}$freezes ${stringResource(R.string.home_streak_label)}"
+        Card(
+            onClick = onOpenProgress,
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier
+                .weight(1f)
+                .clearAndSetSemantics {
+                    contentDescription = streakDesc
+                }
         ) {
             Column(
                 modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        stringResource(R.string.home_daily_goal_title),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        stringResource(R.string.home_goal_progress_format, state.stats.minutesToday, goal, (progress * 100).toInt()),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                    Text("🔥", fontSize = 22.sp)
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
+
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "${state.stats.streakDays} ${stringResource(R.string.home_streak_label)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = stringResource(R.string.home_goal_progress_format, state.stats.minutesToday, goal, progressPercent),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
                 LinearProgressIndicator(
                     progress = { progress },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
                     strokeCap = StrokeCap.Round
                 )
+
+                Text(
+                    text = "+${state.stats.wordsToday} ${stringResource(R.string.home_new_words_label)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // Cột phải: Hàng đợi ôn tập SRS & Sửa lỗi
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.weight(1f)
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("⚡", fontSize = 22.sp)
+                    Text(
+                        text = stringResource(R.string.home_bento_srs_title),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                val dueWordCount = state.stats.dueWordCount
+                val dueMistakeCount = state.stats.dueMistakeCount
+
+                if (dueWordCount > 0) {
+                    Surface(
+                        onClick = onStartReview,
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "📚 " + stringResource(R.string.home_vocab_review_card_title, dueWordCount),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+
+                if (dueMistakeCount > 0) {
+                    Surface(
+                        onClick = onStartMistakes,
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "🔁 " + stringResource(R.string.home_bento_srs_mistakes, dueMistakeCount),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+
+                if (dueWordCount == 0 && dueMistakeCount == 0) {
+                    Text(
+                        text = stringResource(R.string.home_bento_srs_all_good),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Surface(
+                        onClick = onStartPronunciation,
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "🗣️ " + stringResource(R.string.home_bento_srs_shadowing),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
 
+/** CHẾ ĐỘ HỌC NHANH (Carousel nằm ngang mềm mại) */
 @Composable
-private fun QuickStartHeroCard(
-    lastTopic: Topic?,
-    isVi: Boolean,
-    onResume: () -> Unit,
-    onRandom: () -> Unit
+private fun QuickModesSection(
+    state: HomeUiState,
+    onOpenStories: () -> Unit,
+    onOpenPronunciation: () -> Unit,
+    onOpenRandom: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.home_quick_modes_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // 1. Luyện nghe AI Story
+            val hasUnfinished = state.unfinishedStory != null
+            QuickModeCard(
+                icon = "🎧",
+                title = stringResource(R.string.home_quick_mode_listen),
+                badge = if (hasUnfinished) "▶ " + stringResource(R.string.home_story_sheet_in_progress) else "AI Podcast",
+                badgeColor = if (hasUnfinished) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                badgeTextColor = if (hasUnfinished) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = onOpenStories
+            )
+
+            // 2. Luyện phát âm Phoneme Drill
+            QuickModeCard(
+                icon = "🗣️",
+                title = stringResource(R.string.home_quick_mode_pronounce),
+                badge = "Shadowing",
+                badgeColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                badgeTextColor = MaterialTheme.colorScheme.primary,
+                onClick = onOpenPronunciation
+            )
+
+            // 3. Ngẫu nhiên tình huống
+            QuickModeCard(
+                icon = "🎲",
+                title = stringResource(R.string.home_quick_mode_random),
+                badge = "Surprise",
+                badgeColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                badgeTextColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                onClick = onOpenRandom
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickModeCard(
+    icon: String,
+    title: String,
+    badge: String,
+    badgeColor: Color,
+    badgeTextColor: Color,
+    onClick: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        modifier = Modifier.fillMaxWidth()
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.width(136.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    stringResource(R.string.home_reflex_card_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Icon(
-                    Icons.Filled.GraphicEq,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
+                Text(icon, fontSize = 24.sp)
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = badgeColor
+                ) {
+                    Text(
+                        text = badge,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = badgeTextColor,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
 
             Text(
-                lastTopic?.let {
-                    val topicTitle = if (isVi) it.titleVi else it.titleEn
-                    stringResource(R.string.home_reflex_resume_prefix, "${it.emoji} $topicTitle")
-                } ?: stringResource(R.string.home_reflex_default_desc),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+        }
+    }
+}
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = onResume,
-                    modifier = Modifier.weight(1.2f),
+/** Header phân loại chủ đề kèm Filter Chips */
+@Composable
+private fun TopicSectionHeader(
+    totalCount: Int,
+    selectedCategory: TopicCategoryTab,
+    onSelectCategory: (TopicCategoryTab) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.home_topics_section_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = stringResource(R.string.home_topics_count, totalCount),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        // Filter chips row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TopicCategoryTab.values().forEach { tab ->
+                val isSelected = tab == selectedCategory
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelectCategory(tab) },
+                    label = {
+                        Text(
+                            text = stringResource(tab.labelRes),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    },
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                ) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        stringResource(if (lastTopic != null) R.string.home_btn_resume else R.string.home_btn_start),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = onRandom,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Filled.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.home_btn_random))
-                }
+                )
             }
         }
     }
 }
 
+/** Driving Tip Footer */
 @Composable
-private fun SpecialModesRow(
-    lastTopic: Topic?,
-    dueWordCount: Int,
-    dueMistakeCount: Int,
-    onPronunciation: () -> Unit,
-    onReview: () -> Unit,
-    onMistakes: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        // Pronunciation Shadowing Drill Card
-        Card(
-            onClick = onPronunciation,
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    shape = RoundedCornerShape(18.dp)
-                )
+private fun DrivingTipFooter() {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.padding(vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            ListItem(
-                headlineContent = {
-                    Text(stringResource(R.string.home_pronunciation_card_title), fontWeight = FontWeight.SemiBold)
-                },
-                supportingContent = {
-                    Text(stringResource(R.string.home_pronunciation_card_desc))
-                },
-                leadingContent = {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.tertiaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.Headphones,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                },
-                trailingContent = {
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                },
-                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
+            Text("💡", fontSize = 20.sp)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = stringResource(R.string.home_driving_tip),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-
-        // Vocabulary Spaced Repetition Due Card
-        if (dueWordCount > 0) {
-            Card(
-                onClick = onReview,
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        shape = RoundedCornerShape(18.dp)
-                    )
-            ) {
-                ListItem(
-                    headlineContent = {
-                        Text(stringResource(R.string.home_vocab_review_card_title, dueWordCount), fontWeight = FontWeight.SemiBold)
-                    },
-                    supportingContent = {
-                        Text(stringResource(R.string.home_vocab_review_card_desc))
-                    },
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.secondaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.MenuBook,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    },
-                    trailingContent = {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
-                )
-            }
-        }
-
-        // Mistake review: the learner's own earlier mistakes, due for spaced repetition
-        if (dueMistakeCount > 0) {
-            Card(
-                onClick = onMistakes,
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        shape = RoundedCornerShape(18.dp)
-                    )
-            ) {
-                ListItem(
-                    headlineContent = {
-                        Text(stringResource(R.string.home_mistake_review_card_title, dueMistakeCount), fontWeight = FontWeight.SemiBold)
-                    },
-                    supportingContent = {
-                        Text(stringResource(R.string.home_mistake_review_card_desc))
-                    },
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.errorContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Filled.Replay,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    },
-                    trailingContent = {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    },
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
-                )
-            }
         }
     }
 }
@@ -775,6 +1071,7 @@ private fun TopicSheet(
         modifier = Modifier
             .padding(horizontal = 20.dp)
             .padding(bottom = 36.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -856,7 +1153,7 @@ private fun TopicSheet(
                 headlineContent = { Text(stringResource(R.string.home_topic_sheet_ai_scenario_title), fontWeight = FontWeight.SemiBold) },
                 supportingContent = { Text(stringResource(R.string.home_topic_sheet_ai_scenario_desc, if (isVi) topic.titleVi else topic.titleEn)) },
                 trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) },
-                colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
             )
         }
 
@@ -872,7 +1169,7 @@ private fun TopicSheet(
                         color = MaterialTheme.colorScheme.outlineVariant,
                         shape = RoundedCornerShape(16.dp)
                     )
-                    .clickable { onPick(MediaIds.scenario(scenario.id)) },
+                .clickable { onPick(MediaIds.scenario(scenario.id)) },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 ListItem(
@@ -891,150 +1188,8 @@ private fun TopicSheet(
                         }
                     },
                     trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) },
-                    colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StoryListeningHeroCard(
-    unfinishedStory: CompletedSession? = null,
-    level: DifficultyLevel = DifficultyLevel.INTERMEDIATE,
-    isVi: Boolean = true,
-    onResumeStory: () -> Unit = {},
-    onRecommended: () -> Unit,
-    onRandom: () -> Unit,
-    onExploreStories: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f),
-                shape = RoundedCornerShape(22.dp)
-            )
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.tertiary),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("🎧", fontSize = 18.sp)
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            stringResource(R.string.home_story_hero_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                        val levelBadge = if (isVi) "${level.labelVi} (${level.cefr})" else "${level.displayName} (${level.cefr})"
-                        Text(
-                            "${stringResource(R.string.home_story_hero_badge)} • $levelBadge",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-                OutlinedButton(
-                    onClick = onExploreStories,
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(stringResource(R.string.home_story_btn_all), style = MaterialTheme.typography.labelMedium)
-                }
-            }
-
-            Text(
-                stringResource(R.string.home_story_hero_desc),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
-            )
-
-            if (unfinishedStory != null) {
-                Surface(
-                    onClick = onResumeStory,
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.6f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Filled.PlayArrow,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                stringResource(R.string.home_story_continue_title),
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                            Text(
-                                stringResource(R.string.home_story_continue_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-                            )
-                        }
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.tertiary
-                        )
-                    }
-                }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = onRecommended,
-                    modifier = Modifier.weight(1.2f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.tertiary,
-                        contentColor = MaterialTheme.colorScheme.onTertiary
-                    )
-                ) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.home_story_btn_recommended), fontWeight = FontWeight.SemiBold)
-                }
-
-                OutlinedButton(
-                    onClick = onRandom,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Filled.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.home_story_btn_random))
-                }
             }
         }
     }
@@ -1089,7 +1244,7 @@ private fun StorySheet(
                     headlineContent = { Text(stringResource(R.string.home_story_sheet_resume_title), fontWeight = FontWeight.Bold) },
                     supportingContent = { Text(stringResource(R.string.home_story_sheet_resume_desc)) },
                     trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) },
-                    colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
             }
         }
@@ -1168,13 +1323,13 @@ private fun StorySheet(
                         .clickable { onPick(MediaIds.story(session.topicId, targetScenarioId)) },
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     ListItem(
                         headlineContent = { Text(scenarioTitle, fontWeight = FontWeight.SemiBold) },
                         supportingContent = { Text("$topicTitle • $statusText") },
                         trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) },
-                        colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                     )
                 }
             }
@@ -1214,7 +1369,7 @@ private fun StorySheet(
                         ListItem(
                             headlineContent = { Text(stringResource(R.string.home_story_sheet_generate_new, topicTitle), fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodySmall) },
                             trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                         )
                     }
 
@@ -1230,7 +1385,7 @@ private fun StorySheet(
                                 headlineContent = { Text(if (isVi) scenario.titleVi else scenario.titleEn, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodySmall) },
                                 supportingContent = { Text(if (isVi) scenario.titleEn else scenario.titleVi, style = MaterialTheme.typography.labelSmall) },
                                 trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                                colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                             )
                         }
                     }
@@ -1249,7 +1404,8 @@ private fun CustomScenarioCard(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
@@ -1290,4 +1446,3 @@ private fun CustomScenarioCard(
         }
     }
 }
-

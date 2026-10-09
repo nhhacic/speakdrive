@@ -130,6 +130,29 @@
     <string name="home_car_connected_title">Android Auto Connected</string>
     <string name="home_car_connected_desc">You can control practice directly from your car screen.</string>
     <string name="home_driving_tip">In your car, say \"Hey Google, play travel English on SpeakDrive\" to start immediately.</string>
+    <string name="home_voice_prompt_hint">Say \"Start lesson\" or tap to begin</string>
+    <string name="home_hero_start_button">START SPEAKING</string>
+    <string name="home_hero_resume_button">RESUME LESSON</string>
+    <string name="home_hero_active_button">CONTINUE LESSON</string>
+    <string name="home_hero_tag_interactive">Interactive Practice</string>
+    <string name="home_hero_tag_active">In Progress</string>
+    <string name="home_hero_random_btn">Surprise topic</string>
+    <string name="home_bento_srs_title">Review Queue</string>
+    <string name="home_bento_srs_words">%1$d words due</string>
+    <string name="home_bento_srs_mistakes">%1$d mistakes</string>
+    <string name="home_bento_srs_all_good">All caught up! 🎉</string>
+    <string name="home_bento_srs_shadowing">Phoneme drill</string>
+    <string name="home_quick_modes_title">Quick Modes</string>
+    <string name="home_quick_mode_listen">Listening</string>
+    <string name="home_quick_mode_pronounce">Pronunciation</string>
+    <string name="home_quick_mode_random">Random</string>
+    <string name="home_filter_all">All</string>
+    <string name="home_filter_daily">Daily Life</string>
+    <string name="home_filter_work">Work &amp; Tech</string>
+    <string name="home_filter_travel">Travel &amp; Drive</string>
+    <string name="home_car_badge">Car Connected</string>
+    <string name="home_topic_completed_badge">%1$d done</string>
+    <string name="home_topic_new_badge">New</string>
 
     <!-- Topic Sheet -->
     <string name="home_topic_sheet_free_talk">Free conversation on this topic</string>

@@ -130,6 +130,29 @@
     <string name="home_car_connected_title">Đã kết nối Android Auto</string>
     <string name="home_car_connected_desc">Bạn có thể điều khiển trực tiếp trên màn hình vô lăng.</string>
     <string name="home_driving_tip">Trên xe hơi, nói \"Hey Google, play travel English on SpeakDrive\" để bắt đầu ngay.</string>
+    <string name="home_voice_prompt_hint">Nói \"Bắt đầu học\" hoặc chạm để luyện nói rảnh tay</string>
+    <string name="home_hero_start_button">BẮT ĐẦU LUYỆN NÓI</string>
+    <string name="home_hero_resume_button">TIẾP TỤC BÀI HỌC</string>
+    <string name="home_hero_active_button">TIẾP TỤC BÀI HỌC</string>
+    <string name="home_hero_tag_interactive">Luyện phản xạ tương tác</string>
+    <string name="home_hero_tag_active">Đang diễn ra</string>
+    <string name="home_hero_random_btn">Đổi chủ đề ngẫu nhiên</string>
+    <string name="home_bento_srs_title">Hàng đợi ôn tập</string>
+    <string name="home_bento_srs_words">%1$d từ vựng đến hạn</string>
+    <string name="home_bento_srs_mistakes">%1$d lỗi sai cần sửa</string>
+    <string name="home_bento_srs_all_good">Đã ôn xong hết! 🎉</string>
+    <string name="home_bento_srs_shadowing">Luyện phát âm AI</string>
+    <string name="home_quick_modes_title">Chế độ học nhanh</string>
+    <string name="home_quick_mode_listen">Luyện nghe</string>
+    <string name="home_quick_mode_pronounce">Luyện phát âm</string>
+    <string name="home_quick_mode_random">Ngẫu nhiên</string>
+    <string name="home_filter_all">Tất cả</string>
+    <string name="home_filter_daily">Đời sống</string>
+    <string name="home_filter_work">Công việc &amp; Chuyên môn</string>
+    <string name="home_filter_travel">Du lịch &amp; Lái xe</string>
+    <string name="home_car_badge">Đã kết nối Ô tô</string>
+    <string name="home_topic_completed_badge">%1$d hoàn thành</string>
+    <string name="home_topic_new_badge">Mới</string>
 
     <!-- Topic Sheet -->
     <string name="home_topic_sheet_free_talk">Trò chuyện tự do về chủ đề này</string>
