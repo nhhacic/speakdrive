@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.speakdrive.ai.ConversationEngine
 import com.speakdrive.ai.model.ConversationState
+import com.speakdrive.ai.model.SessionMode
 import com.speakdrive.ai.session.LearningSettings
 import com.speakdrive.ai.session.MicPermissionChecker
 import com.speakdrive.audio.LiveAudio
@@ -36,6 +37,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -103,6 +106,13 @@ class SpeakDriveMediaService : MediaLibraryService() {
                     if (wasInLesson) dismissNotificationAndStopIfIdle()
                 }
                 wasInLesson = state.isInLesson
+            }
+        }
+
+        // Rename the custom buttons when the lesson mode changes ("Đổi truyện" in a story, …).
+        serviceScope.launch {
+            engine.lesson.map { it?.mode }.distinctUntilChanged().collect { mode ->
+                librarySession?.setCustomLayout(customLayout(mode))
             }
         }
     }
@@ -221,6 +231,24 @@ class SpeakDriveMediaService : MediaLibraryService() {
         return lowerPkg.contains("android") || lowerPkg.contains("auto") || lowerPkg.contains("systemui") || lowerPkg.contains("bluetooth") || lowerPkg.contains("media")
     }
 
+    /** The "repeat" and "next" buttons, named for what they do in [mode] (see [LessonActionLabels]). */
+    private fun customLayout(mode: SessionMode?): ImmutableList<CommandButton> {
+        val labels = LessonActionLabels.forMode(mode)
+        val repeatButton = CommandButton.Builder()
+            .setIconResId(R.drawable.ic_repeat)
+            .setDisplayName(getString(labels.repeat))
+            .setSessionCommand(REPEAT_COMMAND)
+            .setEnabled(true)
+            .build()
+        val nextButton = CommandButton.Builder()
+            .setIconResId(R.drawable.ic_skip_next)
+            .setDisplayName(getString(labels.next))
+            .setSessionCommand(NEXT_COMMAND)
+            .setEnabled(true)
+            .build()
+        return ImmutableList.of(repeatButton, nextButton)
+    }
+
     private fun launchAppIntent(): PendingIntent? {
         val intent = packageManager.getLaunchIntentForPackage(packageName) ?: return null
         return PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -239,30 +267,14 @@ class SpeakDriveMediaService : MediaLibraryService() {
                     Log.w(TAG, "Rejected media controller ${controller.packageName} (uid=${controller.uid})")
                     return MediaSession.ConnectionResult.reject()
                 }
-                val repeatCommand = SessionCommand(CUSTOM_ACTION_REPEAT, Bundle.EMPTY)
-                val nextCommand = SessionCommand(CUSTOM_ACTION_NEXT, Bundle.EMPTY)
                 val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
-                    .add(repeatCommand)
-                    .add(nextCommand)
-                    .build()
-
-                val repeatButton = CommandButton.Builder()
-                    .setIconResId(R.drawable.ic_repeat)
-                    .setDisplayName(getString(R.string.action_repeat))
-                    .setSessionCommand(repeatCommand)
-                    .setEnabled(true)
-                    .build()
-
-                val nextButton = CommandButton.Builder()
-                    .setIconResId(R.drawable.ic_skip_next)
-                    .setDisplayName(getString(R.string.action_next))
-                    .setSessionCommand(nextCommand)
-                    .setEnabled(true)
+                    .add(REPEAT_COMMAND)
+                    .add(NEXT_COMMAND)
                     .build()
 
                 return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                     .setAvailableSessionCommands(sessionCommands)
-                    .setCustomLayout(ImmutableList.of(repeatButton, nextButton))
+                    .setCustomLayout(customLayout(engine.lesson.value?.mode))
                     .build()
             } catch (t: Throwable) {
                 Log.e(TAG, "Exception during onConnect from ${controller.packageName}", t)
@@ -373,6 +385,8 @@ class SpeakDriveMediaService : MediaLibraryService() {
         const val TAG = "SpeakDriveMediaService"
         const val CUSTOM_ACTION_REPEAT = "com.speakdrive.auto.ACTION_REPEAT"
         const val CUSTOM_ACTION_NEXT = "com.speakdrive.auto.ACTION_NEXT"
+        private val REPEAT_COMMAND = SessionCommand(CUSTOM_ACTION_REPEAT, Bundle.EMPTY)
+        private val NEXT_COMMAND = SessionCommand(CUSTOM_ACTION_NEXT, Bundle.EMPTY)
 
         /** Media controllers allowed to connect besides this app and system apps. */
         val TRUSTED_CONTROLLERS = setOf(

@@ -1,4 +1,14 @@
 <resources>
+    <!-- Custom buttons on the Android Auto Now Playing screen; names follow the lesson mode
+         (see LessonActionLabels). -->
     <string name="action_repeat">Repeat sentence</string>
     <string name="action_next">Next sentence</string>
+    <string name="action_repeat_drill">Hear it again</string>
+    <string name="action_repeat_ai">Say that again</string>
+    <string name="action_repeat_story">Restart story</string>
+    <string name="action_next_story">Change story</string>
+    <string name="action_next_question">Another question</string>
+    <string name="action_next_ielts_question">Next question</string>
+    <string name="action_next_scene">Move the scene on</string>
+    <string name="action_next_word">Next word</string>
 </resources>

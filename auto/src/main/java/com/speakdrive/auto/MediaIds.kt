@@ -7,12 +7,14 @@ import com.speakdrive.ai.model.DifficultyLevel
  *
  * ```
  * root
- * ├── home      Bắt đầu       → resume, random, pronunciation, review, mistakes
+ * ├── home      Bắt đầu       → resume, story_recommended, random, pronunciation, review,
+ * │                             mistakes, ielts, levels (Độ khó → level:<LEVEL>)
+ * ├── stories   Luyện nghe kể chuyện → story_resume, story_recommended, story_random,
+ * │                             story_topic:<id> → story:<topic>/<scenario>, stories_recent
  * ├── topics    Chủ đề         → topic:<id>
- * ├── roleplay  Nhập vai       → roleplay_topic:<id> → scenario:<id>
- * └── levels    Độ khó         → level:<LEVEL>
+ * └── roleplay  Nhập vai       → roleplay_topic:<id> → scenario:<id>
  * ```
- * Android Auto shows the four browsable root children as tabs.
+ * Android Auto shows at most four tabs, so the level picker lives at the end of "Bắt đầu".
  */
 object MediaIds {
     const val ROOT = "root"

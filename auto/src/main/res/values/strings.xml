@@ -1,4 +1,14 @@
 <resources>
+    <!-- Custom buttons on the Android Auto Now Playing screen; names follow the lesson mode
+         (see LessonActionLabels). -->
     <string name="action_repeat">Lặp lại câu</string>
     <string name="action_next">Câu tiếp theo</string>
+    <string name="action_repeat_drill">Đọc lại câu</string>
+    <string name="action_repeat_ai">AI nói lại</string>
+    <string name="action_repeat_story">Kể lại từ đầu</string>
+    <string name="action_next_story">Đổi truyện</string>
+    <string name="action_next_question">Câu hỏi khác</string>
+    <string name="action_next_ielts_question">Câu hỏi tiếp</string>
+    <string name="action_next_scene">Tình tiết tiếp</string>
+    <string name="action_next_word">Từ tiếp theo</string>
 </resources>
