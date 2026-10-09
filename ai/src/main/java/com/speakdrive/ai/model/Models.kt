@@ -432,8 +432,13 @@ data class Topic(
     val emoji: String,
     /** Extra words (English and Vietnamese, without accents) that voice search should match. */
     val keywords: List<String>,
-    val scenarios: List<Scenario>
+    val scenarios: List<Scenario>,
+    /** Group used by the topic filter chips on the phone. */
+    val category: TopicCategory = TopicCategory.DAILY
 )
+
+/** Groups of conversation topics shown as filter chips on the phone. */
+enum class TopicCategory { DAILY, WORK, TRAVEL }
 
 /** Everything needed to start a lesson. Null topic means "pick one for me". */
 data class LessonRequest(

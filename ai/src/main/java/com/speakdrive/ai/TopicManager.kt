@@ -2,6 +2,7 @@ package com.speakdrive.ai
 
 import com.speakdrive.ai.model.Scenario
 import com.speakdrive.ai.model.Topic
+import com.speakdrive.ai.model.TopicCategory
 import java.text.Normalizer
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,6 +17,7 @@ class TopicManager @Inject constructor() {
     private val topics = listOf(
         Topic(
             id = "travel",
+            category = TopicCategory.TRAVEL,
             titleVi = "Du lịch & Đi lại",
             titleEn = "Travel & Getting Around",
             description = "Travel plans, trips, airports, hotels, emergencies and asking for directions.",
@@ -71,6 +73,7 @@ class TopicManager @Inject constructor() {
         ),
         Topic(
             id = "work",
+            category = TopicCategory.WORK,
             titleVi = "Công việc & Kinh doanh",
             titleEn = "Work & Business",
             description = "Jobs, meetings, colleagues, projects, performance reviews and business negotiations.",
@@ -216,6 +219,7 @@ class TopicManager @Inject constructor() {
         ),
         Topic(
             id = "health",
+            category = TopicCategory.TRAVEL,
             titleVi = "Y tế & Sức khỏe",
             titleEn = "Health & Medical",
             description = "Health, fitness, ER visits, symptoms, pharmacies, and physical wellness.",
@@ -351,6 +355,7 @@ class TopicManager @Inject constructor() {
         ),
         Topic(
             id = "interview",
+            category = TopicCategory.WORK,
             titleVi = "Phỏng vấn xin việc",
             titleEn = "Job Interview",
             description = "Job interviews: introductions, behavioral questions, failures, salary and equity negotiations.",
@@ -396,6 +401,7 @@ class TopicManager @Inject constructor() {
         ),
         Topic(
             id = "driving_emergency",
+            category = TopicCategory.TRAVEL,
             titleVi = "Lái xe & Sự cố Giao thông",
             titleEn = "Driving & Roadside Situations",
             description = "Hands-free road assistance, flat tires, traffic stops, navigation detours and ridesharing.",
@@ -495,6 +501,7 @@ class TopicManager @Inject constructor() {
         ),
         Topic(
             id = "startup_tech",
+            category = TopicCategory.WORK,
             titleVi = "Khởi nghiệp & Kỷ nguyên AI",
             titleEn = "Startups & Modern AI Era",
             description = "AI product demos, tech leadership, AI ethics debates and social media PR crisis handling.",
@@ -544,6 +551,7 @@ class TopicManager @Inject constructor() {
         ),
         Topic(
             id = "medical_expert",
+            category = TopicCategory.WORK,
             titleVi = "Y tế Chuyên sâu",
             titleEn = "Advanced Medical & Clinical Practice",
             description = "Clinical discussions, case consultations, surgical briefings, diagnosis and communicating complex medical plans for physicians.",
@@ -592,6 +600,7 @@ class TopicManager @Inject constructor() {
         ),
         Topic(
             id = "tech_it",
+            category = TopicCategory.WORK,
             titleVi = "Công nghệ Thông tin & Phần mềm",
             titleEn = "IT & Software Engineering",
             description = "System architecture, code reviews, cloud infrastructure, incident postmortems and sprint planning.",
@@ -641,6 +650,7 @@ class TopicManager @Inject constructor() {
         ),
         Topic(
             id = "civil_engineering",
+            category = TopicCategory.WORK,
             titleVi = "Kỹ thuật Xây dựng & Công trình",
             titleEn = "Civil Engineering & Construction",
             description = "Site inspections, structural blueprints, safety audits, material quality testing and contractor progress.",
@@ -690,6 +700,7 @@ class TopicManager @Inject constructor() {
         ),
         Topic(
             id = "transport_engineering",
+            category = TopicCategory.WORK,
             titleVi = "Kỹ thuật Giao thông & Hạ tầng",
             titleEn = "Transportation & Infrastructure",
             description = "Traffic flow optimization, highway geometry design, public transit planning and intelligent transportation systems (ITS).",

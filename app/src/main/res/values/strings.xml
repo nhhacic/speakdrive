@@ -519,4 +519,39 @@
     <string name="settings_weekly_digest">Weekly spoken progress digest</string>
     <string name="settings_weekly_digest_desc">Automatically play an audio progress summary (time spoken, average speed, new vocabulary) at the start of each week.</string>
     <string name="home_custom_scenarios_title">Your Custom Scenarios</string>
+    <!-- Home screen layout (v1.6) -->
+    <string name="home_hero_tag_paused">Paused</string>
+    <string name="home_voice_button">Voice command</string>
+    <string name="home_voice_listening">Listening…</string>
+    <string name="home_voice_examples">Say, for example: \"review vocabulary\", \"tell me a story\", \"travel topic\"</string>
+    <string name="home_voice_not_heard">Didn\'t catch that. Tap the mic and try again.</string>
+    <string name="home_voice_unavailable">Speech recognition isn\'t available. Allow the microphone or install the Google app.</string>
+    <string name="home_today_title">Today</string>
+    <string name="home_today_summary">%1$d/%2$d min · +%3$d new words</string>
+    <plurals name="home_review_words_due">
+        <item quantity="one">%d word due for review</item>
+        <item quantity="other">%d words due for review</item>
+    </plurals>
+    <plurals name="home_review_mistakes_due">
+        <item quantity="one">%d mistake to fix</item>
+        <item quantity="other">%d mistakes to fix</item>
+    </plurals>
+    <string name="home_modes_title">Practice modes</string>
+    <string name="home_mode_stories">Stories</string>
+    <string name="home_mode_ielts">IELTS Speaking</string>
+    <string name="home_mode_roleplay">Roleplay</string>
+    <plurals name="home_mode_roleplay_custom">
+        <item quantity="one">%d custom scenario</item>
+        <item quantity="other">%d custom scenarios</item>
+    </plurals>
+    <string name="home_topics_suggested_title">Suggested topics</string>
+    <string name="home_topics_see_all">All %1$d</string>
+    <string name="home_roleplay_sheet_desc">AI plays the other person while you practise a real situation</string>
+    <string name="home_roleplay_sheet_by_topic">Pick a scenario by topic</string>
+    <string name="topics_title">All topics</string>
+    <string name="topics_search_hint">Search topics</string>
+    <string name="topics_search_clear">Clear search</string>
+    <string name="topics_empty">No topics match your search</string>
+    <string name="now_playing_pause">Pause</string>
+    <string name="now_playing_resume">Resume</string>
 </resources>

@@ -5,6 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.Column
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,9 +29,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.speakdrive.ai.model.AppLanguage
 import com.speakdrive.data.repository.UserPreferencesRepository
+import com.speakdrive.ui.components.NowPlayingBar
 import com.speakdrive.ui.components.SpeakDriveBottomBar
 import com.speakdrive.ui.components.bottomNavItems
 import com.speakdrive.ui.navigation.AboutRoute
@@ -39,15 +44,18 @@ import com.speakdrive.ui.navigation.PrivacyRoute
 import com.speakdrive.ui.navigation.ProgressRoute
 import com.speakdrive.ui.navigation.SettingsRoute
 import com.speakdrive.ui.navigation.SummaryRoute
+import com.speakdrive.ui.navigation.TopicsRoute
 import com.speakdrive.ui.navigation.VocabularyRoute
 import com.speakdrive.ui.screens.AboutScreen
 import com.speakdrive.ui.screens.ConversationScreen
 import com.speakdrive.ui.screens.HomeScreen
 import com.speakdrive.ui.screens.LearnerMemoryScreen
+import com.speakdrive.ui.screens.NowPlayingViewModel
 import com.speakdrive.ui.screens.PrivacyPolicyScreen
 import com.speakdrive.ui.screens.ProgressScreen
 import com.speakdrive.ui.screens.SettingsScreen
 import com.speakdrive.ui.screens.SummaryScreen
+import com.speakdrive.ui.screens.TopicsScreen
 import com.speakdrive.ui.screens.VocabularyScreen
 import com.speakdrive.ui.theme.SpeakDriveTheme
 import android.content.BroadcastReceiver
@@ -221,6 +229,12 @@ private fun SpeakDriveNavHost() {
 
     val back: () -> Unit = { navController.popBackStack() }
 
+    // A running lesson stays one tap away on the other tabs (Home already shows it in its main card).
+    val nowPlayingViewModel: NowPlayingViewModel = hiltViewModel()
+    val nowPlaying by nowPlayingViewModel.ui.collectAsStateWithLifecycle()
+    val onHome = currentDestination?.hierarchy?.any { it.hasRoute(HomeRoute::class) } == true
+    val nowPlayingLesson = nowPlaying.lesson
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
@@ -229,10 +243,26 @@ private fun SpeakDriveNavHost() {
                 enter = slideInVertically(initialOffsetY = { it }),
                 exit = slideOutVertically(targetOffsetY = { it })
             ) {
-                SpeakDriveBottomBar(
-                    navController = navController,
-                    currentDestination = currentDestination
-                )
+                Column {
+                    AnimatedVisibility(
+                        visible = !onHome && nowPlayingLesson != null,
+                        enter = expandVertically(),
+                        exit = shrinkVertically()
+                    ) {
+                        if (nowPlayingLesson != null) {
+                            NowPlayingBar(
+                                lesson = nowPlayingLesson,
+                                state = nowPlaying.state,
+                                onOpen = { navController.navigate(ConversationRoute(null)) },
+                                onTogglePause = nowPlayingViewModel::togglePause
+                            )
+                        }
+                    }
+                    SpeakDriveBottomBar(
+                        navController = navController,
+                        currentDestination = currentDestination
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -245,8 +275,14 @@ private fun SpeakDriveNavHost() {
                 HomeScreen(
                     onStartLesson = { mediaId -> navController.navigate(ConversationRoute(mediaId)) },
                     onOpenCurrentLesson = { navController.navigate(ConversationRoute(null)) },
-                    onOpenSettings = { navController.navigate(SettingsRoute) },
-                    onOpenProgress = { navController.navigate(ProgressRoute) }
+                    onOpenProgress = { navController.navigate(ProgressRoute) },
+                    onOpenAllTopics = { navController.navigate(TopicsRoute) }
+                )
+            }
+            composable<TopicsRoute> {
+                TopicsScreen(
+                    onBack = back,
+                    onStartLesson = { mediaId -> navController.navigate(ConversationRoute(mediaId)) }
                 )
             }
             composable<ConversationRoute> { entry ->

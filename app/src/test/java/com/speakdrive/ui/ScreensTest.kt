@@ -82,7 +82,6 @@ class ScreensTest {
                     ),
                     onStartLesson = { started += it },
                     onOpenCurrentLesson = {},
-                    onOpenSettings = {},
                     onOpenProgress = {}
                 )
             }
@@ -91,7 +90,7 @@ class ScreensTest {
         compose.onNodeWithContentDescription("🔥 4 ngày streak").assertIsDisplayed()
         compose.onNodeWithText("Tiếp tục bài: 🍽️ Ăn uống & Nhà hàng").assertIsDisplayed()
         compose.onNodeWithText("Tiếp tục").performClick()
-        compose.onNodeWithText("Ôn tập từ vựng", substring = true).performScrollTo().performClick()
+        compose.onNodeWithText("từ vựng đến hạn ôn", substring = true).performScrollTo().performClick()
         assertThat(started).containsExactly(MediaIds.RESUME, MediaIds.REVIEW).inOrder()
     }
 
@@ -104,7 +103,6 @@ class ScreensTest {
                     state = HomeUiState(topics = topics.getAllTopics().map { TopicProgressUi(it, 0) }, isLoading = false),
                     onStartLesson = { started += it },
                     onOpenCurrentLesson = {},
-                    onOpenSettings = {},
                     onOpenProgress = {}
                 )
             }

@@ -67,14 +67,13 @@ class EnglishUiTest {
                     ),
                     onStartLesson = {},
                     onOpenCurrentLesson = {},
-                    onOpenSettings = {},
                     onOpenProgress = {}
                 )
             }
         }
 
         compose.onNodeWithContentDescription("🔥 5 day streak").assertExists()
-        compose.onNodeWithText("Conversation Topics").assertExists()
+        compose.onNodeWithText("Suggested topics").assertExists()
         compose.onAllNodesWithText("Resume", substring = true)[0].assertExists()
         compose.onNodeWithText("Work & Business").assertExists()
     }

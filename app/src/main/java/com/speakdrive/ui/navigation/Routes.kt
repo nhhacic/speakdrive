@@ -18,6 +18,10 @@ data class SummaryRoute(val sessionId: String)
 @Serializable
 data object SettingsRoute
 
+/** Every conversation topic with search and category filters. */
+@Serializable
+data object TopicsRoute
+
 @Serializable
 data object ProgressRoute
 

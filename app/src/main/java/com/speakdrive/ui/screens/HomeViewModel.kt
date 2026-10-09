@@ -6,9 +6,12 @@ import com.speakdrive.ai.ConversationEngine
 import com.speakdrive.ai.TopicManager
 import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.CompletedSession
+import com.speakdrive.ai.model.ConversationState
+import com.speakdrive.ai.model.CustomScenario
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.Topic
 import com.speakdrive.ai.session.SessionStore
+import com.speakdrive.auto.VoiceCommandHandler
 import com.speakdrive.data.repository.ProgressRepository
 import com.speakdrive.data.repository.ProgressStats
 import com.speakdrive.data.repository.UserPreferences
@@ -22,10 +25,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-import com.speakdrive.ai.model.CustomScenario
-import com.speakdrive.ai.model.LessonRequest
-import com.speakdrive.ai.model.SessionMode
 
 data class TopicProgressUi(val topic: Topic, val completedLessons: Int)
 
@@ -42,8 +41,30 @@ data class HomeUiState(
     val isCarConnected: Boolean = false,
     /** A lesson that is running right now (possibly started from the car). */
     val currentLesson: ActiveLesson? = null,
+    /** State of [currentLesson], e.g. [ConversationState.PAUSED]. */
+    val lessonState: ConversationState = ConversationState.IDLE,
     val isLoading: Boolean = true
 )
+
+/**
+ * Topics suggested on the home screen: the last topic first, then the two most practised ones,
+ * then topics the learner has not tried yet, so the list mixes "keep going" with something new.
+ */
+internal fun recommendTopics(
+    topics: List<TopicProgressUi>,
+    lastTopicId: String?,
+    limit: Int = 5
+): List<TopicProgressUi> {
+    val last = topics.firstOrNull { it.topic.id == lastTopicId }
+    val practised = topics
+        .filter { it.completedLessons > 0 && it.topic.id != lastTopicId }
+        .sortedByDescending { it.completedLessons }
+        .take(2)
+    val picked = listOfNotNull(last) + practised
+    val pickedIds = picked.map { it.topic.id }.toSet()
+    val rest = topics.filterNot { it.topic.id in pickedIds }.sortedBy { it.completedLessons > 0 }
+    return (picked + rest).take(limit)
+}
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -52,7 +73,8 @@ class HomeViewModel @Inject constructor(
     private val sessionStore: SessionStore,
     carConnection: CarConnectionObserver,
     private val engine: ConversationEngine,
-    private val topicManager: TopicManager
+    private val topicManager: TopicManager,
+    private val voiceCommandHandler: VoiceCommandHandler
 ) : ViewModel() {
 
     private val recentStoriesFlow = MutableStateFlow<List<CompletedSession>>(emptyList())
@@ -85,18 +107,8 @@ class HomeViewModel @Inject constructor(
         engine.resumeStory()
     }
 
-    fun startCustomScenario(scenario: CustomScenario) {
-        viewModelScope.launch {
-            val defaultTopic = topicManager.getConversationTopics().firstOrNull()?.id ?: "daily"
-            engine.start(
-                LessonRequest(
-                    topicId = defaultTopic,
-                    scenarioId = scenario.id,
-                    mode = SessionMode.ROLEPLAY
-                )
-            )
-        }
-    }
+    /** Media id for a spoken command from the home screen mic, e.g. "ôn từ vựng" → `review`. */
+    fun resolveVoiceCommand(transcript: String): String = voiceCommandHandler.resolve(transcript)
 
     fun deleteCustomScenario(id: String) {
         viewModelScope.launch {
@@ -109,11 +121,11 @@ class HomeViewModel @Inject constructor(
         combine(progressRepository.observeStats(), preferencesRepository.preferences, carConnection.isConnectedToCar) { stats, prefs, inCar ->
             Triple(stats, prefs, inCar)
         },
-        engine.lesson,
+        combine(engine.lesson, engine.state) { lesson, state -> lesson to state },
         recentStoriesFlow,
         unfinishedStoryFlow,
         customScenariosFlow
-    ) { (stats, prefs, inCar), lesson, recentStories, unfinishedStory, customScenarios ->
+    ) { (stats, prefs, inCar), (lesson, lessonState), recentStories, unfinishedStory, customScenarios ->
         HomeUiState(
             stats = stats,
             dailyGoalMinutes = prefs.dailyGoalMinutes,
@@ -126,6 +138,7 @@ class HomeViewModel @Inject constructor(
             customScenarios = customScenarios,
             isCarConnected = inCar,
             currentLesson = lesson,
+            lessonState = lessonState,
             isLoading = false
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())

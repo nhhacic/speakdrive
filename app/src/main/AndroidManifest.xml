@@ -9,6 +9,13 @@
     <!-- Daily practice reminder (asked for in Settings, Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- The home screen mic uses the system speech recognizer (Android 11+ package visibility). -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <application
         android:name=".SpeakDriveApplication"
         android:allowBackup="true"

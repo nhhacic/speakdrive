@@ -519,4 +519,36 @@
     <string name="settings_weekly_digest">Báo cáo tuần bằng giọng nói</string>
     <string name="settings_weekly_digest_desc">Tự động phát lời chào và tóm tắt tiến độ tuần qua (thời gian nói, tốc độ trung bình, từ mới) vào buổi học đầu tuần.</string>
     <string name="home_custom_scenarios_title">Tình huống tự tạo của bạn</string>
+    <!-- Bố cục màn hình chính (v1.6) -->
+    <string name="home_hero_tag_paused">Đang tạm dừng</string>
+    <string name="home_voice_button">Nói lệnh</string>
+    <string name="home_voice_listening">Đang nghe…</string>
+    <string name="home_voice_examples">Hãy nói, ví dụ: \"ôn từ vựng\", \"nghe truyện\", \"chủ đề du lịch\"</string>
+    <string name="home_voice_not_heard">Chưa nghe rõ. Chạm mic và nói lại nhé.</string>
+    <string name="home_voice_unavailable">Chưa dùng được nhận dạng giọng nói: hãy cho phép micro hoặc cài ứng dụng Google.</string>
+    <string name="home_today_title">Hôm nay</string>
+    <string name="home_today_summary">%1$d/%2$d phút · +%3$d từ mới</string>
+    <plurals name="home_review_words_due">
+        <item quantity="other">%d từ vựng đến hạn ôn</item>
+    </plurals>
+    <plurals name="home_review_mistakes_due">
+        <item quantity="other">%d lỗi sai cần sửa</item>
+    </plurals>
+    <string name="home_modes_title">Luyện theo kiểu</string>
+    <string name="home_mode_stories">Nghe truyện</string>
+    <string name="home_mode_ielts">IELTS Speaking</string>
+    <string name="home_mode_roleplay">Nhập vai</string>
+    <plurals name="home_mode_roleplay_custom">
+        <item quantity="other">%d kịch bản riêng</item>
+    </plurals>
+    <string name="home_topics_suggested_title">Chủ đề gợi ý</string>
+    <string name="home_topics_see_all">Tất cả %1$d</string>
+    <string name="home_roleplay_sheet_desc">AI đóng vai người đối diện, bạn luyện nói theo tình huống thật</string>
+    <string name="home_roleplay_sheet_by_topic">Chọn tình huống theo chủ đề</string>
+    <string name="topics_title">Tất cả chủ đề</string>
+    <string name="topics_search_hint">Tìm chủ đề</string>
+    <string name="topics_search_clear">Xóa tìm kiếm</string>
+    <string name="topics_empty">Không có chủ đề nào khớp</string>
+    <string name="now_playing_pause">Tạm dừng</string>
+    <string name="now_playing_resume">Tiếp tục</string>
 </resources>
