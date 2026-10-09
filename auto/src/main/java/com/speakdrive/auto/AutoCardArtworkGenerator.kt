@@ -10,6 +10,7 @@ import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
@@ -68,7 +69,9 @@ class AutoCardArtworkGenerator @Inject constructor() {
         }
 
         return try {
-            val bitmap = renderCard(content)
+            val square = renderCard(content)
+            val bitmap = widen(square)
+            square.recycle()
             val stream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
             bitmap.recycle()
@@ -80,6 +83,24 @@ class AutoCardArtworkGenerator @Inject constructor() {
             Log.w(TAG, "Failed to render Android Auto card artwork: ${e.message}")
             null
         }
+    }
+
+    /**
+     * Puts the square card in the middle of a [WIDE_WIDTH]-wide image, its outer pixel columns
+     * stretched outwards so the panel, its edge and the dark band below simply continue.
+     *
+     * The full Now Playing screen has room for a much wider picture than the square it shows now.
+     * The media card next to the map scales the image to its height and crops the sides either way,
+     * so there it still shows the same middle of the square.
+     */
+    internal fun widen(square: Bitmap): Bitmap {
+        val side = (WIDE_WIDTH - CARD_SIZE) / 2
+        val wide = createBitmap(WIDE_WIDTH, CARD_SIZE)
+        val canvas = Canvas(wide)
+        canvas.drawBitmap(square, Rect(0, 0, 1, CARD_SIZE), Rect(0, 0, side, CARD_SIZE), null)
+        canvas.drawBitmap(square, Rect(CARD_SIZE - 1, 0, CARD_SIZE, CARD_SIZE), Rect(side + CARD_SIZE, 0, WIDE_WIDTH, CARD_SIZE), null)
+        canvas.drawBitmap(square, side.toFloat(), 0f, null)
+        return wide
     }
 
     /** What the card shows; equal contents draw identical cards. */
@@ -627,6 +648,9 @@ class AutoCardArtworkGenerator @Inject constructor() {
     internal companion object {
         private const val TAG = "AutoCardArtwork"
         const val CARD_SIZE = 600
+
+        /** Width of the image sent to Android Auto: the square card plus a wing on each side. */
+        const val WIDE_WIDTH = 1200
 
         // Safe box: the part of the split-screen media card (about 0.58:1, measured on the Desktop
         // Head Unit) that is not covered by Android Auto's own UI, less a small margin. The card shows
