@@ -25,10 +25,11 @@ class AppLaunchTest {
 
     @Test
     fun `app starts on the home screen and opens settings and progress`() {
-        compose.onNodeWithText("SpeakDrive").assertExists()
-        compose.onNodeWithText("Chủ đề luyện tập").assertExists()
+        compose.onNodeWithText("Nói lệnh").assertExists()
+        compose.onNodeWithText("Chủ đề gợi ý").assertExists()
 
-        compose.onNodeWithContentDescription("Cài đặt").performClick()
+        // Settings and Progress are only in the bottom bar now.
+        compose.onNodeWithText("Cài đặt").performClick()
         compose.onNodeWithText("Luyện tập & Trình độ").performScrollTo().assertExists()
         compose.onNodeWithText("Giọng nói & Tương tác AI").performScrollTo().assertExists()
         compose.onNodeWithText("Chế độ Lái xe & Màn hình").performScrollTo().assertExists()
@@ -42,7 +43,7 @@ class AppLaunchTest {
         compose.onNodeWithContentDescription("Quay lại danh mục").performClick()
         compose.onNodeWithContentDescription("Quay lại").performClick()
 
-        compose.onNodeWithContentDescription("Tiến trình").performClick()
+        compose.onNodeWithText("Tiến trình").performClick()
         compose.onNodeWithText("7 ngày qua", substring = true).assertExists()
     }
 }
