@@ -4,6 +4,7 @@
 $adbPath = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 $dhuDir = "$env:LOCALAPPDATA\Android\Sdk\extras\google\auto"
 $dhuExe = "$dhuDir\desktop-head-unit.exe"
+$defaultWifiIp = "192.168.0.55:5555"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "   SpeakDrive - Trình Giả Lập Màn Hình Xe Hơi Android Auto" -ForegroundColor Green
@@ -23,7 +24,7 @@ if (-not (Test-Path $adbPath)) {
     exit 1
 }
 
-# 3. Kiem tra thiet bi ket noi
+# 3. Kiem tra thiet bi ket noi (tu dong thu Wi-Fi neu chua co USB)
 function Check-Devices {
     $devicesOutput = & $adbPath devices
     $lines = $devicesOutput -split "`r?`n" | Where-Object { $_ -match "\bdevice\b" -and $_ -notmatch "List of devices attached" }
@@ -31,34 +32,53 @@ function Check-Devices {
 }
 
 $connected = Check-Devices
+if (-not $connected) {
+    Write-Host "-> Đang thử tự động kết nối không dây tới $defaultWifiIp qua Wi-Fi..." -ForegroundColor Cyan
+    & $adbPath connect $defaultWifiIp | Out-Null
+    Start-Sleep -Milliseconds 800
+    $connected = Check-Devices
+}
+
 while (-not $connected) {
     Write-Host ""
     Write-Host "[CHÚ Ý] Chưa phát hiện thiết bị Android nào được kết nối!" -ForegroundColor Yellow
-    Write-Host "Vui lòng thực hiện các bước sau:" -ForegroundColor White
-    Write-Host " 1. Cắm cáp USB điện thoại với máy tính (đã bật Gỡ lỗi USB / USB Debugging)," -ForegroundColor White
-    Write-Host "    HOẶC khởi động một máy ảo Android Emulator." -ForegroundColor White
-    Write-Host " 2. Trên điện thoại Android:" -ForegroundColor White
+    Write-Host "Vui lòng thực hiện một trong các cách sau:" -ForegroundColor White
+    Write-Host " 1. Kết nối qua Wi-Fi: Đảm bảo điện thoại và máy tính cùng mạng Wi-Fi." -ForegroundColor White
+    Write-Host " 2. Hoặc cắm cáp USB nối điện thoại với máy tính (đã bật Gỡ lỗi USB)." -ForegroundColor White
+    Write-Host " 3. Trên điện thoại Android:" -ForegroundColor White
     Write-Host "    - Mở Cài đặt -> Android Auto -> Chạm 10 lần vào 'Version' để bật Chế độ nhà phát triển." -ForegroundColor Gray
     Write-Host "    - Menu 3 chấm -> Developer settings -> Tích chọn 'Unknown sources'." -ForegroundColor Gray
     Write-Host "    - Menu 3 chấm -> Chọn 'Start head unit server'." -ForegroundColor Cyan
     Write-Host ""
-    $choice = Read-Host "Cắm cáp xong, nhấn Enter để thử lại (hoặc gõ Q rồi Enter để thoát)"
+    $choice = Read-Host "Cắm cáp hoặc bật Wi-Fi xong, nhấn Enter để thử lại (hoặc gõ Q rồi Enter để thoát)"
     if ($choice -match "^[Qq]") {
         exit 0
     }
+    # Thu ket noi lai Wi-Fi
+    & $adbPath connect $defaultWifiIp | Out-Null
+    Start-Sleep -Milliseconds 800
     $connected = Check-Devices
 }
 
 Write-Host ""
-Write-Host "[OK] Đã phát hiện thiết bị:" -ForegroundColor Green
+Write-Host "[OK] Đã phát hiện thiết bị kết nối:" -ForegroundColor Green
+$targetSerial = $null
 foreach ($d in $connected) {
     Write-Host "  -> $d" -ForegroundColor White
+    if (-not $targetSerial) {
+        $targetSerial = ($d -split "`t")[0].Trim()
+    }
 }
 
 # 4. Chuyen tiep cong 5277
 Write-Host ""
-Write-Host "-> Đang chuyển tiếp cổng 5277 qua ADB..." -ForegroundColor Cyan
-& $adbPath forward tcp:5277 tcp:5277
+Write-Host "-> Đang chuyển tiếp cổng 5277 qua ADB (Thiết bị: $targetSerial)..." -ForegroundColor Cyan
+if ($targetSerial) {
+    & $adbPath -s $targetSerial forward tcp:5277 tcp:5277
+} else {
+    & $adbPath forward tcp:5277 tcp:5277
+}
+
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] Chuyển tiếp cổng tcp:5277 thành công!" -ForegroundColor Green
 } else {
@@ -68,11 +88,8 @@ if ($LASTEXITCODE -eq 0) {
 # 5. Huong dan truoc khi khoi chay
 Write-Host ""
 Write-Host "----------------------------------------------------------" -ForegroundColor Yellow
-Write-Host " [QUAN TRỌNG KHI KẾT NỐI]:" -ForegroundColor Yellow
-Write-Host " 1. Hãy kiểm tra màn hình ĐIỆN THOẠI." -ForegroundColor White
-Write-Host "    Nếu điện thoại hiện màn hình chào mừng/thiết lập Android Auto," -ForegroundColor White
-Write-Host "    hãy bấm 'Tiếp tục' / 'Đồng ý' và cấp đủ quyền trên điện thoại." -ForegroundColor White
-Write-Host " 2. Khi điện thoại chấp nhận, cửa sổ ô tô sẽ hiển thị giao diện chính." -ForegroundColor White
+Write-Host " [LƯU Ý]: Hãy đảm bảo trên điện thoại đã bấm" -ForegroundColor Yellow
+Write-Host " 'Start head unit server' trong cài đặt Android Auto." -ForegroundColor Yellow
 Write-Host "----------------------------------------------------------" -ForegroundColor Yellow
 Write-Host ""
 
@@ -90,5 +107,9 @@ try {
 # 6. Don dep sau khi dong DHU
 Write-Host ""
 Write-Host "-> Đang dọn dẹp kết nối ADB..." -ForegroundColor Cyan
-& $adbPath forward --remove tcp:5277 2>$null
+if ($targetSerial) {
+    & $adbPath -s $targetSerial forward --remove tcp:5277 2>$null
+} else {
+    & $adbPath forward --remove tcp:5277 2>$null
+}
 Write-Host "[XONG] Đã đóng trình giả lập Android Auto." -ForegroundColor Green
