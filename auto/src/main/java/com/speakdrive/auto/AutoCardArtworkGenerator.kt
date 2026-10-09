@@ -1,5 +1,6 @@
 package com.speakdrive.auto
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -100,6 +101,9 @@ class AutoCardArtworkGenerator @Inject constructor() {
      * Subtitle, and Transport Controls (Play/Pause/Next) to render without overlapping.
      * Features pure crisp white text, adaptive font sizing, and vibrant yellow translation subtitle.
      */
+    // Layout.BREAK_STRATEGY_SIMPLE equals LineBreaker.BREAK_STRATEGY_SIMPLE, which lint expects
+    // but which needs API 29 (minSdk is 26).
+    @SuppressLint("WrongConstant")
     private fun renderRepeatFocusScreen(
         canvas: Canvas,
         width: Int,
@@ -269,6 +273,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
     /**
      * Clean conversation/story card that fills the artwork canvas when no specific drill target is active.
      */
+    @SuppressLint("WrongConstant") // See renderRepeatFocusScreen.
     private fun renderGeneralConversationScreen(
         canvas: Canvas,
         width: Int,
