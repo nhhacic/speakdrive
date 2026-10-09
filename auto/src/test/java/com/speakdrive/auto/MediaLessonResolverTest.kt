@@ -38,6 +38,19 @@ class MediaLessonResolverTest {
     }
 
     @Test
+    fun `topic stays free talk and random stays free talk after a pronunciation lesson`() = runTest {
+        val settings = FakeLearningSettings().apply {
+            current = current.copy(lastTopicId = "travel", lastSessionMode = SessionMode.REPEAT_AFTER_ME)
+        }
+        assertThat(MediaLessonResolver.resolve(MediaIds.topic("work"), settings)!!.mode).isEqualTo(SessionMode.FREE_TALK)
+        assertThat(MediaLessonResolver.resolve(MediaIds.topic("work", DifficultyLevel.ADVANCED), settings)!!.mode)
+            .isEqualTo(SessionMode.FREE_TALK)
+        assertThat(MediaLessonResolver.resolve(MediaIds.RANDOM, settings)!!.mode).isEqualTo(SessionMode.FREE_TALK)
+        assertThat(MediaLessonResolver.resolve(MediaIds.scenario("hotel_checkin"), settings)!!.mode).isEqualTo(SessionMode.ROLEPLAY)
+        assertThat(MediaLessonResolver.resolve(MediaIds.REVIEW, settings)!!.mode).isEqualTo(SessionMode.VOCAB_REVIEW)
+    }
+
+    @Test
     fun `resolves pronunciation id into repeat after me request`() = runTest {
         val settings = FakeLearningSettings()
         val request = MediaLessonResolver.resolve(MediaIds.pronunciation("travel"), settings)

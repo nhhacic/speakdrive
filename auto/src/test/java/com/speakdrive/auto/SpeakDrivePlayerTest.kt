@@ -389,7 +389,7 @@ class SpeakDrivePlayerTest {
     }
 
     @Test
-    fun `picking topic item preserves REPEAT_AFTER_ME mode when lastSessionMode was REPEAT_AFTER_ME`() = runTest(testDispatcher) {
+    fun `picking topic item starts FREE_TALK even right after a pronunciation lesson`() = runTest(testDispatcher) {
         settings.current = settings.current.copy(
             lastTopicId = "travel",
             lastSessionMode = SessionMode.REPEAT_AFTER_ME
@@ -403,7 +403,35 @@ class SpeakDrivePlayerTest {
 
         assertThat(testEngine.lastStartRequest).isNotNull()
         assertThat(testEngine.lastStartRequest?.topicId).isEqualTo("interview")
-        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.REPEAT_AFTER_ME)
+        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.FREE_TALK)
+    }
+
+    @Test
+    fun `picking free talk on the topic of a running pronunciation drill switches to FREE_TALK`() = runTest(testDispatcher) {
+        lessonFlow.value = ActiveLesson(
+            sessionId = "s1",
+            topic = topics.getTopicById("travel")!!,
+            scenario = null,
+            level = DifficultyLevel.INTERMEDIATE,
+            mode = SessionMode.REPEAT_AFTER_ME,
+            startedAt = 0L,
+            reviewWords = emptyList()
+        )
+        stateFlow.value = ConversationState.PAUSED
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val topicItem = MediaItem.Builder().setMediaId(MediaIds.topic("travel")).build()
+        player.setMediaItem(topicItem)
+        player.prepare()
+        player.play()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.resumeCallCount).isEqualTo(0)
+        assertThat(testEngine.lastStartRequest).isNotNull()
+        assertThat(testEngine.lastStartRequest?.topicId).isEqualTo("travel")
+        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.FREE_TALK)
     }
 
     @Test

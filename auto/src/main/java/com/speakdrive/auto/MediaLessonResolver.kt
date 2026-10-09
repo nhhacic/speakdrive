@@ -48,12 +48,9 @@ object MediaLessonResolver {
             LessonRequest(mode = SessionMode.REPEAT_AFTER_ME, topicId = target.topicId ?: settings.snapshot().lastTopicId)
         is MediaTarget.Topic -> {
             target.level?.let { settings.setLevel(it) }
-            val preferredMode = if (settings.snapshot().lastSessionMode == SessionMode.REPEAT_AFTER_ME) {
-                SessionMode.REPEAT_AFTER_ME
-            } else {
-                SessionMode.FREE_TALK
-            }
-            LessonRequest(topicId = target.topicId, level = target.level, mode = preferredMode)
+            // A topic id always means a conversation: the drill has its own id (pronunciation:<topic>),
+            // and only Resume carries the last mode over, so one drill never traps every later topic in it.
+            LessonRequest(topicId = target.topicId, level = target.level, mode = SessionMode.FREE_TALK)
         }
         is MediaTarget.Scenario -> LessonRequest(mode = SessionMode.ROLEPLAY, scenarioId = target.scenarioId)
         is MediaTarget.Level -> {

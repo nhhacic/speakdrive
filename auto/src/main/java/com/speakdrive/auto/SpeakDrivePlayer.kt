@@ -68,7 +68,7 @@ class SpeakDrivePlayer(
             is MediaTarget.Pronunciation ->
                 lesson.mode == SessionMode.REPEAT_AFTER_ME && (target.topicId == null || target.topicId == lesson.topic.id)
             is MediaTarget.Topic ->
-                lesson.topic.id == target.topicId
+                lesson.mode == SessionMode.FREE_TALK && lesson.topic.id == target.topicId
             is MediaTarget.Scenario ->
                 lesson.mode == SessionMode.ROLEPLAY && lesson.scenario?.id == target.scenarioId
             is MediaTarget.Story ->
