@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -128,7 +129,8 @@ fun HomeContent(
         }
     }
 
-    Scaffold { padding ->
+    // The app-level Scaffold in MainActivity already pads for the status bar.
+    Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0)) { padding ->
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
