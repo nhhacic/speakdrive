@@ -38,10 +38,11 @@ import kotlin.math.sin
  * - a story: a wordless illustration of the story, so there is nothing to read while driving;
  * - a conversation: the latest lines of the AI and the learner as chat bubbles, newest at the bottom.
  *
- * Android Auto does not always show this square as-is. In the split-screen media card it scales the
- * image to the card's height and centre-crops the sides, then lays its own app icon, title, subtitle
- * and controls over it. All text is therefore kept inside [SAFE_LEFT]..[SAFE_RIGHT] ×
- * [SAFE_TOP]..[SAFE_BOTTOM].
+ * Android Auto does not always show this square as-is. In the split-screen media card it stretches
+ * the image over the whole card (scaled to the card's height, sides centre-cropped) and lays its own
+ * app icon, title, subtitle and controls over it. So the picture is painted only in a panel above
+ * [PANEL_BOTTOM], the free top part of the card, and all text stays inside
+ * [SAFE_LEFT]..[SAFE_RIGHT] × [SAFE_TOP]..[SAFE_BOTTOM].
  */
 @Singleton
 class AutoCardArtworkGenerator @Inject constructor() {
@@ -112,13 +113,15 @@ class AutoCardArtworkGenerator @Inject constructor() {
         when (content) {
             is CardContent.Repeat -> {
                 val card = layoutRepeatCard(content.target, content.translation)
-                drawBackground(canvas, COLOR_ACCENT, glowCenterY = blockTop(card) + card.height / 2f)
+                val panel = drawBackground(canvas, COLOR_ACCENT, glowCenterY = blockTop(card) + card.height / 2f)
                 drawBlocks(canvas, card)
+                endPanel(canvas, panel, COLOR_ACCENT)
             }
             is CardContent.Story -> drawStoryScene(canvas, content.scene)
             is CardContent.Chat -> {
-                drawBackground(canvas, COLOR_ACCENT, glowCenterY = (SAFE_TOP + SAFE_BOTTOM) / 2f)
+                val panel = drawBackground(canvas, COLOR_ACCENT, glowCenterY = (SAFE_TOP + SAFE_BOTTOM) / 2f)
                 drawChat(canvas, layoutChat(content.lines))
+                endPanel(canvas, panel, COLOR_ACCENT)
             }
         }
         return bitmap
@@ -302,30 +305,27 @@ class AutoCardArtworkGenerator @Inject constructor() {
     /** A wordless picture: painted backdrop, a glowing halo, the hero emoji and a few props around it. */
     private fun drawStoryScene(canvas: Canvas, scene: StoryScene) {
         val backdrop = scene.backdrop
-        val size = CARD_SIZE.toFloat()
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.shader = LinearGradient(0f, 0f, 0f, size, backdrop.top, backdrop.bottom, Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, 0f, size, size, paint)
-        paint.shader = null
+        val panelSave = beginPanel(canvas, backdrop.top, backdrop.bottom)
+        val panel = PANEL_BOTTOM.toFloat()
 
         // Seeded from the emoji (not the enum, whose hash changes per process) so a story keeps its sky.
         val random = Random(31L * scene.heroes.hashCode() + scene.props.hashCode())
         when (backdrop) {
             Backdrop.NIGHT -> {
-                drawStars(canvas, random, count = 45, maxY = 330f)
+                drawStars(canvas, random, count = 45, maxY = 300f)
                 drawCrescentMoon(canvas)
             }
             Backdrop.SPACE -> {
                 drawNebula(canvas, backdrop.glow)
-                drawStars(canvas, random, count = 110, maxY = size)
+                drawStars(canvas, random, count = 90, maxY = panel)
             }
             Backdrop.OCEAN -> {
-                drawStars(canvas, random, count = 25, maxY = 260f)
+                drawStars(canvas, random, count = 25, maxY = 220f)
                 drawWaves(canvas, backdrop.glow)
             }
             Backdrop.SNOW -> {
                 drawMountains(canvas, far = 0xFF2C4A70.toInt(), near = 0xFF16273F.toInt(), snowCaps = true)
-                drawStars(canvas, random, count = 60, maxY = size, maxRadius = 3f)
+                drawStars(canvas, random, count = 50, maxY = panel, maxRadius = 3f)
             }
             Backdrop.JUNGLE -> {
                 drawMountains(canvas, far = 0xFF145040.toInt(), near = 0xFF0A2A20.toInt(), snowCaps = false)
@@ -336,7 +336,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
                 drawDunes(canvas)
             }
             Backdrop.CITY -> {
-                drawStars(canvas, random, count = 20, maxY = 220f)
+                drawStars(canvas, random, count = 20, maxY = 200f)
                 drawSkyline(canvas, random)
             }
             Backdrop.LAB -> {
@@ -346,6 +346,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
         }
 
         // Halo behind the hero, so the picture reads even after Android Auto dims and blurs it.
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.shader = RadialGradient(
             HERO_X, HERO_Y, HALO_RADIUS,
             (backdrop.glow and 0x00FFFFFF) or 0x66000000, backdrop.glow and 0x00FFFFFF,
@@ -362,6 +363,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
         scene.props.filter { emojiPaint.hasGlyph(it) }.zip(PROP_POSITIONS).forEach { (prop, position) ->
             drawEmoji(canvas, emojiPaint, prop, position.first, position.second)
         }
+        endPanel(canvas, panelSave, backdrop.glow)
     }
 
     private fun drawEmoji(canvas: Canvas, paint: TextPaint, emoji: String, centerX: Float, centerY: Float) {
@@ -386,11 +388,13 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
     private fun drawNebula(canvas: Canvas, color: Int) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.shader = RadialGradient(190f, 170f, 260f, (color and 0x00FFFFFF) or 0x55000000, color and 0x00FFFFFF, Shader.TileMode.CLAMP)
-        canvas.drawCircle(190f, 170f, 260f, paint)
-        paint.shader = RadialGradient(440f, 420f, 220f, 0x44EC4899, 0x00EC4899, Shader.TileMode.CLAMP)
-        canvas.drawCircle(440f, 420f, 220f, paint)
+        paint.shader = RadialGradient(190f, 160f, 240f, (color and 0x00FFFFFF) or 0x55000000, color and 0x00FFFFFF, Shader.TileMode.CLAMP)
+        canvas.drawCircle(190f, 160f, 240f, paint)
+        paint.shader = RadialGradient(440f, 330f, 200f, 0x44EC4899, 0x00EC4899, Shader.TileMode.CLAMP)
+        canvas.drawCircle(440f, 330f, 200f, paint)
     }
+
+    // The ground-level decorations below stand on the bottom edge of the panel.
 
     private fun drawWaves(canvas: Canvas, color: Int) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -398,14 +402,15 @@ class AutoCardArtworkGenerator @Inject constructor() {
             strokeWidth = 5f
             strokeCap = Paint.Cap.ROUND
         }
-        listOf(430f to 0x55, 485f to 0x40, 540f to 0x30).forEachIndexed { index, (baseY, alpha) ->
+        val panel = PANEL_BOTTOM.toFloat()
+        listOf(panel - 95f to 0x55, panel - 60f to 0x40, panel - 25f to 0x30).forEachIndexed { index, (baseY, alpha) ->
             paint.color = (color and 0x00FFFFFF) or (alpha shl 24)
             val path = Path()
             var x = 0f
             path.moveTo(x, baseY)
             while (x <= CARD_SIZE) {
                 x += 6f
-                path.lineTo(x, baseY + 12f * sin((x / 110f) + index * 1.7f))
+                path.lineTo(x, baseY + 10f * sin((x / 110f) + index * 1.7f))
             }
             canvas.drawPath(path, paint)
         }
@@ -413,8 +418,9 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
     private fun drawMountains(canvas: Canvas, far: Int, near: Int, snowCaps: Boolean) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val farPeaks = listOf(0f to 430f, 110f to 330f, 230f to 400f, 340f to 300f, 470f to 390f, 600f to 320f)
-        val nearPeaks = listOf(0f to 470f, 150f to 390f, 290f to 470f, 420f to 380f, 600f to 460f)
+        val panel = PANEL_BOTTOM.toFloat()
+        val farPeaks = listOf(0f to 70f, 110f to 150f, 230f to 90f, 340f to 170f, 470f to 100f, 600f to 160f).map { (x, h) -> x to panel - h }
+        val nearPeaks = listOf(0f to 35f, 150f to 95f, 290f to 30f, 420f to 105f, 600f to 45f).map { (x, h) -> x to panel - h }
         paint.color = far
         canvas.drawPath(ridge(farPeaks), paint)
         if (snowCaps) {
@@ -433,9 +439,9 @@ class AutoCardArtworkGenerator @Inject constructor() {
     }
 
     private fun ridge(peaks: List<Pair<Float, Float>>) = Path().apply {
-        moveTo(0f, CARD_SIZE.toFloat())
+        moveTo(0f, PANEL_BOTTOM.toFloat())
         peaks.forEach { (x, y) -> lineTo(x, y) }
-        lineTo(CARD_SIZE.toFloat(), CARD_SIZE.toFloat())
+        lineTo(CARD_SIZE.toFloat(), PANEL_BOTTOM.toFloat())
         close()
     }
 
@@ -443,7 +449,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF0E4A36.toInt() }
         listOf(
             Triple(40f, 70f, 35f), Triple(80f, 160f, -20f), Triple(560f, 90f, -35f),
-            Triple(520f, 190f, 20f), Triple(30f, 300f, 50f), Triple(575f, 320f, -50f)
+            Triple(520f, 190f, 20f), Triple(30f, 280f, 50f), Triple(575f, 290f, -50f)
         ).forEach { (x, y, angle) ->
             canvas.save()
             canvas.rotate(angle, x, y)
@@ -454,27 +460,29 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
     private fun drawSun(canvas: Canvas) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.shader = RadialGradient(300f, 440f, 230f, 0x88F59E0B.toInt(), 0x00F59E0B, Shader.TileMode.CLAMP)
-        canvas.drawCircle(300f, 440f, 230f, paint)
+        val centerY = PANEL_BOTTOM - 20f
+        paint.shader = RadialGradient(300f, centerY, 210f, 0x88F59E0B.toInt(), 0x00F59E0B, Shader.TileMode.CLAMP)
+        canvas.drawCircle(300f, centerY, 210f, paint)
     }
 
     private fun drawDunes(canvas: Canvas) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val panel = PANEL_BOTTOM.toFloat()
         paint.color = 0xFF6B3A16.toInt()
         canvas.drawPath(Path().apply {
-            moveTo(0f, 470f)
-            quadTo(180f, 380f, 380f, 450f)
-            quadTo(500f, 490f, 600f, 420f)
-            lineTo(600f, 600f)
-            lineTo(0f, 600f)
+            moveTo(0f, panel - 70f)
+            quadTo(180f, panel - 150f, 380f, panel - 90f)
+            quadTo(500f, panel - 55f, 600f, panel - 115f)
+            lineTo(600f, panel)
+            lineTo(0f, panel)
             close()
         }, paint)
         paint.color = 0xFF3B1F0B.toInt()
         canvas.drawPath(Path().apply {
-            moveTo(0f, 540f)
-            quadTo(260f, 450f, 600f, 530f)
-            lineTo(600f, 600f)
-            lineTo(0f, 600f)
+            moveTo(0f, panel - 25f)
+            quadTo(260f, panel - 95f, 600f, panel - 35f)
+            lineTo(600f, panel)
+            lineTo(0f, panel)
             close()
         }, paint)
     }
@@ -482,13 +490,14 @@ class AutoCardArtworkGenerator @Inject constructor() {
     private fun drawSkyline(canvas: Canvas, random: Random) {
         val building = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1C1230.toInt() }
         val window = Paint(Paint.ANTI_ALIAS_FLAG)
+        val panel = PANEL_BOTTOM.toFloat()
         var x = 0f
         while (x < CARD_SIZE) {
             val width = 50f + random.nextInt(40)
-            val top = 420f + random.nextInt(110)
-            canvas.drawRect(x, top, x + width - 6f, CARD_SIZE.toFloat(), building)
+            val top = panel - 40f - random.nextInt(80)
+            canvas.drawRect(x, top, x + width - 6f, panel, building)
             var wy = top + 14f
-            while (wy < CARD_SIZE - 10f) {
+            while (wy < panel - 10f) {
                 var wx = x + 10f
                 while (wx < x + width - 18f) {
                     if (random.nextInt(3) == 0) {
@@ -506,7 +515,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
     private fun drawDotGrid(canvas: Canvas) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x2E5EEAD4 }
         var y = 15f
-        while (y < CARD_SIZE) {
+        while (y < PANEL_BOTTOM) {
             var x = 15f
             while (x < CARD_SIZE) {
                 canvas.drawCircle(x, y, 2f, paint)
@@ -534,19 +543,41 @@ class AutoCardArtworkGenerator @Inject constructor() {
     // Shared
     // ---------------------------------------------------------------------------------------------
 
-    private fun drawBackground(canvas: Canvas, accent: Int, glowCenterY: Float) {
+    /**
+     * Paints the panel above [PANEL_BOTTOM] and leaves the rest of the image plain near-black, the
+     * colour of the card under Android Auto's title and controls. Returns the save count to pass to
+     * [endPanel]; drawing in between is clipped to the panel.
+     */
+    private fun beginPanel(canvas: Canvas, top: Int, bottom: Int): Int {
         val size = CARD_SIZE.toFloat()
+        val panel = PANEL_BOTTOM.toFloat()
+        canvas.drawColor(COLOR_OFF_PANEL)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.shader = LinearGradient(0f, 0f, 0f, size, COLOR_BG_TOP, COLOR_BG_BOTTOM, Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, 0f, size, size, paint)
+        paint.shader = LinearGradient(0f, 0f, 0f, panel, top, bottom, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, size, panel, paint)
+        val save = canvas.save()
+        canvas.clipRect(0f, 0f, size, panel)
+        return save
+    }
 
-        // A soft glow behind the text lifts it off the background once Android Auto dims the art.
+    /** Closes the panel with a thin accent edge just above Android Auto's title. */
+    private fun endPanel(canvas: Canvas, save: Int, accent: Int) {
+        canvas.restoreToCount(save)
+        val edge = Paint().apply { color = (accent and 0x00FFFFFF) or PANEL_EDGE_ALPHA }
+        canvas.drawRect(0f, PANEL_BOTTOM - PANEL_EDGE, CARD_SIZE.toFloat(), PANEL_BOTTOM.toFloat(), edge)
+    }
+
+    /** The panel for text cards, with a soft glow that lifts the text once Android Auto dims the art. */
+    private fun drawBackground(canvas: Canvas, accent: Int, glowCenterY: Float): Int {
+        val save = beginPanel(canvas, COLOR_BG_TOP, COLOR_BG_BOTTOM)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.shader = RadialGradient(
-            size / 2f, glowCenterY, GLOW_RADIUS,
+            CARD_SIZE / 2f, glowCenterY, GLOW_RADIUS,
             (accent and 0x00FFFFFF) or GLOW_ALPHA, 0x00000000,
             Shader.TileMode.CLAMP
         )
-        canvas.drawRect(0f, 0f, size, size, paint)
+        canvas.drawRect(0f, 0f, CARD_SIZE.toFloat(), PANEL_BOTTOM.toFloat(), paint)
+        return save
     }
 
     /**
@@ -592,17 +623,22 @@ class AutoCardArtworkGenerator @Inject constructor() {
         private const val TAG = "AutoCardArtwork"
         const val CARD_SIZE = 600
 
-        // Safe box, measured on the Desktop Head Unit (split-screen media card, about 0.58:1).
-        // The card shows only x ≈ 125..475 of the 600 px square; x 150..450 still survives a card as
-        // narrow as 1:2. The app icon and page dots cover y < 40, and the native title, subtitle and
-        // controls start around y ≈ 415. The full Now Playing screen shows the whole square, and
-        // keeps x < 120 and x > 480 free for drill status.
-        const val SAFE_LEFT = 150
-        const val SAFE_RIGHT = 450
-        const val SAFE_TOP = 48
-        const val SAFE_BOTTOM = 400
+        // Safe box: the part of the split-screen media card (about 0.58:1, measured on the Desktop
+        // Head Unit) that is not covered by Android Auto's own UI, less a small margin. The card shows
+        // only x ≈ 124..476 of the 600 px square; the app icon and page dots cover y < 36, and the
+        // native title, subtitle and controls start at y ≈ 419. The full Now Playing screen shows the
+        // whole square and keeps x < 120 and x > 480 free for drill status.
+        const val SAFE_LEFT = 136
+        const val SAFE_RIGHT = 464
+        const val SAFE_TOP = 44
+        const val SAFE_BOTTOM = 404
         const val SAFE_WIDTH = SAFE_RIGHT - SAFE_LEFT
         const val SAFE_HEIGHT = SAFE_BOTTOM - SAFE_TOP
+
+        /** Bottom of the painted panel: just above where Android Auto starts its title. */
+        const val PANEL_BOTTOM = 412
+        private const val PANEL_EDGE = 3f
+        private const val PANEL_EDGE_ALPHA = 0x80000000.toInt()
 
         /** Largest first: the first size at which everything fits wins. */
         val TARGET_TEXT_SIZES = floatArrayOf(44f, 41f, 38f, 35f, 32f, 30f, 28f, 26f, 24f, 22f, 20f, 18f)
@@ -623,14 +659,14 @@ class AutoCardArtworkGenerator @Inject constructor() {
         const val CHAT_TEXT_SIZE = 26f
         private const val BUBBLE_PAD_X = 14
         private const val BUBBLE_PAD_Y = 10
-        private const val BUBBLE_TEXT_WIDTH = 270 - 2 * BUBBLE_PAD_X
+        private const val BUBBLE_TEXT_WIDTH = SAFE_WIDTH * 9 / 10 - 2 * BUBBLE_PAD_X
         private const val BUBBLE_GAP = 12
         private const val BUBBLE_RADIUS = 18f
         private const val FADE_HEIGHT = 56f
 
         // Story: hero in the middle of the safe box, props tucked into its corners.
         private const val HERO_X = 300f
-        private const val HERO_Y = 222f
+        private const val HERO_Y = 224f
         private const val HERO_SIZE = 150f
         private const val HALO_RADIUS = 150f
         private const val PROP_SIZE = 58f
@@ -645,6 +681,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
         // Bright text on a near-black navy that stays dark under Android Auto's scrim.
         private const val COLOR_BG_TOP = 0xFF132242.toInt()
         private const val COLOR_BG_BOTTOM = 0xFF0A0E18.toInt()
+        const val COLOR_OFF_PANEL = 0xFF05070B.toInt()
         private const val COLOR_TEXT = 0xFFFFFFFF.toInt()
         private const val COLOR_TRANSLATION = 0xFFFDE047.toInt()    // Yellow 300
         private const val COLOR_TEXT_MUTED = 0xFFCBD5E1.toInt()     // Slate 300

@@ -215,6 +215,24 @@ class AutoCardArtworkGeneratorTest {
         }
     }
 
+    @Test
+    fun `nothing is painted under Android Auto's title and controls`() {
+        val cards = listOf(
+            CardContent.Repeat(REPEAT_SAMPLES.last().first, REPEAT_SAMPLES.last().second),
+            CardContent.Chat(listOf(ChatLine(false, "How was your day?"), ChatLine(true, "Great, thanks!"))),
+            CardContent.Story(StoryScenes.BY_SCENARIO.getValue("story_jan_baalsrud")),
+            CardContent.Story(StoryScenes.BY_SCENARIO.getValue("story_pyramids"))
+        )
+
+        for (content in cards) {
+            val bitmap = generator.renderCard(content)
+            val top = AutoCardArtworkGenerator.PANEL_BOTTOM
+            val pixels = IntArray(bitmap.width * (bitmap.height - top))
+            bitmap.getPixels(pixels, 0, bitmap.width, 0, top, bitmap.width, bitmap.height - top)
+            assertWithMessage(content.toString()).that(pixels.distinct()).containsExactly(AutoCardArtworkGenerator.COLOR_OFF_PANEL)
+        }
+    }
+
     /** Bright pixels (text, divider, bubbles) outside the safe box, with a few pixels of slack for anti-aliasing. */
     private fun inkOutsideSafeBox(bitmap: Bitmap): List<String> {
         val slack = 4
