@@ -171,9 +171,29 @@ class AutoCardArtworkGeneratorTest {
             drillTarget = "We need a better plan.",
             drillTargetTranslation = null
         )
+        assertThat(bytes).isNotNull()
+    }
+
+    @Test
+    fun `generates and saves test artwork to disk for visual verification`() {
+        val topic = topics.getTopicById("work") ?: topics.getAllTopics().first()
+        val lesson = ActiveLesson("session_user", topic, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
+
+        val sentence = "Could you please prepare the presentation for our meeting tomorrow morning?"
+        val translation = "Bạn có thể chuẩn bị bài thuyết trình cho cuộc họp sáng mai được không?"
+
+        val bytes = generator.generateCard(
+            lesson = lesson,
+            state = ConversationState.ACTIVE,
+            lastAiText = "Repeat after me: $sentence",
+            drillTarget = sentence,
+            drillTargetTranslation = translation
+        )
 
         assertThat(bytes).isNotNull()
-        assertThat(bytes!!.size).isGreaterThan(100)
+        val file = java.io.File("C:\\Users\\hoang\\.gemini\\antigravity\\brain\\be0c2d92-f50d-4e38-ba02-bacead45fe5b\\scratch\\artwork_v147.png")
+        file.parentFile?.mkdirs()
+        file.writeBytes(bytes!!)
     }
 }
 

@@ -107,7 +107,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
         targetText: String,
         translationText: String? = null
     ) {
-        val padX = 24f
+        val padX = 36f
         val boxWidth = width - 2 * padX
 
         // Full-frame Hero Card that beautifully fills Android Auto's album artwork canvas
@@ -128,7 +128,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBgPaint)
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBorderPaint)
 
-        // 1. Pill Badge at top center of Hero Box
+        // 1. Pill Badge at top center of Hero Box (protected from top overlay icons)
         val badgeTop = heroBoxTop + 18f
         val badgeBottom = badgeTop + 32f
         val badgeWidth = 230f
@@ -157,7 +157,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
         }
         canvas.drawText(badgeText, width / 2f, badgeTop + 21.5f, badgePaint)
 
-        // Inner layout width with generous margins for comfortable reading
+        // Inner layout width with generous 60px safe margin (36px outer + 24px inner) on each side
         val innerPadX = 24f
         val textLayoutWidth = (boxWidth - 2 * innerPadX).toInt().coerceAtLeast(100)
         val contentTopY = badgeBottom + 16f
@@ -173,12 +173,14 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val spacing = 16f
 
         // Candidate font size pairs: (English size, Translation size)
+        // Scaled to ensure even long 15-20 word sentences wrap smoothly without edge clipping
         val sizePairs = listOf(
-            28f to 21f,
-            25f to 19f,
-            22f to 17f,
-            19f to 15f,
-            17f to 13.5f
+            24f to 18f,
+            22f to 16.5f,
+            20f to 15f,
+            18f to 14f,
+            16.5f to 13f,
+            15f to 12f
         )
 
         var chosenEnglishLayout: StaticLayout? = null
@@ -196,7 +198,9 @@ class AutoCardArtworkGenerator @Inject constructor() {
                 .setAlignment(Layout.Alignment.ALIGN_CENTER)
                 .setIncludePad(false)
                 .setLineSpacing(4f, 1.15f)
-                .setMaxLines(6)
+                .setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE)
+                .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
+                .setMaxLines(7)
                 .build()
 
             val trPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -210,11 +214,29 @@ class AutoCardArtworkGenerator @Inject constructor() {
                 .setAlignment(Layout.Alignment.ALIGN_CENTER)
                 .setIncludePad(false)
                 .setLineSpacing(4f, 1.15f)
-                .setMaxLines(5)
+                .setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE)
+                .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
+                .setMaxLines(6)
                 .build()
 
+            var hasOverflow = false
+            for (i in 0 until enLayout.lineCount) {
+                if (enLayout.getLineWidth(i) > textLayoutWidth) {
+                    hasOverflow = true
+                    break
+                }
+            }
+            if (!hasOverflow) {
+                for (i in 0 until trLayout.lineCount) {
+                    if (trLayout.getLineWidth(i) > textLayoutWidth) {
+                        hasOverflow = true
+                        break
+                    }
+                }
+            }
+
             val totalH = enLayout.height + spacing + trLayout.height
-            if (totalH <= maxAvailableHeight || enSize == sizePairs.last().first) {
+            if ((!hasOverflow && totalH <= maxAvailableHeight) || enSize == sizePairs.last().first) {
                 chosenEnglishLayout = enLayout
                 chosenTransLayout = trLayout
                 break
@@ -250,7 +272,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
         lastAiText: String?,
         isStory: Boolean
     ) {
-        val padX = 24f
+        val padX = 36f
         val boxWidth = width - 2 * padX
 
         // Full-frame Card (y: 24f -> 576f = 552f height)
@@ -289,7 +311,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
             ?: if (isStory) "Đang chuẩn bị câu chuyện thú vị cho bạn…" else "Đang kết nối với gia sư AI…"
 
         val maxAvailableContentHeight = mainBoxHeight - 64f
-        val candidateFontSizes = floatArrayOf(24f, 21f, 18f, 16f)
+        val candidateFontSizes = floatArrayOf(22f, 19f, 17f, 15f, 13.5f)
         var chosenAiLayout: StaticLayout? = null
 
         for (fontSize in candidateFontSizes) {
@@ -304,7 +326,9 @@ class AutoCardArtworkGenerator @Inject constructor() {
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                 .setIncludePad(false)
                 .setLineSpacing(4f, 1.15f)
-                .setMaxLines(9)
+                .setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE)
+                .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
+                .setMaxLines(10)
                 .setEllipsize(TextUtils.TruncateAt.END)
                 .build()
 
