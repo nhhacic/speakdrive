@@ -40,3 +40,11 @@ Mỗi khi hoàn thành phiên làm việc có tạo hoặc build file APK (`:app
 - **Chế độ tự động đồng bộ ĐÃ TẮT theo yêu cầu của người dùng**: AI Agent **TUYỆT ĐỐI KHÔNG TỰ ĐỘNG CHẠY** script `sync_workspace.py` sau mỗi nhiệm vụ hoặc sau khi commit code.
 - **Chỉ đồng bộ thủ công**: Chỉ chạy đồng bộ khi người dùng đưa ra yêu cầu trực tiếp. Người dùng có thể tự kích hoạt bằng cách chạy file batch `sync_to_linux.bat` / `pull_from_linux.bat` trên Windows hoặc khi có lệnh cụ thể.
 
+## 5. Bắt buộc: Tự động cài đặt APK lên điện thoại khi có kết nối qua Wi-Fi / ADB
+Mỗi khi build xong file APK (`:app:assembleDebug`), AI agent **BẮT BUỘC KIỂM TRA THIẾT BỊ KẾT NỐI QUA ADB**:
+- Kiểm tra danh sách thiết bị bằng `C:\Users\hoang\AppData\Local\Android\Sdk\platform-tools\adb.exe devices -l` (hoặc lệnh `adb`).
+- Nếu phát hiện có thiết bị Android đang kết nối (qua Wi-Fi ví dụ `192.168.0.55:5555` hoặc cáp USB), AI agent **BẮT BUỘC TỰ ĐỘNG CÀI ĐẶT NGAY** APK lên điện thoại:
+  `adb -s <device_id> install -r -d "app\build\outputs\apk\debug\app-debug.apk"`
+- Báo cáo rõ ràng kết quả cài đặt cho người dùng (tên thiết bị, trạng thái thành công).
+
+
