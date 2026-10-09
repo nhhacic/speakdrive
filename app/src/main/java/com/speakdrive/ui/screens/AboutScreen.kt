@@ -417,7 +417,8 @@ private fun AppCheckDebugTokenCard(token: String?) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(false) }
-    var checkResult by remember { mutableStateOf<String?>(null) }
+    // Null until checked; then "" when Firebase accepted the install, otherwise its reason.
+    var checkProblem by remember { mutableStateOf<String?>(null) }
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(20.dp),
@@ -469,9 +470,7 @@ private fun AppCheckDebugTokenCard(token: String?) {
                     scope.launch {
                         // Starts over even if the SDK is backing off after earlier refusals.
                         AppCheckInstaller.resetBackoff()
-                        val problem = AppCheckStatus.problem(forceRefresh = true)
-                        checkResult = if (problem == null) context.getString(R.string.appcheck_ok)
-                        else context.getString(R.string.appcheck_failed, problem)
+                        checkProblem = AppCheckStatus.problem(forceRefresh = true).orEmpty()
                         checking = false
                     }
                 },
@@ -480,8 +479,12 @@ private fun AppCheckDebugTokenCard(token: String?) {
             ) {
                 Text(stringResource(if (checking) R.string.appcheck_checking else R.string.about_appcheck_test))
             }
-            checkResult?.let {
-                Text(text = it, style = MaterialTheme.typography.bodySmall)
+            checkProblem?.let { problem ->
+                Text(
+                    text = if (problem.isEmpty()) stringResource(R.string.appcheck_ok)
+                    else stringResource(R.string.appcheck_failed, problem),
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }

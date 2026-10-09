@@ -29,7 +29,7 @@ object AppCheckStatus {
                 }
             }
         } ?: return "timeout"
-        return outcome.exceptionOrNull()?.let { it.message ?: it::class.simpleName.orEmpty() }
+        return outcome.exceptionOrNull()?.let { it.message?.takeIf(String::isNotBlank) ?: it::class.simpleName ?: "unknown error" }
     }
 
     /**
