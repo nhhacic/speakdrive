@@ -24,8 +24,9 @@ class GeminiSummaryGenerator @Inject constructor() : SummaryGenerator {
 
     private val candidateModels = listOf(
         BuildConfig.TEXT_MODEL,
+        "gemini-3.8-flash",
         "gemini-3.5-flash-lite",
-        "gemini-2.5-flash"
+        "gemini-3.0-flash"
     ).filter { it.isNotBlank() }.distinct()
 
     override suspend fun summarize(

@@ -107,12 +107,12 @@ class AutoCardArtworkGenerator @Inject constructor() {
         targetText: String,
         translationText: String? = null
     ) {
-        val padX = 16f
+        val padX = 54f
         val boxWidth = width - 2 * padX
 
-        // Top Safe Zone Hero Card (y: 8f -> 292f = 284f height)
-        val heroBoxTop = 8f
-        val heroBoxBottom = 292f
+        // Central Safe Zone Hero Card: avoid top 0-75px blur/icon overlay & bottom controls
+        val heroBoxTop = 75f
+        val heroBoxBottom = 285f
         val heroBoxRect = RectF(padX, heroBoxTop, width - padX, heroBoxBottom)
         val heroRadius = 24f
 
@@ -128,10 +128,10 @@ class AutoCardArtworkGenerator @Inject constructor() {
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBgPaint)
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBorderPaint)
 
-        // 1. Pill Badge at top center of Hero Box (compact, leaving maximum room for text below)
+        // 1. Pill Badge at top center of Hero Box (below top dark blur)
         val badgeTop = heroBoxTop + 8f
         val badgeBottom = badgeTop + 24f
-        val badgeWidth = 200f
+        val badgeWidth = 190f
         val badgeLeft = (width - badgeWidth) / 2f
         val badgeRight = badgeLeft + badgeWidth
         val badgeRect = RectF(badgeLeft, badgeTop, badgeRight, badgeBottom)
@@ -151,7 +151,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val badgeText = "🎯 LẶP LẠI THEO AI"
         val badgePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFFFFFFFF.toInt()
-            textSize = 12.5f
+            textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
             textAlign = Paint.Align.CENTER
         }
@@ -164,112 +164,81 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val contentBottomY = heroBoxBottom - 10f
         val maxAvailableHeight = contentBottomY - contentTopY
 
-        // Push text to top safe area so long sentences wrap downwards comfortably without clipping
-        val startY = contentTopY + 4f
+        // Push text to top of safe area, comfortably below the blurred header zone
+        val startY = contentTopY + 2f
 
         val hasTranslation = !translationText.isNullOrBlank()
-
-        if (!hasTranslation) {
-            // Adaptive Font Size: fits sentences cleanly without truncation
-            val candidateFontSizes = floatArrayOf(30f, 26f, 23f, 20f, 17f)
-            var chosenLayout: StaticLayout? = null
-
-            for (fontSize in candidateFontSizes) {
-                val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = COLOR_TARGET_TEXT
-                    textSize = fontSize
-                    typeface = Typeface.DEFAULT_BOLD
-                    isFakeBoldText = true
-                    setShadowLayer(4f, 0f, 1f, 0xCC000000.toInt())
-                }
-                val layout = StaticLayout.Builder.obtain(targetText, 0, targetText.length, paint, textLayoutWidth)
-                    .setAlignment(Layout.Alignment.ALIGN_CENTER)
-                    .setIncludePad(false)
-                    .setLineSpacing(4f, 1.15f)
-                    .setMaxLines(6)
-                    .build()
-
-                if (layout.height <= maxAvailableHeight || fontSize == candidateFontSizes.last()) {
-                    chosenLayout = layout
-                    break
-                }
-            }
-
-            val layout = chosenLayout!!
-            canvas.save()
-            canvas.translate(padX + innerPadX, startY)
-            layout.draw(canvas)
-            canvas.restore()
+        val translation = if (hasTranslation) {
+            if (translationText!!.startsWith("🇻🇳")) translationText else "🇻🇳 $translationText"
         } else {
-            // Both English target sentence and Translation subtitle
-            val translation = if (translationText.startsWith("🇻🇳")) translationText else "🇻🇳 $translationText"
-            val spacing = 8f
-
-            // Candidate font size pairs: (English size, Translation size)
-            val sizePairs = listOf(
-                25f to 17f,
-                22f to 15.5f,
-                19f to 14f,
-                17f to 12.5f,
-                15f to 11.5f
-            )
-
-            var chosenEnglishLayout: StaticLayout? = null
-            var chosenTransLayout: StaticLayout? = null
-
-            for ((enSize, trSize) in sizePairs) {
-                val enPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = COLOR_TARGET_TEXT
-                    textSize = enSize
-                    typeface = Typeface.DEFAULT_BOLD
-                    isFakeBoldText = true
-                    setShadowLayer(4f, 0f, 1f, 0xCC000000.toInt())
-                }
-                val enLayout = StaticLayout.Builder.obtain(targetText, 0, targetText.length, enPaint, textLayoutWidth)
-                    .setAlignment(Layout.Alignment.ALIGN_CENTER)
-                    .setIncludePad(false)
-                    .setLineSpacing(3f, 1.15f)
-                    .setMaxLines(5)
-                    .build()
-
-                val trPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = COLOR_TARGET_SUBTITLE
-                    textSize = trSize
-                    typeface = Typeface.DEFAULT_BOLD
-                    isFakeBoldText = true
-                    setShadowLayer(3f, 0f, 1f, 0xCC000000.toInt())
-                }
-                val trLayout = StaticLayout.Builder.obtain(translation, 0, translation.length, trPaint, textLayoutWidth)
-                    .setAlignment(Layout.Alignment.ALIGN_CENTER)
-                    .setIncludePad(false)
-                    .setLineSpacing(3f, 1.15f)
-                    .setMaxLines(4)
-                    .build()
-
-                val totalH = enLayout.height + spacing + trLayout.height
-                if (totalH <= maxAvailableHeight || enSize == sizePairs.last().first) {
-                    chosenEnglishLayout = enLayout
-                    chosenTransLayout = trLayout
-                    break
-                }
-            }
-
-            val enLayout = chosenEnglishLayout!!
-            val trLayout = chosenTransLayout!!
-
-            // Draw English Target (Top-aligned)
-            canvas.save()
-            canvas.translate(padX + innerPadX, startY)
-            enLayout.draw(canvas)
-            canvas.restore()
-
-            // Draw Translation Subtitle directly below English target
-            val transY = startY + enLayout.height + spacing
-            canvas.save()
-            canvas.translate(padX + innerPadX, transY)
-            trLayout.draw(canvas)
-            canvas.restore()
+            "🗣️ Lắng nghe và nhắc lại theo AI"
         }
+        val spacing = 8f
+
+        // Candidate font size pairs: (English size, Translation size)
+        val sizePairs = listOf(
+            19f to 14.5f,
+            17.5f to 13.5f,
+            16f to 12.5f,
+            14.5f to 11.5f,
+            13f to 10.5f
+        )
+
+        var chosenEnglishLayout: StaticLayout? = null
+        var chosenTransLayout: StaticLayout? = null
+
+        for ((enSize, trSize) in sizePairs) {
+            val enPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = COLOR_TARGET_TEXT
+                textSize = enSize
+                typeface = Typeface.DEFAULT_BOLD
+                isFakeBoldText = true
+                setShadowLayer(4f, 0f, 1f, 0xCC000000.toInt())
+            }
+            val enLayout = StaticLayout.Builder.obtain(targetText, 0, targetText.length, enPaint, textLayoutWidth)
+                .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                .setIncludePad(false)
+                .setLineSpacing(3f, 1.15f)
+                .setMaxLines(5)
+                .build()
+
+            val trPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = if (hasTranslation) COLOR_TARGET_SUBTITLE else COLOR_TEXT_MUTED
+                textSize = trSize
+                typeface = Typeface.DEFAULT_BOLD
+                isFakeBoldText = true
+                setShadowLayer(3f, 0f, 1f, 0xCC000000.toInt())
+            }
+            val trLayout = StaticLayout.Builder.obtain(translation, 0, translation.length, trPaint, textLayoutWidth)
+                .setAlignment(Layout.Alignment.ALIGN_CENTER)
+                .setIncludePad(false)
+                .setLineSpacing(3f, 1.15f)
+                .setMaxLines(4)
+                .build()
+
+            val totalH = enLayout.height + spacing + trLayout.height
+            if (totalH <= maxAvailableHeight || enSize == sizePairs.last().first) {
+                chosenEnglishLayout = enLayout
+                chosenTransLayout = trLayout
+                break
+            }
+        }
+
+        val enLayout = chosenEnglishLayout!!
+        val trLayout = chosenTransLayout!!
+
+        // Draw English Target (Top-aligned in safe area)
+        canvas.save()
+        canvas.translate(padX + innerPadX, startY)
+        enLayout.draw(canvas)
+        canvas.restore()
+
+        // Draw Translation Subtitle directly below English target
+        val transY = startY + enLayout.height + spacing
+        canvas.save()
+        canvas.translate(padX + innerPadX, transY)
+        trLayout.draw(canvas)
+        canvas.restore()
     }
 
     /**
@@ -282,12 +251,12 @@ class AutoCardArtworkGenerator @Inject constructor() {
         lastAiText: String?,
         isStory: Boolean
     ) {
-        val padX = 16f
+        val padX = 54f
         val boxWidth = width - 2 * padX
 
-        // Central Card in Top Safe Zone (y: 12f -> 290f = 278f height)
-        val mainBoxTop = 12f
-        val mainBoxBottom = 290f
+        // Central Card in Safe Zone (y: 75f -> 285f = 210f height)
+        val mainBoxTop = 75f
+        val mainBoxBottom = 285f
         val mainBoxHeight = mainBoxBottom - mainBoxTop
         val mainBoxRect = RectF(padX, mainBoxTop, width - padX, mainBoxBottom)
         val boxRadius = 24f

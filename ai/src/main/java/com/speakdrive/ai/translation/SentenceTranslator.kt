@@ -107,10 +107,10 @@ class SentenceTranslator @Inject constructor(
         """.trimIndent()
 
         val candidateModels = listOf(
-            "gemini-2.5-flash",
             BuildConfig.TEXT_MODEL,
-            "gemini-2.0-flash",
-            "gemini-1.5-flash"
+            "gemini-3.8-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.0-flash"
         ).filter { it.isNotBlank() }.distinct()
         for (modelName in candidateModels) {
             try {
@@ -131,6 +131,13 @@ class SentenceTranslator @Inject constructor(
                 val message = e.message.orEmpty().lowercase()
                 if ("403" in message || "permission" in message || "app check" in message || "api key" in message) break
             }
+        }
+
+        // 3. Heuristic / rule-based fallback if cloud models fail or network times out
+        val fallback = generateInstantFallbackTranslation(trimmed, appLanguage)
+        if (fallback != null) {
+            cache.put(cacheKey, fallback)
+            return@withContext fallback
         }
         return@withContext null
     }
@@ -247,11 +254,18 @@ class SentenceTranslator @Inject constructor(
             PronunciationDrill.key("This is his bag") to "Đây là túi của anh ấy.",
             PronunciationDrill.key("Thank you very much") to "Cảm ơn bạn rất nhiều.",
             PronunciationDrill.key("Look at that cat") to "Nhìn con mèo kìa.",
-            PronunciationDrill.key("Open the big box") to "Mở chiếc hộp lớn ra."
+            PronunciationDrill.key("Open the big box") to "Mở chiếc hộp lớn ra.",
+            PronunciationDrill.key("Could you please explain how to use this machine") to "Bạn có thể giải thích cách sử dụng chiếc máy này không?",
+            PronunciationDrill.key("Explain how to use this machine") to "Giải thích cách sử dụng chiếc máy này.",
+            PronunciationDrill.key("How to use this machine") to "Cách sử dụng chiếc máy này."
         )
 
         // Compound key pattern matching: all elements must exist in the text
         private val KNOWN_PATTERNS = listOf(
+            listOf("explain", "machine") to "Bạn có thể giải thích cách dùng chiếc máy này không?",
+            listOf("how to use", "machine") to "Cách sử dụng chiếc máy này.",
+            listOf("use", "machine") to "Sử dụng chiếc máy này.",
+            listOf("explain", "use") to "Giải thích cách sử dụng.",
             listOf("climber", "survived", "odds") to "Người leo núi đã sống sót bất chấp mọi khó khăn.",
             listOf("climber", "survived") to "Người leo núi đã sống sót kỳ diệu.",
             listOf("against all odds") to "Bất chấp mọi khó khăn nghịch cảnh.",
