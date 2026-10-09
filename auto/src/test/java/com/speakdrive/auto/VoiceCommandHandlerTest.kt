@@ -26,6 +26,13 @@ class VoiceCommandHandlerTest {
         assertThat(handler.resolve("lập trình phần mềm")).isEqualTo(MediaIds.topic("tech_it"))
         assertThat(handler.resolve("kỹ thuật xây dựng công trình")).isEqualTo(MediaIds.topic("civil_engineering"))
         assertThat(handler.resolve("quy hoạch giao thông hạ tầng")).isEqualTo(MediaIds.topic("transport_engineering"))
+        assertThat(handler.resolve("đầu tư tài chính ngân hàng")).isEqualTo(MediaIds.topic("personal_finance"))
+        assertThat(handler.resolve("họp phụ huynh trường học")).isEqualTo(MediaIds.topic("parenting_education"))
+        assertThat(handler.resolve("thuê nhà bất động sản")).isEqualTo(MediaIds.topic("real_estate_relocation"))
+        assertThat(handler.resolve("bán hàng thương mại điện tử")).isEqualTo(MediaIds.topic("ecommerce_global_trade"))
+        assertThat(handler.resolve("sức khỏe tinh thần cân bằng")).isEqualTo(MediaIds.topic("mindfulness_self_growth"))
+        assertThat(handler.resolve("chơi thể thao pickleball")).isEqualTo(MediaIds.topic("sports_fitness"))
+        assertThat(handler.resolve("kỹ năng thuyết trình tranh luận")).isEqualTo(MediaIds.topic("public_speaking_debate"))
     }
 
     @Test

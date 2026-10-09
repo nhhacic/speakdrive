@@ -369,6 +369,49 @@ class DrillSentenceManager @Inject constructor() {
         add(DrillSentence("surv_18", "He never lost his will to live.", "Anh ấy không bao giờ đánh mất ý chí sống.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "survival", isShortForDriving = true))
         add(DrillSentence("surv_19", "His story inspired millions of people.", "Câu chuyện của anh ấy đã truyền cảm hứng cho hàng triệu người.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "survival", isShortForDriving = true))
         add(DrillSentence("surv_20", "Survival is about mental toughness.", "Sinh tồn đòi hỏi sự kiên cường về tinh thần.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "survival", isShortForDriving = true))
+
+        // --- High-Demand New Topics Seed Drills (Short, punchy for driving) ---
+        // Personal Finance & Wealth
+        add(DrillSentence("fin_01", "Diversify your investment portfolio.", "Hãy đa dạng hóa danh mục đầu tư của bạn.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "personal_finance", isShortForDriving = true))
+        add(DrillSentence("fin_02", "Check current mortgage interest rates.", "Kiểm tra mức lãi suất vay mua nhà hiện tại.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "personal_finance", isShortForDriving = true))
+        add(DrillSentence("fin_03", "Protect your card against fraud.", "Bảo vệ thẻ của bạn trước gian lận.", DifficultyLevel.ELEMENTARY, DrillCategory.BUSINESS_WORK, topicId = "personal_finance", isShortForDriving = true))
+        add(DrillSentence("fin_04", "Inflation erodes cash purchasing power.", "Lạm phát làm xói mòn sức mua của tiền mặt.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "personal_finance", isShortForDriving = true))
+
+        // Parenting & International Schooling
+        add(DrillSentence("par_01", "Children learn best through play.", "Trẻ em học tốt nhất thông qua vui chơi.", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "parenting_education", isShortForDriving = true))
+        add(DrillSentence("par_02", "We set clear bedtime routines.", "Chúng tôi thiết lập giờ đi ngủ rõ ràng.", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "parenting_education", isShortForDriving = true))
+        add(DrillSentence("par_03", "Encourage your child's natural curiosity.", "Hãy khuyến khích sự tò mò tự nhiên của trẻ.", DifficultyLevel.INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "parenting_education", isShortForDriving = true))
+        add(DrillSentence("par_04", "Limit daily screen time sensibly.", "Giới hạn thời gian xem màn hình một cách hợp lý.", DifficultyLevel.INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "parenting_education", isShortForDriving = true))
+
+        // Real Estate & Relocation
+        add(DrillSentence("re_01", "Is the security deposit refundable?", "Tiền đặt cọc có được hoàn lại không?", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "real_estate_relocation", isShortForDriving = true))
+        add(DrillSentence("re_02", "We signed a one-year lease.", "Chúng tôi đã ký hợp đồng thuê một năm.", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "real_estate_relocation", isShortForDriving = true))
+        add(DrillSentence("re_03", "The kitchen sink is leaking.", "Bồn rửa nhà bếp đang bị rò rỉ nước.", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "real_estate_relocation", isShortForDriving = true))
+        add(DrillSentence("re_04", "Utilities are included in rent.", "Hóa đơn điện nước đã bao gồm trong giá thuê.", DifficultyLevel.INTERMEDIATE, DrillCategory.TRAVEL_DAILY, topicId = "real_estate_relocation", isShortForDriving = true))
+
+        // E-Commerce & Global Trade
+        add(DrillSentence("ecom_01", "Can you lower the MOQ?", "Bạn có thể giảm số lượng đặt hàng tối thiểu không?", DifficultyLevel.ELEMENTARY, DrillCategory.BUSINESS_WORK, topicId = "ecommerce_global_trade", isShortForDriving = true))
+        add(DrillSentence("ecom_02", "Track the shipping container status.", "Theo dõi trạng thái lô hàng container.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "ecommerce_global_trade", isShortForDriving = true))
+        add(DrillSentence("ecom_03", "Maintain a five-star seller rating.", "Duy trì đánh giá người bán năm sao.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "ecommerce_global_trade", isShortForDriving = true))
+        add(DrillSentence("ecom_04", "Customs cleared the priority shipment.", "Hải quan đã thông quan lô hàng ưu tiên.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "ecommerce_global_trade", isShortForDriving = true))
+
+        // Mindfulness & Self-Growth
+        add(DrillSentence("mind_01", "Small habits compound over time.", "Những thói quen nhỏ sẽ tích lũy theo thời gian.", DifficultyLevel.ELEMENTARY, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "mindfulness_self_growth", isShortForDriving = true))
+        add(DrillSentence("mind_02", "Take a deep breath now.", "Hãy hít một hơi thật sâu ngay lúc này.", DifficultyLevel.BEGINNER, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "mindfulness_self_growth", isShortForDriving = true))
+        add(DrillSentence("mind_03", "Set healthy boundaries without guilt.", "Thiết lập ranh giới lành mạnh mà không áy náy.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "mindfulness_self_growth", isShortForDriving = true))
+        add(DrillSentence("mind_04", "Protect your evening mental energy.", "Bảo vệ năng lượng tinh thần vào buổi tối của bạn.", DifficultyLevel.INTERMEDIATE, DrillCategory.CONVERSATIONAL_REFLEX, topicId = "mindfulness_self_growth", isShortForDriving = true))
+
+        // Sports, Fitness & Active Lifestyle
+        add(DrillSentence("spo_01", "Stay behind the kitchen line.", "Đứng sau vạch nhà bếp (kitchen line).", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "sports_fitness", isShortForDriving = true))
+        add(DrillSentence("spo_02", "Maintain a steady running pace.", "Duy trì tốc độ chạy ổn định.", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "sports_fitness", isShortForDriving = true))
+        add(DrillSentence("spo_03", "Warm up before heavy lifting.", "Khởi động kỹ trước khi nâng tạ nặng.", DifficultyLevel.BEGINNER, DrillCategory.TRAVEL_DAILY, topicId = "sports_fitness", isShortForDriving = true))
+        add(DrillSentence("spo_04", "Great teamwork on the court!", "Phối hợp đồng đội tuyệt vời trên sân đấu!", DifficultyLevel.ELEMENTARY, DrillCategory.TRAVEL_DAILY, topicId = "sports_fitness", isShortForDriving = true))
+
+        // Public Speaking & Debates
+        add(DrillSentence("spk_01", "Hook the audience right away.", "Thu hút khán giả ngay từ giây đầu tiên.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "public_speaking_debate", isShortForDriving = true))
+        add(DrillSentence("spk_02", "Deliver your message with clarity.", "Truyền tải thông điệp của bạn với sự rõ ràng.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "public_speaking_debate", isShortForDriving = true))
+        add(DrillSentence("spk_03", "Pause for emphasis before concluding.", "Tạm dừng để nhấn mạnh trước khi kết luận.", DifficultyLevel.UPPER_INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "public_speaking_debate", isShortForDriving = true))
+        add(DrillSentence("spk_04", "Support your claim with evidence.", "Hãy củng cố luận điểm của bạn bằng bằng chứng.", DifficultyLevel.INTERMEDIATE, DrillCategory.BUSINESS_WORK, topicId = "public_speaking_debate", isShortForDriving = true))
     }
 
     /** Returns all available curated drill sentences. */

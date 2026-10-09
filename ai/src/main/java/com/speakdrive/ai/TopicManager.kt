@@ -748,6 +748,364 @@ class TopicManager @Inject constructor() {
             )
         ),
 
+        Topic(
+            id = "personal_finance",
+            category = TopicCategory.WORK,
+            titleVi = "Tài chính Cá nhân & Đầu tư",
+            titleEn = "Personal Finance & Wealth",
+            description = "Banking, global wire transfers, mortgage negotiations, crypto, stocks and wealth management.",
+            emoji = "💰",
+            keywords = listOf(
+                "finance", "money", "banking", "bank", "invest", "investment", "crypto", "stock", "portfolio",
+                "mortgage", "loan", "credit card", "inflation", "wealth", "interest", "dividend", "tai chinh",
+                "ngan hang", "dau tu", "chung khoan", "vay tien", "bat dong san", "the tin dung", "tiet kiem", "lai suat"
+            ),
+            scenarios = listOf(
+                Scenario(
+                    "finance_bank_dispute",
+                    "Thẻ tín dụng bị khóa do cảnh báo gian lận",
+                    "Fraud alert & credit card block",
+                    "a fraud prevention specialist at an international bank",
+                    "a customer stranded abroad whose primary credit card was suddenly declined",
+                    "Your credit card was blocked after attempting a flight ticket purchase while traveling internationally.",
+                    missionObjective = "Verify your recent legitimate transactions, answer security identity questions, and have your card unblocked immediately."
+                ),
+                Scenario(
+                    "finance_mortgage_negotiation",
+                    "Đàm phán gói vay mua nhà với ngân hàng",
+                    "Negotiating a home mortgage loan",
+                    "a senior mortgage loan officer offering standard interest packages",
+                    "a home buyer shopping for the most competitive mortgage rates",
+                    "You are buying your first home and want to compare fixed vs floating interest rates and waive prepayment penalties.",
+                    missionObjective = "Negotiate a 0.5% lower fixed interest margin and secure a waiver for early prepayment fees."
+                ),
+                Scenario(
+                    "finance_investment_advisor",
+                    "Tư vấn đa dạng hóa danh mục đầu tư",
+                    "Portfolio diversification & wealth consultation",
+                    "a certified wealth manager discussing asset allocation",
+                    "an investor planning long-term financial freedom",
+                    "Markets are volatile and inflation is eroding cash savings. You have $50,000 to invest across stocks, ETFs, and safe assets.",
+                    missionObjective = "Articulate your risk tolerance, evaluate index fund benefits, and agree on a balanced 60/40 asset allocation strategy."
+                ),
+                Scenario(
+                    "finance_international_wire",
+                    "Truy vết lệnh chuyển tiền quốc tế bị treo",
+                    "Tracing delayed international wire transfer",
+                    "an international payments support specialist at an intermediary clearing bank",
+                    "a client whose $12,000 business wire transfer has been stuck for 5 business days",
+                    "An urgent supplier payment with SWIFT code hasn't arrived. Your vendor is threatening to halt production.",
+                    missionObjective = "Provide MT103 tracking details, pinpoint the intermediary bank hold reason, and expedite compliance clearance."
+                )
+            )
+        ),
+        Topic(
+            id = "parenting_education",
+            category = TopicCategory.DAILY,
+            titleVi = "Nuôi dạy con & Giáo dục Quốc tế",
+            titleEn = "Parenting & International Schooling",
+            description = "School conferences, bilingual education, study abroad admissions, screen time and modern parenting.",
+            emoji = "👨‍👩‍👧‍👦",
+            keywords = listOf(
+                "parenting", "child", "children", "school", "teacher", "education", "student", "study abroad",
+                "scholarship", "admission", "tu hoc", "nuoi day con", "truong hoc", "giao vien", "hop phu huynh",
+                "du hoc", "hoc bong", "ky luat tich cuc", "screen time", "con cai", "mam non", "tieu hoc"
+            ),
+            scenarios = listOf(
+                Scenario(
+                    "parenting_teacher_conference",
+                    "Họp phụ huynh 1-1 với giáo viên chủ nhiệm nước ngoài",
+                    "Parent-teacher conference with homeroom teacher",
+                    "a compassionate native English homeroom teacher at an international school",
+                    "a concerned parent discussing their 8-year-old child's academic progress and social integration",
+                    "Mid-term conference. Your child excels in mathematics but hesitates to speak during group discussions.",
+                    missionObjective = "Understand classroom dynamics, discover why your child hesitates, and agree on home reading routines to boost spoken confidence."
+                ),
+                Scenario(
+                    "parenting_study_abroad_visa",
+                    "Phỏng vấn xin Visa du học tại Lãnh sự quán",
+                    "Consular interview for student study visa",
+                    "a rigorous visa consular officer evaluating financial and academic intentions",
+                    "a prospective student or parent explaining their study plan abroad",
+                    "The officer probes your intended university major, source of financial sponsorship, and post-graduation plans.",
+                    missionObjective = "Present transparent financial documentation, articulate genuine study motivations, and convincingly prove strong ties to return home."
+                ),
+                Scenario(
+                    "parenting_screen_time_dilemma",
+                    "Tư vấn chuyên gia về giới hạn thời gian xem màn hình",
+                    "Consulting a child psychologist on screen time",
+                    "a child behavioral specialist advising modern digital parenting strategies",
+                    "a frustrated parent dealing with their teenager's smartphone and tablet addiction",
+                    "Your child spends 5+ hours daily on TikTok and gaming, leading to bedtime tantrums and declining grades.",
+                    missionObjective = "Explore healthy digital boundaries, create a no-screen dinner rule, and learn positive reinforcement techniques."
+                ),
+                Scenario(
+                    "parenting_school_bullying",
+                    "Trao đổi với Hiệu trưởng về xử lý bạo lực học đường",
+                    "Addressing peer bullying with the school principal",
+                    "a school principal who initially downplays conflict as ordinary childhood teasing",
+                    "a resolute parent seeking immediate safety and accountability for their bullied child",
+                    "Your child has been repeatedly ostracized and had lunch money stolen on the school bus over the past two weeks.",
+                    missionObjective = "Firmly present documented incidents, reject dismissive explanations, and demand an actionable anti-bullying intervention plan."
+                )
+            )
+        ),
+        Topic(
+            id = "real_estate_relocation",
+            category = TopicCategory.TRAVEL,
+            titleVi = "Thuê nhà, Bất động sản & Định cư",
+            titleEn = "Renting, Real Estate & Relocation",
+            description = "Apartment hunting, lease negotiations, emergency repairs, deposit disputes and neighborhood settling.",
+            emoji = "🏡",
+            keywords = listOf(
+                "real estate", "rent", "rental", "apartment", "house", "lease", "landlord", "tenant",
+                "relocation", "move", "property", "thue nha", "can ho", "bat dong san", "chu nha",
+                "hop dong thue", "sua nha", "dinh cu", "chuyen nha", "tien coc", "moi gioi"
+            ),
+            scenarios = listOf(
+                Scenario(
+                    "real_estate_lease_bargain",
+                    "Xem căn hộ và đàm phán hợp đồng thuê",
+                    "Apartment viewing & lease negotiation",
+                    "a property leasing agent managing a modern downtown studio",
+                    "a prospective tenant looking for an affordable 1-year lease",
+                    "The apartment is ideal but priced 10% above your budget. Heating and high-speed internet are billed separately.",
+                    missionObjective = "Negotiate monthly rent down by $100 and convince the agent to include water and high-speed internet in the rent."
+                ),
+                Scenario(
+                    "real_estate_emergency_repair",
+                    "Khiếu nại chủ nhà sửa chữa đường ống nước khẩn cấp",
+                    "Urgent plumbing emergency complaint to landlord",
+                    "a slow-to-act landlord who dislikes paying emergency plumber rates",
+                    "a tenant with leaking kitchen pipes flooding the floor at 9 PM on a cold night",
+                    "Water is dripping through ceiling plaster and kitchen baseboards. The main shut-off valve is stuck.",
+                    missionObjective = "Convey the urgency firmly, prevent water damage liability, and compel the landlord to dispatch a 24/7 emergency plumber immediately."
+                ),
+                Scenario(
+                    "real_estate_deposit_dispute",
+                    "Tranh luận đòi lại toàn bộ tiền đặt cọc",
+                    "Disputing unfair security deposit deductions",
+                    "a strict property manager deducting $600 for alleged wall scratches and carpet wear",
+                    "a moving-out tenant who deep-cleaned the apartment and has move-in photo proof",
+                    "Move-out inspection. The manager is claiming normal wear and tear as tenant-caused damage to keep your deposit.",
+                    missionObjective = "Present pre-existing move-in photo evidence, distinguish normal wear and tear under local tenant law, and secure full deposit return."
+                ),
+                Scenario(
+                    "real_estate_settling_in",
+                    "Hỏi ban quản lý chung cư về tiện ích và quy tắc",
+                    "Settling in: Building amenities & HOA guidelines",
+                    "a helpful building concierge welcoming new residents",
+                    "a newly arrived expat learning local recycling, parking, and quiet hours",
+                    "You just moved in. You need an assigned basement EV parking spot, package locker codes, and community gym access.",
+                    missionObjective = "Register your vehicle for resident parking, configure digital intercom access, and clarify weekend quiet hours."
+                )
+            )
+        ),
+        Topic(
+            id = "ecommerce_global_trade",
+            category = TopicCategory.WORK,
+            titleVi = "Thương mại Điện tử & Bán hàng Quốc tế",
+            titleEn = "E-Commerce & Global Trade",
+            description = "Amazon FBA, Shopify, supplier sourcing, customs clearance, shipping delays and global customer service.",
+            emoji = "📦",
+            keywords = listOf(
+                "ecommerce", "trade", "supplier", "logistics", "shipping", "amazon", "shopify", "container",
+                "customs", "warehouse", "export", "import", "thuong mai dien tu", "ban hang quoc te",
+                "xuat nhap khau", "van chuyen", "hai quan", "kho bai", "nha cung cap", "dropshipping", "fba"
+            ),
+            scenarios = listOf(
+                Scenario(
+                    "ecom_supplier_moq_negotiate",
+                    "Đàm phán giảm MOQ và chiết khấu với nhà máy",
+                    "Negotiating MOQ & volume pricing with manufacturer",
+                    "an overseas factory sales director requiring high minimum order quantities (MOQ)",
+                    "an e-commerce brand owner testing a new private label product line",
+                    "The factory demands a 2,000-unit MOQ. You want a 500-unit trial batch with custom logo packaging at reasonable unit cost.",
+                    missionObjective = "Persuade the manufacturer to accept a 500-unit trial order by outlining projected reorders and agreeing to pay custom molding fees upfront."
+                ),
+                Scenario(
+                    "ecom_customs_freight_delay",
+                    "Xử lý container bị hải quan cảng giữ kiểm tra",
+                    "Resolving customs hold on sea freight container",
+                    "a harbor customs brokerage agent handling tariff classifications and inspections",
+                    "an import operations manager facing imminent factory launch deadlines",
+                    "Your 40ft container is flagged for intensive physical inspection. Port demurrage fees are accumulating at $200 per day.",
+                    missionObjective = "Clarify HS tariff codes, submit missing Certificates of Origin, and expedite priority container release."
+                ),
+                Scenario(
+                    "ecom_angry_customer_resolution",
+                    "Xử lý khiếu nại khách quốc tế dọa đánh giá 1 sao",
+                    "De-escalating an angry Amazon buyer threatening a 1-star review",
+                    "an exasperated international customer whose birthday gift arrived 4 days late with torn packaging",
+                    "a proactive customer experience specialist dedicated to maintaining a 5-star seller rating",
+                    "The customer is furious on live chat, threatening negative viral reviews and credit card chargebacks.",
+                    missionObjective = "Acknowledge the shipping failure with sincere empathy, issue an immediate replacement plus 30% refund, and win their trust."
+                ),
+                Scenario(
+                    "ecom_agency_crossborder_campaign",
+                    "Lập kế hoạch chiến dịch Black Friday với Marketing Agency",
+                    "Planning cross-border Black Friday ad campaigns",
+                    "a performance marketing director pitching ad spend strategies",
+                    "an e-commerce founder analyzing ROAS (Return on Ad Spend) and inventory turnover",
+                    "Reviewing Q4 holiday marketing budget. You need to allocate $30,000 across TikTok Shop and Meta Ads without burning margins.",
+                    missionObjective = "Define strict target ROAS thresholds, plan tiered promotional discounts, and prevent inventory stockouts."
+                )
+            )
+        ),
+        Topic(
+            id = "mindfulness_self_growth",
+            category = TopicCategory.DAILY,
+            titleVi = "Sức khỏe Tinh thần & Phát triển Bản thân",
+            titleEn = "Mindfulness & Self-Growth",
+            description = "Overcoming burnout, building lasting habits, setting healthy boundaries and emotional resilience.",
+            emoji = "🧠",
+            keywords = listOf(
+                "mindfulness", "mental health", "burnout", "stress", "self growth", "habit", "meditation",
+                "balance", "psychology", "resilience", "suc khoe tinh than", "phat trien ban than", "thien",
+                "can bang cuoc song", "tram cam", "kiet suc", "thoi quen", "ap luc", "cam xuc"
+            ),
+            scenarios = listOf(
+                Scenario(
+                    "mindful_burnout_consultation",
+                    "Tâm sự với chuyên gia về hội chứng kiệt sức",
+                    "Discussing burnout & chronic stress with a wellness coach",
+                    "an empathetic executive wellness coach specializing in stress recovery",
+                    "a dedicated professional suffering insomnia, mental exhaustion, and waning motivation",
+                    "Working 60-hour weeks has drained your creativity. You feel constantly on edge and dread Monday mornings.",
+                    missionObjective = "Identify the root causes of cognitive overload, practice a 2-minute box breathing reset, and design an achievable recovery routine."
+                ),
+                Scenario(
+                    "mindful_book_discussion",
+                    "Thảo luận về cuốn sách thay đổi thói quen Atomic Habits",
+                    "Book discussion: Atomic Habits & compounding small changes",
+                    "an avid non-fiction reader passionate about behavioral psychology",
+                    "someone sharing practical strategies for breaking bad habits and building consistency",
+                    "Discussing James Clear's concept of habit stacking and identity-based behavior change.",
+                    missionObjective = "Explain the 4 laws of behavior change, share one personal habit you successfully formed, and debate why willpower alone fails."
+                ),
+                Scenario(
+                    "mindful_setting_boundaries",
+                    "Thiết lập ranh giới: Từ chối công việc ngoài giờ",
+                    "Setting healthy boundaries: Saying no gracefully",
+                    "an ambitious team lead who routinely asks for late-night weekend revisions",
+                    "a collaborative team member protecting their evening mental recovery time",
+                    "It's 7 PM Friday. Your supervisor asks you to format an internal pitch deck by Saturday morning that isn't urgent.",
+                    missionObjective = "Acknowledge the project importance, politely decline the weekend timeline without guilt, and schedule completion for Monday morning."
+                ),
+                Scenario(
+                    "mindful_imposter_syndrome",
+                    "Vượt qua hội chứng kẻ giả mạo khi nhận vai trò mới",
+                    "Navigating Imposter Syndrome after a major promotion",
+                    "a trusted mentor with 15 years of industry experience",
+                    "a newly promoted leader feeling like an unqualified fraud surrounded by experts",
+                    "You just stepped into a managerial role. Every team meeting triggers anxiety that someone will expose your perceived incompetence.",
+                    missionObjective = "Reframe self-doubt into learning curves, separate objective achievements from internal anxiety, and draft a confidence action plan."
+                )
+            )
+        ),
+        Topic(
+            id = "sports_fitness",
+            category = TopicCategory.DAILY,
+            titleVi = "Thể thao, Thể hình & Phong cách Sống",
+            titleEn = "Sports, Fitness & Active Lifestyle",
+            description = "Pickleball, marathon running, personal training, sports tactics and recovery nutrition.",
+            emoji = "🎾",
+            keywords = listOf(
+                "sports", "fitness", "pickleball", "tennis", "golf", "gym", "running", "marathon",
+                "workout", "athlete", "the thao", "the hinh", "chay bo", "chay marathon", "choi pickleball",
+                "quan vot", "tap gym", "huan luyen vien", "dinh duong", "bong da"
+            ),
+            scenarios = listOf(
+                Scenario(
+                    "sports_pickleball_match",
+                    "Chơi Pickleball giao lưu đôi với bạn bè quốc tế",
+                    "Pickleball doubles match & court strategy",
+                    "an enthusiastic intermediate pickleball player looking for a doubles partner",
+                    "a player learning non-volley zone (kitchen) dinking tactics and rules",
+                    "You are playing at a community court on a Sunday morning. The score is 8-9 and you need to communicate strategy.",
+                    missionObjective = "Explain kitchen line positioning, coordinate third-shot drop shots with your partner, and review the match with good sportsmanship."
+                ),
+                Scenario(
+                    "sports_marathon_prep",
+                    "Trao đổi kế hoạch luyện tập chạy Marathon",
+                    "Marathon training & pacing strategy consultation",
+                    "an experienced marathon pacer who has completed 10 world majors",
+                    "a runner aiming to break the 4-hour mark in their upcoming half or full marathon",
+                    "Discussing long slow distance (LSD) runs, negative split pacing, and carbohydrate fueling on race day.",
+                    missionObjective = "Define target kilometer splits, plan hydration station electrolyte intake, and select proper race-day carbon-plate shoes."
+                ),
+                Scenario(
+                    "sports_pt_nutrition_coaching",
+                    "Tư vấn dinh dưỡng Macro và phục hồi chấn thương",
+                    "Nutrition macros & knee rehab with personal trainer",
+                    "a knowledgeable strength and conditioning coach",
+                    "a gym enthusiast recovering from mild patellar tendonitis wanting to build muscle safely",
+                    "You want to maintain lean muscle mass while avoiding high-impact knee flexion during compound lifts.",
+                    missionObjective = "Calculate daily protein macro requirements, swap back squats for safe knee-friendly alternatives, and outline dynamic warm-up drills."
+                ),
+                Scenario(
+                    "sports_game_post_analysis",
+                    "Phân tích trận chung kết bóng đá và bàn luận trọng tài",
+                    "Post-match debate on a controversial football final",
+                    "a passionate football fan analyzing tactics and VAR (Video Assistant Referee) calls",
+                    "a fellow sports enthusiast discussing team pressuring and missed opportunities",
+                    "Your favorite team lost 1-2 in extra time after a hotly contested penalty decision in the 89th minute.",
+                    missionObjective = "Break down tactical formation strengths, debate the VAR penalty decision objectively, and highlight standout player performances."
+                )
+            )
+        ),
+        Topic(
+            id = "public_speaking_debate",
+            category = TopicCategory.WORK,
+            titleVi = "Kỹ năng Thuyết trình & Tranh luận",
+            titleEn = "Public Speaking & Debates",
+            description = "Elevator pitches, conference keynotes, persuasive debates, Q&A handling and executive presentations.",
+            emoji = "🎤",
+            keywords = listOf(
+                "public speaking", "presentation", "pitch", "debate", "keynote", "speech", "convince",
+                "argument", "thuyet trinh", "dien thuyet", "tranh luan", "hung bien", "thuyet phuc",
+                "pitching", "bao cao", "dien gia", "hoi nghi", "chat van"
+            ),
+            scenarios = listOf(
+                Scenario(
+                    "speech_elevator_pitch",
+                    "Elevator Pitch 60 giây giới thiệu giải pháp đột phá",
+                    "60-second elevator pitch to a key stakeholder",
+                    "a busy technology executive riding an elevator to the 30th floor",
+                    "an innovative professional presenting a voice-first driving safety concept",
+                    "You have exactly 60 seconds before the elevator doors open to capture interest and secure a formal demo.",
+                    missionObjective = "Deliver a crisp hook about driving distractions, state your voice-first solution, and secure a 15-minute follow-up meeting."
+                ),
+                Scenario(
+                    "speech_keynote_opening",
+                    "Mở màn bài phát biểu tại hội nghị quốc tế",
+                    "Opening a global tech conference keynote",
+                    "an international conference audience waiting for the opening keynote",
+                    "the keynote speaker delivering a memorable opening hook",
+                    "You are stepping onto the main stage in front of 500 industry leaders. You must hook the room in the first 90 seconds.",
+                    missionObjective = "Start with a compelling personal story or counterintuitive industry stat, establish the core theme, and command audience attention."
+                ),
+                Scenario(
+                    "speech_ai_workplace_debate",
+                    "Tranh luận: Liệu AI có thay thế hoàn toàn nhân sự?",
+                    "Debate: Will AI augment or replace the modern workforce?",
+                    "a debate opponent arguing that generative AI will cause massive permanent job displacement",
+                    "a debater defending human-in-the-loop synergy, creative intuition, and ethical governance",
+                    "Formal Oxford-style debate. Your opponent cites alarming automation statistics in finance and customer support.",
+                    missionObjective = "Counter with historical economic transitions, highlight uniquely human emotional intelligence, and deliver a convincing rebuttal."
+                ),
+                Scenario(
+                    "speech_crisis_qna_handling",
+                    "Xử lý chất vấn hóc búa của phóng viên trong họp báo",
+                    "Handling hostile media questions at a press conference",
+                    "a relentless investigative journalist pressing on product delivery delays and safety issues",
+                    "a corporate communications spokesperson delivering calm, transparent answers under intense media glare",
+                    "The journalist interrupts with an aggressive question alleging leadership negligence on product safety.",
+                    missionObjective = "De-escalate tension using the 'bridge' technique, pivot back to factual safety testing protocols, and maintain confident composure."
+                )
+            )
+        ),
+
         // =========================================================================
         // STORY TOPICS (Cinematic Audio Drama & Choose Your Own Adventure)
         // =========================================================================

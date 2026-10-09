@@ -96,7 +96,8 @@ class HomeLayoutTest {
         val topics = progress()
         val work = filterTopics(topics, TopicFilter.WORK, "").map { it.topic.id }
         assertThat(work).containsExactly(
-            "work", "interview", "startup_tech", "tech_it", "medical_expert", "civil_engineering", "transport_engineering"
+            "work", "interview", "startup_tech", "tech_it", "medical_expert", "civil_engineering", "transport_engineering",
+            "personal_finance", "ecommerce_global_trade", "public_speaking_debate"
         )
         assertThat(filterTopics(topics, TopicFilter.ALL, "du lich").map { it.topic.id }).contains("travel")
         assertThat(filterTopics(topics, TopicFilter.ALL, "Du lịch").map { it.topic.id }).contains("travel")

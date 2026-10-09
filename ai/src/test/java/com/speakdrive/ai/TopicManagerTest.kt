@@ -10,8 +10,8 @@ class TopicManagerTest {
     @Test
     fun `has all topics with unique ids and four scenarios each`() {
         val all = topics.getAllTopics()
-        assertThat(all).hasSize(24)
-        assertThat(all.map { it.id }.toSet()).hasSize(24)
+        assertThat(all).hasSize(31)
+        assertThat(all.map { it.id }.toSet()).hasSize(31)
         all.forEach { assertThat(it.scenarios.size).isAtLeast(4) }
         val scenarioIds = all.flatMap { topic -> topic.scenarios.map { it.id } }
         assertThat(scenarioIds.toSet()).hasSize(scenarioIds.size)
@@ -45,6 +45,13 @@ class TopicManagerTest {
         assertThat(topics.findTopicByQuery("cứu hộ giao thông")?.id).isEqualTo("driving_emergency")
         assertThat(topics.findTopicByQuery("hẹn hò kết bạn")?.id).isEqualTo("social_dating")
         assertThat(topics.findTopicByQuery("startup ai kỳ lân")?.id).isEqualTo("startup_tech")
+        assertThat(topics.findTopicByQuery("đầu tư tài chính")?.id).isEqualTo("personal_finance")
+        assertThat(topics.findTopicByQuery("họp phụ huynh")?.id).isEqualTo("parenting_education")
+        assertThat(topics.findTopicByQuery("hợp đồng thuê nhà")?.id).isEqualTo("real_estate_relocation")
+        assertThat(topics.findTopicByQuery("thương mại điện tử")?.id).isEqualTo("ecommerce_global_trade")
+        assertThat(topics.findTopicByQuery("sức khỏe tinh thần")?.id).isEqualTo("mindfulness_self_growth")
+        assertThat(topics.findTopicByQuery("chơi pickleball")?.id).isEqualTo("sports_fitness")
+        assertThat(topics.findTopicByQuery("hùng biện tranh luận")?.id).isEqualTo("public_speaking_debate")
         assertThat(topics.findTopicByQuery("vụ cướp thế kỷ")?.id).isEqualTo("story_detective_heists")
         assertThat(topics.findTopicByQuery("sinh tồn kỷ lục")?.id).isEqualTo("story_extreme_survival")
         assertThat(topics.findTopicByQuery("sốc văn hóa")?.id).isEqualTo("story_comedy_misadventures")
@@ -80,7 +87,7 @@ class TopicManagerTest {
         val conversationTopics = topics.getConversationTopics()
         val storyTopics = topics.getStoryTopics()
 
-        assertThat(conversationTopics).hasSize(15)
+        assertThat(conversationTopics).hasSize(22)
         assertThat(storyTopics).hasSize(9)
         assertThat(storyTopics.map { it.id }).containsExactly(
             "story_adventure",

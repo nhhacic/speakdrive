@@ -167,7 +167,7 @@ class VoiceCommandHandler @Inject constructor(
         val FILLER_WORDS = setOf(
             "play", "start", "practice", "practise", "lesson", "lessons", "english", "on", "in", "the", "a", "an",
             "my", "some", "speakdrive", "speak", "drive", "please", "conversation", "about", "bai", "hoc", "tieng", "anh",
-            "luyen", "noi", "mo", "phat", "am", "pronunciation", "repeat", "after", "me", "easy", "hard",
+            "luyen", "noi", "mo", "phat", "am", "tap", "pronunciation", "repeat", "after", "me", "easy", "hard",
             "beginner", "elementary", "pre", "pre-intermediate", "intermediate", "upper", "upper-intermediate", "advanced",
             "so", "cap", "tien", "trung"
         )

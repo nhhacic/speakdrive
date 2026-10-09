@@ -131,9 +131,9 @@ class MediaContentProviderTest {
 
     @Test
     fun `topics and roleplay scenarios are listed`() = runTest {
-        assertThat(provider.children(MediaIds.TOPICS)).hasSize(15)
+        assertThat(provider.children(MediaIds.TOPICS)).hasSize(22)
         val roleplayTopics = provider.children(MediaIds.ROLEPLAY)
-        assertThat(roleplayTopics).hasSize(15)
+        assertThat(roleplayTopics).hasSize(22)
         val scenarios = provider.children(roleplayTopics.first().mediaId)
         assertThat(scenarios).hasSize(9)
         assertThat(MediaIds.parse(scenarios.first().mediaId)).isInstanceOf(MediaTarget.Scenario::class.java)
