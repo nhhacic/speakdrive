@@ -408,7 +408,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
             strokeCap = Paint.Cap.ROUND
         }
         val panel = PANEL_BOTTOM.toFloat()
-        listOf(panel - 95f to 0x55, panel - 60f to 0x40, panel - 25f to 0x30).forEachIndexed { index, (baseY, alpha) ->
+        listOf(panel - 75f to 0x55, panel - 48f to 0x40, panel - 20f to 0x30).forEachIndexed { index, (baseY, alpha) ->
             paint.color = (color and 0x00FFFFFF) or (alpha shl 24)
             val path = Path()
             var x = 0f
@@ -424,8 +424,8 @@ class AutoCardArtworkGenerator @Inject constructor() {
     private fun drawMountains(canvas: Canvas, far: Int, near: Int, snowCaps: Boolean) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val panel = PANEL_BOTTOM.toFloat()
-        val farPeaks = listOf(0f to 70f, 110f to 150f, 230f to 90f, 340f to 170f, 470f to 100f, 600f to 160f).map { (x, h) -> x to panel - h }
-        val nearPeaks = listOf(0f to 35f, 150f to 95f, 290f to 30f, 420f to 105f, 600f to 45f).map { (x, h) -> x to panel - h }
+        val farPeaks = listOf(0f to 55f, 110f to 115f, 230f to 70f, 340f to 130f, 470f to 75f, 600f to 120f).map { (x, h) -> x to panel - h }
+        val nearPeaks = listOf(0f to 28f, 150f to 70f, 290f to 24f, 420f to 80f, 600f to 35f).map { (x, h) -> x to panel - h }
         paint.color = far
         canvas.drawPath(ridge(farPeaks), paint)
         if (snowCaps) {
@@ -475,17 +475,17 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val panel = PANEL_BOTTOM.toFloat()
         paint.color = 0xFF6B3A16.toInt()
         canvas.drawPath(Path().apply {
-            moveTo(0f, panel - 70f)
-            quadTo(180f, panel - 150f, 380f, panel - 90f)
-            quadTo(500f, panel - 55f, 600f, panel - 115f)
+            moveTo(0f, panel - 55f)
+            quadTo(180f, panel - 115f, 380f, panel - 70f)
+            quadTo(500f, panel - 42f, 600f, panel - 90f)
             lineTo(600f, panel)
             lineTo(0f, panel)
             close()
         }, paint)
         paint.color = 0xFF3B1F0B.toInt()
         canvas.drawPath(Path().apply {
-            moveTo(0f, panel - 25f)
-            quadTo(260f, panel - 95f, 600f, panel - 35f)
+            moveTo(0f, panel - 20f)
+            quadTo(260f, panel - 72f, 600f, panel - 28f)
             lineTo(600f, panel)
             lineTo(0f, panel)
             close()
@@ -499,7 +499,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
         var x = 0f
         while (x < CARD_SIZE) {
             val width = 50f + random.nextInt(40)
-            val top = panel - 40f - random.nextInt(80)
+            val top = panel - 30f - random.nextInt(60)
             canvas.drawRect(x, top, x + width - 6f, panel, building)
             var wy = top + 14f
             while (wy < panel - 10f) {
@@ -628,20 +628,23 @@ class AutoCardArtworkGenerator @Inject constructor() {
         private const val TAG = "AutoCardArtwork"
         const val CARD_SIZE = 600
 
-        // Safe box: the part of the split-screen media card (about 0.58:1, measured on the Desktop
-        // Head Unit) that is not covered by Android Auto's own UI, less a small margin. The card shows
-        // only x ≈ 124..476 of the 600 px square; the app icon and page dots cover y < 36, and the
-        // native title, subtitle and controls start at y ≈ 419. The full Now Playing screen shows the
-        // whole square and keeps x < 120 and x > 480 free for drill status.
+        // Safe box: the part of the split-screen media card that Android Auto's own UI leaves free on
+        // every head unit measured, less a small margin. The card always fills its height with the
+        // square and crops the sides, but its shape varies, and so does what is left:
+        // - Desktop Head Unit, card about 0.58:1: shows x ≈ 124..476; title starts at y ≈ 419.
+        // - The learner's car, card about 0.9:1: shows x ≈ 30..570; the taller title block (two
+        //   lines, subtitle, controls) starts at y ≈ 350.
+        // The app icon and page dots cover y < 40 on both. The full Now Playing screen shows the
+        // whole square; the drill status rails use x < 124 and x > 476 (see AutoCardSideRails).
         const val SAFE_LEFT = 136
         const val SAFE_RIGHT = 464
         const val SAFE_TOP = 44
-        const val SAFE_BOTTOM = 404
+        const val SAFE_BOTTOM = 330
         const val SAFE_WIDTH = SAFE_RIGHT - SAFE_LEFT
         const val SAFE_HEIGHT = SAFE_BOTTOM - SAFE_TOP
 
-        /** Bottom of the painted panel: just above where Android Auto starts its title. */
-        const val PANEL_BOTTOM = 412
+        /** Bottom of the painted panel: just above where Android Auto starts its title in the car. */
+        const val PANEL_BOTTOM = 340
         private const val PANEL_EDGE = 3f
         private const val PANEL_EDGE_ALPHA = 0x80000000.toInt()
 
@@ -671,11 +674,11 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
         // Story: hero in the middle of the safe box, props tucked into its corners.
         private const val HERO_X = 300f
-        private const val HERO_Y = 224f
+        private const val HERO_Y = 187f
         private const val HERO_SIZE = 150f
         private const val HALO_RADIUS = 150f
         private const val PROP_SIZE = 58f
-        private val PROP_POSITIONS = listOf(192f to 100f, 190f to 345f, 410f to 345f)
+        private val PROP_POSITIONS = listOf(192f to 92f, 188f to 292f, 412f to 292f)
         private const val FALLBACK_HERO = "📖"
 
         private const val REPEAT_LABEL = "🎯 NHẮC LẠI THEO AI"

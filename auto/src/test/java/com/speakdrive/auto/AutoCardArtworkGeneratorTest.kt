@@ -172,6 +172,19 @@ class AutoCardArtworkGeneratorTest {
     }
 
     @Test
+    fun `safe box and panel fit every measured media card`() {
+        // Desktop Head Unit: the card shows x 124..476, Android Auto's title starts at y 419.
+        // The learner's car: the card shows x 30..570, the title starts at y 350.
+        assertThat(AutoCardArtworkGenerator.SAFE_LEFT).isAtLeast(124 + 8)
+        assertThat(AutoCardArtworkGenerator.SAFE_RIGHT).isAtMost(476 - 8)
+        assertThat(AutoCardArtworkGenerator.PANEL_BOTTOM).isAtMost(350 - 8)
+        assertThat(AutoCardArtworkGenerator.SAFE_BOTTOM).isLessThan(AutoCardArtworkGenerator.PANEL_BOTTOM)
+        // The sentence column stays clear of the drill status rails.
+        assertThat(AutoCardArtworkGenerator.SAFE_LEFT).isGreaterThan(AutoCardSideRails.LEFT_RAIL_END)
+        assertThat(AutoCardArtworkGenerator.SAFE_RIGHT).isLessThan(AutoCardSideRails.RIGHT_RAIL_START)
+    }
+
+    @Test
     fun `text stays inside the safe box`() {
         val previewDir = File("build/artwork-preview").apply { mkdirs() }
         val longTurn = "Albert Einstein was working in the Swiss patent office, and every evening he wrote about light, " +

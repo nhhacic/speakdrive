@@ -10,19 +10,24 @@ import android.graphics.Typeface
  * The two side rails of the repeat-drill artwork: whose turn it is on the left, how the sentence
  * is going on the right.
  *
- * Android Auto shows the same artwork twice. The full Now Playing screen shows the whole square,
- * scaled down, with the title below it; the media card next to the map scales it to the card's
- * height and crops the sides, so only about x 125..475 of the 600 px survives there. The rails sit
- * in the strips only the full screen shows, so they fill the square there and vanish on the card,
- * where the sentence stays alone. Like the rest of the artwork they stay inside the panel above
- * [AutoCardArtworkGenerator.PANEL_BOTTOM]: on a wider media card they may show, but never under
- * Android Auto's own title and controls.
+ * The media card next to the map scales the square to the card's height and crops the sides, by
+ * how much depends on the head unit: the Desktop Head Unit shows about x 124..476, the learner's
+ * car about x 30..570 (see AutoCardArtworkGenerator.SAFE_LEFT). A rail cut in half is worse than
+ * none, so each rail is either wholly hidden or wholly shown: it lies in x 36..122 (and 478..564),
+ * hidden on the DHU card, whole in the car and on the full Now Playing screen. Like the rest of the
+ * artwork the rails stay inside the panel above [AutoCardArtworkGenerator.PANEL_BOTTOM], below the
+ * app icon and page dots.
  */
 internal object AutoCardSideRails {
 
     /** Nothing is drawn between these two x positions; that column belongs to the sentence. */
-    const val LEFT_RAIL_END = 116
-    const val RIGHT_RAIL_START = 484
+    const val LEFT_RAIL_END = 122
+    const val RIGHT_RAIL_START = 478
+
+    /** Outer edges: the left rail starts here, the right one ends this far from the right edge. */
+    const val RAIL_OUTER = 36
+    const val RAIL_TOP = 62f
+    const val RAIL_BOTTOM = AutoCardArtworkGenerator.PANEL_BOTTOM - 10f
 
     fun draw(canvas: Canvas, status: DrillStatus, size: Int = CARD_SIZE) {
         val scale = size / CARD_SIZE.toFloat()
@@ -30,9 +35,8 @@ internal object AutoCardSideRails {
         canvas.scale(scale, scale)
 
         val turnColor = turnColor(status.turn)
-        drawRail(canvas, RectF(RAIL_INSET, RAIL_INSET, LEFT_RAIL_END - RAIL_BORDER, RAIL_BOTTOM), turnColor)
+        drawRail(canvas, RectF(RAIL_OUTER.toFloat(), RAIL_TOP, LEFT_RAIL_END - RAIL_BORDER, RAIL_BOTTOM), turnColor)
         val (turnLine1, turnLine2) = turnLabel(status.turn)
-        drawHeader(canvas, LEFT_CENTER_X, "LƯỢT NÓI")
         drawBadge(canvas, LEFT_CENTER_X, turnColor) { cx, cy, paint -> drawTurnIcon(canvas, status.turn, cx, cy, paint) }
         drawTwoLines(canvas, LEFT_CENTER_X, turnLine1, turnLine2, COLOR_TEXT, turnColor)
         drawDivider(canvas, LEFT_CENTER_X)
@@ -42,8 +46,7 @@ internal object AutoCardSideRails {
         drawAttemptDots(canvas, status)
 
         val verdictColor = verdictColor(status)
-        drawRail(canvas, RectF(RIGHT_RAIL_START + RAIL_BORDER, RAIL_INSET, CARD_SIZE - RAIL_INSET, RAIL_BOTTOM), verdictColor)
-        drawHeader(canvas, RIGHT_CENTER_X, "PHÁT ÂM")
+        drawRail(canvas, RectF(RIGHT_RAIL_START + RAIL_BORDER, RAIL_TOP, (CARD_SIZE - RAIL_OUTER).toFloat(), RAIL_BOTTOM), verdictColor)
         drawScoreRing(canvas, status.accuracyPercent, verdictColor)
         val (verdictLine1, verdictLine2) = verdictLabel(status)
         drawTwoLines(canvas, RIGHT_CENTER_X, verdictLine1, verdictLine2, COLOR_TEXT, verdictColor)
@@ -102,7 +105,7 @@ internal object AutoCardSideRails {
         canvas.drawRoundRect(rect, RAIL_RADIUS, RAIL_RADIUS, border)
     }
 
-    private fun drawHeader(canvas: Canvas, centerX: Float, text: String, baseline: Float = TOP_HEADER_Y) {
+    private fun drawHeader(canvas: Canvas, centerX: Float, text: String, baseline: Float) {
         canvas.drawText(text, centerX, baseline, fittedPaint(text, HEADER_SIZE, COLOR_MUTED))
     }
 
@@ -113,7 +116,11 @@ internal object AutoCardSideRails {
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
+        // The glyphs are drawn for a 42 px badge; scale them to this one.
+        canvas.save()
+        canvas.scale(BADGE_RADIUS / ICON_DESIGN_RADIUS, BADGE_RADIUS / ICON_DESIGN_RADIUS, centerX, BADGE_CENTER_Y)
         icon(centerX, BADGE_CENTER_Y, iconPaint)
+        canvas.restore()
     }
 
     /** Simple vector glyphs: emoji render differently (or not at all) from one head unit to the next. */
@@ -251,41 +258,39 @@ internal object AutoCardSideRails {
     private fun withAlpha(color: Int, alpha: Int): Int = (color and 0x00FFFFFF) or (alpha shl 24)
 
     private const val CARD_SIZE = 600
-    private const val RAIL_INSET = 6f
-    private const val RAIL_BOTTOM = AutoCardArtworkGenerator.PANEL_BOTTOM - 8f
-    private const val RAIL_RADIUS = 22f
+    private const val RAIL_RADIUS = 18f
     private const val RAIL_BORDER = 3f
     private const val RAIL_FILL_ALPHA = 0x2E
     private const val RAIL_BORDER_ALPHA = 0xB3
 
     // The border stroke straddles the rect, so the rects stop a stroke short of the column.
-    private const val LEFT_CENTER_X = (RAIL_INSET + LEFT_RAIL_END - RAIL_BORDER) / 2f
-    private const val RIGHT_CENTER_X = (RIGHT_RAIL_START + RAIL_BORDER + CARD_SIZE - RAIL_INSET) / 2f
-    private const val TEXT_MAX_WIDTH = LEFT_RAIL_END - RAIL_BORDER - RAIL_INSET - 12f
+    private const val LEFT_CENTER_X = (RAIL_OUTER + LEFT_RAIL_END - RAIL_BORDER) / 2f
+    private const val RIGHT_CENTER_X = (RIGHT_RAIL_START + RAIL_BORDER + CARD_SIZE - RAIL_OUTER) / 2f
+    private const val TEXT_MAX_WIDTH = LEFT_RAIL_END - RAIL_BORDER - RAIL_OUTER - 10f
 
     // Turn and score in the top half of the rail, tries and progress in the bottom half.
-    private const val TOP_HEADER_Y = 46f
-    private const val BADGE_CENTER_Y = 110f
-    private const val BADGE_RADIUS = 42f
-    private const val LABEL_LINE1_Y = 188f
-    private const val LABEL_LINE2_Y = 216f
-    private const val DIVIDER_Y = 244f
-    private const val BOTTOM_HEADER_Y = 282f
-    private const val BIG_NUMBER_Y = 334f
-    private const val PROGRESS_Y = 370f
+    private const val BADGE_CENTER_Y = 104f
+    private const val BADGE_RADIUS = 32f
+    private const val ICON_DESIGN_RADIUS = 42f
+    private const val LABEL_LINE1_Y = 166f
+    private const val LABEL_LINE2_Y = 188f
+    private const val DIVIDER_Y = 206f
+    private const val BOTTOM_HEADER_Y = 230f
+    private const val BIG_NUMBER_Y = 270f
+    private const val PROGRESS_Y = 300f
 
-    private const val HEADER_SIZE = 17f
-    private const val LABEL_SIZE = 25f
-    private const val SCORE_SIZE = 32f
-    private const val BIG_NUMBER_SIZE = 42f
-    private const val MIN_TEXT_SIZE = 12f
-    private const val RING_STROKE = 8f
-    private const val RING_TEXT_WIDTH = 60f
-    private const val DIVIDER_WIDTH = 56f
-    private const val DOT_RADIUS = 10f
-    private const val DOT_GAP = 8f
-    private const val BAR_WIDTH = 84f
-    private const val BAR_HEIGHT = 12f
+    private const val HEADER_SIZE = 14f
+    private const val LABEL_SIZE = 19f
+    private const val SCORE_SIZE = 26f
+    private const val BIG_NUMBER_SIZE = 34f
+    private const val MIN_TEXT_SIZE = 11f
+    private const val RING_STROKE = 7f
+    private const val RING_TEXT_WIDTH = 44f
+    private const val DIVIDER_WIDTH = 44f
+    private const val DOT_RADIUS = 8f
+    private const val DOT_GAP = 6f
+    private const val BAR_WIDTH = 62f
+    private const val BAR_HEIGHT = 10f
 
     /** Below a pass, a score this high is "close": amber rather than red. */
     private const val PASSABLE_SCORE = 70

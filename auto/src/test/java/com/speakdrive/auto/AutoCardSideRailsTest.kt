@@ -46,10 +46,28 @@ class AutoCardSideRailsTest {
     }
 
     @Test
-    fun `rails stay outside the part the map-side media card shows`() {
-        // The media card next to the map crops the square to about x 125..475 (measured on the DHU).
-        assertThat(AutoCardSideRails.LEFT_RAIL_END).isLessThan(125)
-        assertThat(AutoCardSideRails.RIGHT_RAIL_START).isGreaterThan(475)
+    fun `rails are wholly hidden or wholly shown on every measured media card`() {
+        // DHU card shows about x 124..476: both rails stay out of it.
+        assertThat(AutoCardSideRails.LEFT_RAIL_END).isAtMost(124)
+        assertThat(AutoCardSideRails.RIGHT_RAIL_START).isAtLeast(476)
+        // The learner's car shows about x 30..570, title from y 350: both rails fit inside it.
+        assertThat(AutoCardSideRails.RAIL_OUTER).isAtLeast(30 + 4)
+        assertThat(600 - AutoCardSideRails.RAIL_OUTER).isAtMost(570 - 4)
+        assertThat(AutoCardSideRails.RAIL_BOTTOM).isLessThan(350f)
+        // Below the app icon and page dots.
+        assertThat(AutoCardSideRails.RAIL_TOP).isAtLeast(56f)
+    }
+
+    @Test
+    fun `rails draw nothing outside their boxes`() {
+        for ((name, status) in samples) {
+            val bitmap = render(status)
+            val outerRight = 600 - AutoCardSideRails.RAIL_OUTER
+            assertWithMessage("$name left of the left rail").that(inkInside(bitmap, Rect(0, 0, AutoCardSideRails.RAIL_OUTER - 2, 600))).isEqualTo(0)
+            assertWithMessage("$name right of the right rail").that(inkInside(bitmap, Rect(outerRight + 2, 0, 600, 600))).isEqualTo(0)
+            assertWithMessage("$name above the rails").that(inkInside(bitmap, Rect(0, 0, 600, AutoCardSideRails.RAIL_TOP.toInt() - 2))).isEqualTo(0)
+            assertWithMessage("$name below the rails").that(inkInside(bitmap, Rect(0, AutoCardSideRails.RAIL_BOTTOM.toInt() + 2, 600, 600))).isEqualTo(0)
+        }
     }
 
     @Test
@@ -80,10 +98,9 @@ class AutoCardSideRailsTest {
             save(bitmap, File(dir, "$name.png"))
             // Full Now Playing screen: the whole square, about 388 px wide on the DHU.
             save(Bitmap.createScaledBitmap(bitmap, 388, 388, true), File(dir, "${name}_fullscreen.png"))
-            // Media card beside the map: scaled to the card height (870 px), centre-cropped to 512 px.
-            val card = Bitmap.createBitmap(512, 870, Bitmap.Config.ARGB_8888)
-            Canvas(card).drawBitmap(bitmap, Rect(0, 0, 600, 600), Rect((512 - 870) / 2, 0, (512 + 870) / 2, 870), null)
-            save(card, File(dir, "${name}_card.png"))
+            // Media card beside the map: scaled to the card height, centre-cropped (DHU 512x870, car 740x822).
+            save(mediaCard(bitmap, 512, 870), File(dir, "${name}_card.png"))
+            save(mediaCard(bitmap, 740, 822), File(dir, "${name}_car.png"))
         }
     }
 
@@ -115,9 +132,14 @@ class AutoCardSideRailsTest {
         val dir = File("build/rails-preview").apply { mkdirs() }
         save(withRails, File(dir, "full_card.png"))
         save(Bitmap.createScaledBitmap(withRails, 388, 388, true), File(dir, "full_card_fullscreen.png"))
-        val card = Bitmap.createBitmap(512, 870, Bitmap.Config.ARGB_8888)
-        Canvas(card).drawBitmap(withRails, Rect(0, 0, 600, 600), Rect((512 - 870) / 2, 0, (512 + 870) / 2, 870), null)
-        save(card, File(dir, "full_card_card.png"))
+        save(mediaCard(withRails, 512, 870), File(dir, "full_card_card.png"))
+        save(mediaCard(withRails, 740, 822), File(dir, "full_card_car.png"))
+    }
+
+    private fun mediaCard(artwork: Bitmap, width: Int, height: Int): Bitmap {
+        val card = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        Canvas(card).drawBitmap(artwork, Rect(0, 0, 600, 600), Rect((width - height) / 2, 0, (width + height) / 2, height), null)
+        return card
     }
 
     @Test
