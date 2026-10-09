@@ -76,20 +76,10 @@ open class PlaybackConnection internal constructor(
     }
 
     private suspend fun fallbackStart(mediaId: String) {
-        val ctx = context
         val eng = engine
         val st = settings
 
-        // 1. Start the service so that Media3 service lifecycle runs in the background
-        if (ctx != null) {
-            try {
-                ctx.startService(Intent(ctx, SpeakDriveMediaService::class.java))
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not start SpeakDriveMediaService directly", e)
-            }
-        }
-
-        // 2. Start engine directly with the resolved LessonRequest
+        // Start engine directly with the resolved LessonRequest
         if (eng != null) {
             if (mediaId == MediaIds.STORY_RESUME || MediaIds.parse(mediaId) is MediaTarget.StoryResume) {
                 eng.resumeStory()

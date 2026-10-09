@@ -233,35 +233,39 @@ class SpeakDriveMediaService : MediaLibraryService() {
          * system (notification, Bluetooth / steering-wheel buttons), Android Auto and Assistant.
          */
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
-            Log.d(TAG, "onConnect from ${controller.packageName} (uid=${controller.uid}, isTrusted=${controller.isTrusted})")
-            if (!isAllowedController(controller)) {
-                Log.w(TAG, "Rejected media controller ${controller.packageName} (uid=${controller.uid})")
-                return MediaSession.ConnectionResult.reject()
+            try {
+                Log.d(TAG, "onConnect from ${controller.packageName} (uid=${controller.uid}, isTrusted=${controller.isTrusted})")
+                if (!isAllowedController(controller)) {
+                    Log.w(TAG, "Rejected media controller ${controller.packageName} (uid=${controller.uid})")
+                    return MediaSession.ConnectionResult.reject()
+                }
+                val repeatCommand = SessionCommand(CUSTOM_ACTION_REPEAT, Bundle.EMPTY)
+                val nextCommand = SessionCommand(CUSTOM_ACTION_NEXT, Bundle.EMPTY)
+                val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
+                    .add(repeatCommand)
+                    .add(nextCommand)
+                    .build()
+
+                val repeatButton = CommandButton.Builder(R.drawable.ic_repeat)
+                    .setDisplayName(getString(R.string.action_repeat))
+                    .setSessionCommand(repeatCommand)
+                    .setEnabled(true)
+                    .build()
+
+                val nextButton = CommandButton.Builder(R.drawable.ic_skip_next)
+                    .setDisplayName(getString(R.string.action_next))
+                    .setSessionCommand(nextCommand)
+                    .setEnabled(true)
+                    .build()
+
+                return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                    .setAvailableSessionCommands(sessionCommands)
+                    .setCustomLayout(ImmutableList.of(repeatButton, nextButton))
+                    .build()
+            } catch (t: Throwable) {
+                Log.e(TAG, "Exception during onConnect from ${controller.packageName}", t)
+                return MediaSession.ConnectionResult.AcceptedResultBuilder(session).build()
             }
-            val repeatCommand = SessionCommand(CUSTOM_ACTION_REPEAT, Bundle.EMPTY)
-            val nextCommand = SessionCommand(CUSTOM_ACTION_NEXT, Bundle.EMPTY)
-            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
-                .add(repeatCommand)
-                .add(nextCommand)
-                .build()
-
-            val repeatButton = CommandButton.Builder(R.drawable.ic_repeat)
-                .setDisplayName(getString(R.string.action_repeat))
-                .setSessionCommand(repeatCommand)
-                .setEnabled(true)
-                .build()
-
-            val nextButton = CommandButton.Builder(R.drawable.ic_skip_next)
-                .setDisplayName(getString(R.string.action_next))
-                .setSessionCommand(nextCommand)
-                .setEnabled(true)
-                .build()
-
-            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
-                .setAvailableSessionCommands(sessionCommands)
-                .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
-                .setCustomLayout(ImmutableList.of(repeatButton, nextButton))
-                .build()
         }
 
         override fun onCustomCommand(
