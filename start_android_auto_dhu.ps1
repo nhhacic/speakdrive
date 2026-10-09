@@ -4,7 +4,7 @@
 $adbPath = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 $dhuDir = "$env:LOCALAPPDATA\Android\Sdk\extras\google\auto"
 $dhuExe = "$dhuDir\desktop-head-unit.exe"
-$defaultWifiIp = "192.168.0.55:5555"
+$knownWifiIps = @("192.168.1.46:5555", "192.168.0.55:5555")
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "   SpeakDrive - Trình Giả Lập Màn Hình Xe Hơi Android Auto" -ForegroundColor Green
@@ -33,10 +33,13 @@ function Check-Devices {
 
 $connected = Check-Devices
 if (-not $connected) {
-    Write-Host "-> Đang thử tự động kết nối không dây tới $defaultWifiIp qua Wi-Fi..." -ForegroundColor Cyan
-    & $adbPath connect $defaultWifiIp | Out-Null
-    Start-Sleep -Milliseconds 800
-    $connected = Check-Devices
+    foreach ($wifiIp in $knownWifiIps) {
+        Write-Host "-> Đang thử tự động kết nối không dây tới $wifiIp qua Wi-Fi..." -ForegroundColor Cyan
+        & $adbPath connect $wifiIp | Out-Null
+        Start-Sleep -Milliseconds 600
+        $connected = Check-Devices
+        if ($connected) { break }
+    }
 }
 
 while (-not $connected) {
@@ -54,10 +57,12 @@ while (-not $connected) {
     if ($choice -match "^[Qq]") {
         exit 0
     }
-    # Thu ket noi lai Wi-Fi
-    & $adbPath connect $defaultWifiIp | Out-Null
-    Start-Sleep -Milliseconds 800
-    $connected = Check-Devices
+    foreach ($wifiIp in $knownWifiIps) {
+        & $adbPath connect $wifiIp | Out-Null
+        Start-Sleep -Milliseconds 500
+        $connected = Check-Devices
+        if ($connected) { break }
+    }
 }
 
 Write-Host ""
