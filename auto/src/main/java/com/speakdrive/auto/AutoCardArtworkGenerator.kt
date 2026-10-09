@@ -59,9 +59,10 @@ class AutoCardArtworkGenerator @Inject constructor() {
         lesson: ActiveLesson,
         transcript: List<TranscriptTurn>,
         drillTarget: String?,
-        drillTargetTranslation: String? = null
+        drillTargetTranslation: String? = null,
+        drillStatus: DrillStatus? = null
     ): ByteArray? {
-        val content = cardContentFor(lesson, transcript, drillTarget, drillTargetTranslation)
+        val content = cardContentFor(lesson, transcript, drillTarget, drillTargetTranslation, drillStatus)
         if (content == lastContent && lastArtwork != null) {
             return lastArtwork
         }
@@ -83,7 +84,8 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
     /** What the card shows; equal contents draw identical cards. */
     internal sealed interface CardContent {
-        data class Repeat(val target: String, val translation: String?) : CardContent
+        /** [status] fills the side rails that only the full Now Playing screen shows. */
+        data class Repeat(val target: String, val translation: String?, val status: DrillStatus? = null) : CardContent
         data class Story(val scene: StoryScene) : CardContent
         data class Chat(val lines: List<ChatLine>) : CardContent
     }
@@ -94,11 +96,12 @@ class AutoCardArtworkGenerator @Inject constructor() {
         lesson: ActiveLesson,
         transcript: List<TranscriptTurn>,
         drillTarget: String?,
-        drillTargetTranslation: String?
+        drillTargetTranslation: String?,
+        drillStatus: DrillStatus? = null
     ): CardContent = when {
         // Stories never show text, even if a sentence to repeat turns up.
         lesson.mode == SessionMode.STORY_LISTENING -> CardContent.Story(StoryScenes.sceneFor(lesson))
-        !drillTarget.isNullOrBlank() -> CardContent.Repeat(drillTarget.trim(), drillTargetTranslation)
+        !drillTarget.isNullOrBlank() -> CardContent.Repeat(drillTarget.trim(), drillTargetTranslation, drillStatus)
         else -> CardContent.Chat(
             transcript
                 .filter { it.text.isNotBlank() }
@@ -115,6 +118,8 @@ class AutoCardArtworkGenerator @Inject constructor() {
                 val card = layoutRepeatCard(content.target, content.translation)
                 val panel = drawBackground(canvas, COLOR_ACCENT, glowCenterY = blockTop(card) + card.height / 2f)
                 drawBlocks(canvas, card)
+                // Side rails for the full Now Playing screen; the media card crops them away.
+                content.status?.let { AutoCardSideRails.draw(canvas, it) }
                 endPanel(canvas, panel, COLOR_ACCENT)
             }
             is CardContent.Story -> drawStoryScene(canvas, content.scene)

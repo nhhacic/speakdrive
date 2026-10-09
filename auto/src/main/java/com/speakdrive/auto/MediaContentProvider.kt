@@ -316,7 +316,8 @@ class MediaContentProvider @Inject constructor(
         state: ConversationState,
         transcript: List<TranscriptTurn> = emptyList(),
         drillTarget: String? = null,
-        drillTargetTranslation: String? = null
+        drillTargetTranslation: String? = null,
+        drillStatus: DrillStatus? = null
     ): MediaItem {
         val isStory = lesson.mode == SessionMode.STORY_LISTENING
         val status = when (state) {
@@ -375,7 +376,7 @@ class MediaContentProvider @Inject constructor(
             .setIsPlayable(true)
             .setMediaType(MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE)
 
-        val cardArtwork = artworkGenerator.generateCard(lesson, transcript, drillTarget, drillTargetTranslation)
+        val cardArtwork = artworkGenerator.generateCard(lesson, transcript, drillTarget, drillTargetTranslation, drillStatus)
         if (cardArtwork != null) {
             metadataBuilder.setArtworkData(cardArtwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
         }

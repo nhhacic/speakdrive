@@ -1,0 +1,157 @@
+package com.speakdrive.auto
+
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Rect
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
+import com.speakdrive.ai.TopicManager
+import com.speakdrive.ai.model.ActiveLesson
+import com.speakdrive.ai.model.DifficultyLevel
+import com.speakdrive.ai.model.SessionMode
+import java.io.File
+import java.io.FileOutputStream
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+
+// Native graphics: real text measuring and drawing, so the pixel checks mean something.
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class AutoCardSideRailsTest {
+
+    private val samples = listOf(
+        "ai_speaking" to DrillStatus(DrillTurn.AI_SPEAKING),
+        "your_turn_after_fail" to DrillStatus(DrillTurn.YOUR_TURN, accuracyPercent = 57, attemptNumber = 1, passed = false, passedSentences = 2, sentences = 3),
+        "you_speaking" to DrillStatus(DrillTurn.YOU_SPEAKING, accuracyPercent = 80, attemptNumber = 2, passed = false, passedSentences = 2, sentences = 3),
+        "grading" to DrillStatus(DrillTurn.GRADING, accuracyPercent = 80, attemptNumber = 2, passed = false, passedSentences = 2, sentences = 3),
+        "passed" to DrillStatus(DrillTurn.AI_SPEAKING, accuracyPercent = 100, attemptNumber = 3, passed = true, passedSentences = 3, sentences = 3),
+        "paused" to DrillStatus(DrillTurn.PAUSED, passedSentences = 12, sentences = 15),
+        "connecting" to DrillStatus(DrillTurn.CONNECTING)
+    )
+
+    @Test
+    fun `rails never paint the sentence column`() {
+        for ((name, status) in samples) {
+            val bitmap = render(status)
+            val inColumn = inkInside(bitmap, Rect(AutoCardSideRails.LEFT_RAIL_END + 1, 0, AutoCardSideRails.RIGHT_RAIL_START - 1, 600))
+            assertWithMessage(name).that(inColumn).isEqualTo(0)
+            assertWithMessage("$name left rail").that(inkInside(bitmap, Rect(0, 0, AutoCardSideRails.LEFT_RAIL_END, 600))).isGreaterThan(2_000)
+            assertWithMessage("$name right rail").that(inkInside(bitmap, Rect(AutoCardSideRails.RIGHT_RAIL_START, 0, 600, 600))).isGreaterThan(2_000)
+        }
+    }
+
+    @Test
+    fun `rails stay outside the part the map-side media card shows`() {
+        // The media card next to the map crops the square to about x 125..475 (measured on the DHU).
+        assertThat(AutoCardSideRails.LEFT_RAIL_END).isLessThan(125)
+        assertThat(AutoCardSideRails.RIGHT_RAIL_START).isGreaterThan(475)
+    }
+
+    @Test
+    fun `labels fit every turn`() {
+        for (turn in DrillTurn.entries) {
+            val (first, second) = AutoCardSideRails.turnLabel(turn)
+            assertThat(first).isNotEmpty()
+            assertThat(second).isNotEmpty()
+        }
+        assertThat(AutoCardSideRails.turnColor(DrillTurn.YOUR_TURN)).isNotEqualTo(AutoCardSideRails.turnColor(DrillTurn.AI_SPEAKING))
+    }
+
+    @Test
+    fun `verdict colour separates passed close and failed tries`() {
+        val passed = AutoCardSideRails.verdictColor(DrillStatus(DrillTurn.YOUR_TURN, 100, 1, true))
+        val close = AutoCardSideRails.verdictColor(DrillStatus(DrillTurn.YOUR_TURN, 80, 1, false))
+        val failed = AutoCardSideRails.verdictColor(DrillStatus(DrillTurn.YOUR_TURN, 30, 1, false))
+        val none = AutoCardSideRails.verdictColor(DrillStatus(DrillTurn.YOUR_TURN))
+
+        assertThat(setOf(passed, close, failed, none)).hasSize(4)
+    }
+
+    @Test
+    fun `saves previews for both Android Auto layouts`() {
+        val dir = File("build/rails-preview").apply { mkdirs() }
+        for ((name, status) in samples) {
+            val bitmap = render(status)
+            save(bitmap, File(dir, "$name.png"))
+            // Full Now Playing screen: the whole square, about 388 px wide on the DHU.
+            save(Bitmap.createScaledBitmap(bitmap, 388, 388, true), File(dir, "${name}_fullscreen.png"))
+            // Media card beside the map: scaled to the card height (870 px), centre-cropped to 512 px.
+            val card = Bitmap.createBitmap(512, 870, Bitmap.Config.ARGB_8888)
+            Canvas(card).drawBitmap(bitmap, Rect(0, 0, 600, 600), Rect((512 - 870) / 2, 0, (512 + 870) / 2, 870), null)
+            save(card, File(dir, "${name}_card.png"))
+        }
+    }
+
+    @Test
+    fun `repeat card keeps its sentence column untouched and adds the rails`() {
+        val generator = AutoCardArtworkGenerator()
+        val sentence = "She described the project's broad scope."
+        val translation = "Cô ấy đã mô tả phạm vi rộng lớn của dự án."
+        val status = DrillStatus(DrillTurn.YOUR_TURN, accuracyPercent = 57, attemptNumber = 1, passed = false, passedSentences = 2, sentences = 3)
+
+        val plain = generator.renderCard(AutoCardArtworkGenerator.CardContent.Repeat(sentence, translation))
+        val withRails = generator.renderCard(AutoCardArtworkGenerator.CardContent.Repeat(sentence, translation, status))
+
+        var changedInColumn = 0
+        for (y in 0 until 600) {
+            for (x in AutoCardSideRails.LEFT_RAIL_END + 1 until AutoCardSideRails.RIGHT_RAIL_START - 1) {
+                if (plain.getPixel(x, y) != withRails.getPixel(x, y)) changedInColumn++
+            }
+        }
+        assertThat(changedInColumn).isEqualTo(0)
+        // Like the rest of the artwork, nothing under Android Auto's title and controls.
+        val top = AutoCardArtworkGenerator.PANEL_BOTTOM
+        val below = IntArray(600 * (600 - top))
+        withRails.getPixels(below, 0, 600, 0, top, 600, 600 - top)
+        assertThat(below.distinct()).containsExactly(AutoCardArtworkGenerator.COLOR_OFF_PANEL)
+        assertThat(inkInside(withRails, Rect(0, 0, AutoCardSideRails.LEFT_RAIL_END, 600)))
+            .isGreaterThan(inkInside(plain, Rect(0, 0, AutoCardSideRails.LEFT_RAIL_END, 600)))
+
+        val dir = File("build/rails-preview").apply { mkdirs() }
+        save(withRails, File(dir, "full_card.png"))
+        save(Bitmap.createScaledBitmap(withRails, 388, 388, true), File(dir, "full_card_fullscreen.png"))
+        val card = Bitmap.createBitmap(512, 870, Bitmap.Config.ARGB_8888)
+        Canvas(card).drawBitmap(withRails, Rect(0, 0, 600, 600), Rect((512 - 870) / 2, 0, (512 + 870) / 2, 870), null)
+        save(card, File(dir, "full_card_card.png"))
+    }
+
+    @Test
+    fun `a new turn changes the artwork but the same turn is cached`() {
+        val generator = AutoCardArtworkGenerator()
+        val topic = TopicManager().getAllTopics().first()
+        val lesson = ActiveLesson("rails", topic, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
+        fun card(turn: DrillTurn) = generator.generateCard(lesson, emptyList(), "Where is the gate?", "Cổng ở đâu?", DrillStatus(turn))
+
+        val aiSpeaking = card(DrillTurn.AI_SPEAKING)
+        assertThat(card(DrillTurn.AI_SPEAKING)).isSameInstanceAs(aiSpeaking)
+        assertThat(card(DrillTurn.YOUR_TURN)).isNotEqualTo(aiSpeaking)
+    }
+
+    private fun save(bitmap: Bitmap, file: File) {
+        FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    private fun render(status: DrillStatus): Bitmap {
+        val bitmap = Bitmap.createBitmap(600, 600, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.BLACK)
+        AutoCardSideRails.draw(canvas, status)
+        return bitmap
+    }
+
+    private fun inkInside(bitmap: Bitmap, area: Rect): Int {
+        var count = 0
+        for (y in area.top until area.bottom) {
+            for (x in area.left until area.right) {
+                val pixel = bitmap.getPixel(x, y)
+                if (Color.red(pixel) + Color.green(pixel) + Color.blue(pixel) > 60) count++
+            }
+        }
+        return count
+    }
+}

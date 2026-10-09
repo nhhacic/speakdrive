@@ -49,7 +49,11 @@ class SpeakDrivePlayer(
                     engine.error,
                     engine.transcript,
                     engine.drillTarget,
-                    engine.drillTargetTranslation
+                    engine.drillTargetTranslation,
+                    // Turn and score of the repeat drill, drawn beside the sentence on the car screen.
+                    engine.activeSpeaker,
+                    engine.isAiThinking,
+                    engine.pronunciationAttempts
                 )
             ) { }.collect { invalidateState() }
         }
@@ -92,7 +96,14 @@ class SpeakDrivePlayer(
         val item = lesson?.let {
             val drillTarget = engine.drillTarget.value
             val drillTargetTranslation = engine.drillTargetTranslation.value
-            contentProvider.lessonItem(it, engineState, engine.transcript.value, drillTarget, drillTargetTranslation)
+            val drillStatus = DrillStatus.of(
+                engineState,
+                engine.activeSpeaker.value,
+                engine.isAiThinking.value,
+                drillTarget,
+                engine.pronunciationAttempts.value
+            )
+            contentProvider.lessonItem(it, engineState, engine.transcript.value, drillTarget, drillTargetTranslation, drillStatus)
         } ?: selectedItem ?: contentProvider.standbyItem(justEnded = engineState == ConversationState.ENDED)
         val error = engine.error.value
 
