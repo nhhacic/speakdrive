@@ -11,6 +11,7 @@ import com.speakdrive.ai.model.ActiveLesson
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.SessionMode
+import com.speakdrive.ai.model.TranscriptTurn
 import com.speakdrive.ai.session.LearningSettings
 import com.speakdrive.ai.session.SessionStore
 import javax.inject.Inject
@@ -313,7 +314,7 @@ class MediaContentProvider @Inject constructor(
     fun lessonItem(
         lesson: ActiveLesson,
         state: ConversationState,
-        lastAiText: String? = null,
+        transcript: List<TranscriptTurn> = emptyList(),
         drillTarget: String? = null,
         drillTargetTranslation: String? = null
     ): MediaItem {
@@ -374,7 +375,7 @@ class MediaContentProvider @Inject constructor(
             .setIsPlayable(true)
             .setMediaType(MediaMetadata.MEDIA_TYPE_PODCAST_EPISODE)
 
-        val cardArtwork = artworkGenerator.generateCard(lesson, state, lastAiText, drillTarget, drillTargetTranslation)
+        val cardArtwork = artworkGenerator.generateCard(lesson, transcript, drillTarget, drillTargetTranslation)
         if (cardArtwork != null) {
             metadataBuilder.setArtworkData(cardArtwork, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
         }

@@ -9,6 +9,8 @@ import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.LearnerSettings
 import com.speakdrive.ai.model.ReviewWord
 import com.speakdrive.ai.model.SessionMode
+import com.speakdrive.ai.model.Speaker
+import com.speakdrive.ai.model.TranscriptTurn
 import com.speakdrive.ai.session.LearningSettings
 import com.speakdrive.ai.session.SessionStore
 import kotlinx.coroutines.test.runTest
@@ -178,7 +180,7 @@ class MediaContentProviderTest {
         val item = provider.lessonItem(
             lesson = lesson,
             state = ConversationState.ACTIVE,
-            lastAiText = "Repeat after me: I'd like a window seat, please.",
+            transcript = listOf(TranscriptTurn(1, Speaker.AI, "Repeat after me: I'd like a window seat, please.", 0)),
             drillTarget = "I'd like a window seat, please."
         )
 
@@ -197,7 +199,7 @@ class MediaContentProviderTest {
         val item = provider.lessonItem(
             lesson = lesson,
             state = ConversationState.ACTIVE,
-            lastAiText = "Repeat after me: I'd like a window seat, please.",
+            transcript = listOf(TranscriptTurn(1, Speaker.AI, "Repeat after me: I'd like a window seat, please.", 0)),
             drillTarget = "I'd like a window seat, please.",
             drillTargetTranslation = "Tôi muốn một chỗ ngồi cạnh cửa sổ, làm ơn."
         )
@@ -215,7 +217,6 @@ class MediaContentProviderTest {
         val item = provider.lessonItem(
             lesson = lesson,
             state = ConversationState.ACTIVE,
-            lastAiText = null,
             drillTarget = null
         )
 
@@ -231,7 +232,7 @@ class MediaContentProviderTest {
         val item = provider.lessonItem(
             lesson = lesson,
             state = ConversationState.ACTIVE,
-            lastAiText = "Where would you like to travel next?",
+            transcript = listOf(TranscriptTurn(1, Speaker.AI, "Where would you like to travel next?", 0)),
             drillTarget = null
         )
 
@@ -262,7 +263,7 @@ class MediaContentProviderTest {
         val item = provider.lessonItem(
             lesson = lesson,
             state = ConversationState.ACTIVE,
-            lastAiText = "Once upon a time in a small laboratory...",
+            transcript = listOf(TranscriptTurn(1, Speaker.AI, "Once upon a time in a small laboratory...", 0)),
             drillTarget = null
         )
 

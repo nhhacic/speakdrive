@@ -1,33 +1,48 @@
 package com.speakdrive.auto
 
+import android.graphics.Bitmap
+import android.graphics.Color
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.speakdrive.ai.TopicManager
 import com.speakdrive.ai.model.ActiveLesson
-import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.DifficultyLevel
+import com.speakdrive.ai.model.Scenario
 import com.speakdrive.ai.model.SessionMode
+import com.speakdrive.ai.model.Speaker
+import com.speakdrive.ai.model.TranscriptTurn
+import com.speakdrive.auto.AutoCardArtworkGenerator.CardContent
+import com.speakdrive.auto.AutoCardArtworkGenerator.ChatLine
+import java.io.File
+import java.io.FileOutputStream
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
+// Native graphics: real text measuring and drawing, so the layout and pixel checks mean something.
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class AutoCardArtworkGeneratorTest {
 
     private val topics = TopicManager()
     private val generator = AutoCardArtworkGenerator()
 
-    @Test
-    fun `generates non-empty png byte array for pronunciation drill`() {
-        val topic = topics.getTopicById("travel")!!
-        val lesson = ActiveLesson("session_1", topic, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
+    private fun lesson(topicId: String, mode: SessionMode, scenario: Scenario? = null) =
+        ActiveLesson("session_$topicId", topics.getTopicById(topicId)!!, scenario, DifficultyLevel.INTERMEDIATE, mode, 0L, emptyList())
 
+    private fun turns(vararg lines: Pair<Speaker, String>) =
+        lines.mapIndexed { index, (speaker, text) -> TranscriptTurn(index.toLong(), speaker, text, index.toLong()) }
+
+    @Test
+    fun `generates png for a repeat drill`() {
         val bytes = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            lastAiText = "Repeat after me: I would like a window seat, please.",
-            drillTarget = "I would like a window seat, please."
+            lesson("travel", SessionMode.REPEAT_AFTER_ME),
+            turns(Speaker.AI to "Repeat after me: I would like a window seat, please."),
+            drillTarget = "I would like a window seat, please.",
+            drillTargetTranslation = "Tôi muốn một ghế cạnh cửa sổ."
         )
 
         assertThat(bytes).isNotNull()
@@ -35,162 +50,207 @@ class AutoCardArtworkGeneratorTest {
     }
 
     @Test
-    fun `generates card for short repeat target safely`() {
-        val topic = topics.getTopicById("greetings") ?: topics.getTopicById("daily") ?: topics.getAllTopics().first()
-        val lesson = ActiveLesson("session_short", topic, null, DifficultyLevel.BEGINNER, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
+    fun `reuses the image when the card would look the same`() {
+        val lesson = lesson("work", SessionMode.REPEAT_AFTER_ME)
 
-        val bytes = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            lastAiText = "Repeat after me: Hello, how are you?",
-            drillTarget = "Hello, how are you?"
-        )
-
-        assertThat(bytes).isNotNull()
-        assertThat(bytes!!.size).isGreaterThan(100)
-    }
-
-    @Test
-    fun `generates card for very long repeat target sentence safely`() {
-        val topic = topics.getTopicById("travel")!!
-        val lesson = ActiveLesson("session_long", topic, null, DifficultyLevel.ADVANCED, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
-
-        val longSentence = "Could you please tell me how much it costs to take a taxi from the international airport to the central railway station during rush hour?"
-        val bytes = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            lastAiText = "Repeat after me: $longSentence",
-            drillTarget = longSentence
-        )
-
-        assertThat(bytes).isNotNull()
-        assertThat(bytes!!.size).isGreaterThan(100)
-    }
-
-    @Test
-    fun `caches byte array when called with identical parameters`() {
-        val topic = topics.getTopicById("work")!!
-        val lesson = ActiveLesson("session_2", topic, null, DifficultyLevel.ADVANCED, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
-
-        val first = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            lastAiText = "Repeat after me: Let's schedule a meeting.",
-            drillTarget = "Let's schedule a meeting."
-        )
-        val second = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            lastAiText = "Repeat after me: Let's schedule a meeting.",
-            drillTarget = "Let's schedule a meeting."
-        )
+        val first = generator.generateCard(lesson, turns(Speaker.AI to "Repeat after me: Let's meet."), "Let's meet.")
+        // A new transcript line does not change a repeat card.
+        val second = generator.generateCard(lesson, turns(Speaker.AI to "Repeat after me: Let's meet.", Speaker.USER to "Let's meet."), "Let's meet.")
 
         assertThat(first).isSameInstanceAs(second)
     }
 
     @Test
-    fun `handles free talk mode without repeat target safely`() {
-        val topic = topics.getTopicById("food")!!
-        val lesson = ActiveLesson("session_3", topic, null, DifficultyLevel.BEGINNER, SessionMode.FREE_TALK, 0L, emptyList())
+    fun `story card is a picture that ignores the transcript`() {
+        val story = lesson("story_science", SessionMode.STORY_LISTENING)
 
-        val bytes = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            lastAiText = "What kind of food do you like?",
-            drillTarget = null
-        )
+        val first = generator.generateCard(story, turns(Speaker.AI to "Once upon a time in a small laboratory..."), null)
+        val second = generator.generateCard(story, turns(Speaker.AI to "Alexander Fleming came back from holiday."), null)
 
-        assertThat(bytes).isNotNull()
-        assertThat(bytes!!.size).isGreaterThan(100)
+        assertThat(first).isNotNull()
+        assertThat(first).isSameInstanceAs(second)
     }
 
     @Test
-    fun `generates card artwork for story listening mode safely`() {
-        val topic = topics.getTopicById("story_science")!!
-        val lesson = ActiveLesson("session_story", topic, null, DifficultyLevel.INTERMEDIATE, SessionMode.STORY_LISTENING, 0L, emptyList())
+    fun `story card never shows text, even with a sentence to repeat`() {
+        val content = generator.cardContentFor(lesson("story_history", SessionMode.STORY_LISTENING), emptyList(), "Repeat this.", "Lặp lại câu này.")
 
-        val bytes = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            lastAiText = "Albert Einstein was working in the Swiss patent office...",
-            drillTarget = null
-        )
-
-        assertThat(bytes).isNotNull()
-        assertThat(bytes!!.size).isGreaterThan(100)
+        assertThat(content).isInstanceOf(CardContent.Story::class.java)
     }
 
     @Test
-    fun `handles paused and reconnecting states smoothly`() {
-        val topic = topics.getTopicById("travel")!!
-        val lesson = ActiveLesson("session_paused", topic, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
+    fun `conversation card keeps the latest lines of both speakers`() {
+        val transcript = (1..10).map { TranscriptTurn(it.toLong(), if (it % 2 == 0) Speaker.USER else Speaker.AI, "Line $it", it.toLong()) } +
+            TranscriptTurn(11, Speaker.USER, "   ", 11)
 
-        val pausedBytes = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.PAUSED,
-            lastAiText = "Repeat after me: Where is the gate?",
-            drillTarget = "Where is the gate?"
-        )
-        assertThat(pausedBytes).isNotNull()
+        val content = generator.cardContentFor(lesson("food", SessionMode.FREE_TALK), transcript, null, null)
 
-        val reconnectingBytes = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.RECONNECTING,
-            lastAiText = "Repeat after me: Where is the gate?",
-            drillTarget = "Where is the gate?"
+        assertThat(content).isEqualTo(
+            CardContent.Chat(
+                listOf(
+                    ChatLine(fromLearner = false, text = "Line 5"),
+                    ChatLine(fromLearner = true, text = "Line 6"),
+                    ChatLine(fromLearner = false, text = "Line 7"),
+                    ChatLine(fromLearner = true, text = "Line 8"),
+                    ChatLine(fromLearner = false, text = "Line 9"),
+                    ChatLine(fromLearner = true, text = "Line 10")
+                )
+            )
         )
-        assertThat(reconnectingBytes).isNotNull()
     }
 
     @Test
-    fun `generates card with high-contrast target text and translation subtitle`() {
-        val topic = topics.getTopicById("work") ?: topics.getAllTopics().first()
-        val lesson = ActiveLesson("session_sub", topic, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
+    fun `chat keeps the newest line at the bottom and drops lines that scrolled away`() {
+        val lines = (1..6).map {
+            ChatLine(fromLearner = it % 2 == 0, text = "Message $it is a fairly long sentence that needs a few lines in the bubble.")
+        }
 
-        val bytes = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            lastAiText = "Repeat after me: We need a better plan.",
-            drillTarget = "We need a better plan.",
-            drillTargetTranslation = "Chúng ta cần một kế hoạch tốt hơn."
-        )
+        val bubbles = generator.layoutChat(lines)
 
-        assertThat(bytes).isNotNull()
-        assertThat(bytes!!.size).isGreaterThan(100)
+        assertThat(bubbles.last().text).isEqualTo(lines.last().text)
+        assertThat(bubbles.last().fromLearner).isTrue()
+        assertThat(bubbles.size).isLessThan(lines.size)
+        // Everything below the oldest, partly hidden bubble fits whole.
+        val belowOldest = bubbles.drop(1).sumOf { it.height + 12 }
+        assertThat(belowOldest).isAtMost(AutoCardArtworkGenerator.SAFE_HEIGHT)
+        for (bubble in bubbles) {
+            assertThat(bubble.width).isAtMost(AutoCardArtworkGenerator.SAFE_WIDTH)
+        }
     }
 
     @Test
-    fun `generates large high contrast card for exact user sentence without translation`() {
-        val topic = topics.getTopicById("work") ?: topics.getAllTopics().first()
-        val lesson = ActiveLesson("session_user", topic, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
+    fun `repeat card keeps the whole sentence and the whole translation`() {
+        for ((sentence, translation) in REPEAT_SAMPLES) {
+            val card = generator.layoutRepeatCard(sentence, translation)
 
-        val bytes = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            lastAiText = "Repeat after me: We need a better plan.",
-            drillTarget = "We need a better plan.",
-            drillTargetTranslation = null
-        )
-        assertThat(bytes).isNotNull()
+            assertThat(card.height).isAtMost(AutoCardArtworkGenerator.SAFE_HEIGHT)
+            for (block in card.blocks) {
+                val layout = block.layout
+                for (line in 0 until layout.lineCount) {
+                    assertWithMessage("ellipsis in \"${layout.text}\"").that(layout.getEllipsisCount(line)).isEqualTo(0)
+                    assertThat(layout.getLineWidth(line)).isAtMost(AutoCardArtworkGenerator.SAFE_WIDTH.toFloat())
+                }
+            }
+            val drawnText = card.blocks.joinToString("\n") { it.layout.text.toString() }
+            assertThat(drawnText).contains(sentence)
+            assertThat(drawnText).contains(translation)
+        }
     }
 
     @Test
-    fun `generates and saves test artwork to disk for visual verification`() {
-        val topic = topics.getTopicById("work") ?: topics.getAllTopics().first()
-        val lesson = ActiveLesson("session_user", topic, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0L, emptyList())
-
-        val sentence = "Fair enough, let's move forward together."
-        val translation = "Hợp lý đấy, chúng ta cùng tiến hành thôi."
-
-        val bytes = generator.generateCard(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            lastAiText = "Repeat after me: $sentence",
-            drillTarget = sentence,
-            drillTargetTranslation = translation
+    fun `typical repeat sentence is drawn large`() {
+        val card = generator.layoutRepeatCard(
+            "Fair enough, let's move forward together.",
+            "🇻🇳 Hợp lý đấy, chúng ta cùng tiến hành thôi."
         )
 
-        assertThat(bytes).isNotNull()
+        assertThat(card.mainTextSize).isAtLeast(32f)
+        // The flag is already in Android Auto's own subtitle; on the artwork it only costs width.
+        assertThat(card.blocks.last().layout.text.toString()).isEqualTo("Hợp lý đấy, chúng ta cùng tiến hành thôi.")
+    }
+
+    @Test
+    fun `every curated story has its own picture`() {
+        val storyScenarios = topics.getAllTopics().filter { it.id.startsWith("story_") }.flatMap { it.scenarios }
+
+        assertThat(storyScenarios).isNotEmpty()
+        for (scenario in storyScenarios) {
+            assertWithMessage(scenario.id).that(StoryScenes.BY_SCENARIO).containsKey(scenario.id)
+        }
+    }
+
+    @Test
+    fun `made-up stories get a picture from their title`() {
+        fun sceneFor(titleEn: String, titleVi: String) = StoryScenes.sceneFor(
+            lesson("story_famous", SessionMode.STORY_LISTENING, Scenario("dynamic_story_1", titleVi, titleEn, "storyteller", "listener"))
+        )
+
+        assertThat(sceneFor("Story: A journey to Mars", "Chuyến đi tới sao Hỏa").backdrop).isEqualTo(Backdrop.SPACE)
+        assertThat(sceneFor("AI Personalized Story", "Truyện cổ tích về con rồng").heroes).contains("🐉")
+        // Nothing to go on: the topic's own picture.
+        assertThat(sceneFor("Surprise Story", "Truyện bất ngờ").heroes).containsExactly("🌟")
+    }
+
+    @Test
+    fun `text stays inside the safe box`() {
+        val previewDir = File("build/artwork-preview").apply { mkdirs() }
+        val longTurn = "Albert Einstein was working in the Swiss patent office, and every evening he wrote about light, " +
+            "time and space until the small kitchen table was covered with notes."
+
+        val cards = REPEAT_SAMPLES.mapIndexed { index, (sentence, translation) ->
+            "repeat_$index" to CardContent.Repeat(sentence, translation)
+        } + listOf(
+            "repeat_no_translation" to CardContent.Repeat("Where is the gate?", null),
+            "chat_short" to CardContent.Chat(listOf(ChatLine(false, "What kind of food do you like?"), ChatLine(true, "I like pho."))),
+            "chat_long" to CardContent.Chat(
+                listOf(
+                    ChatLine(false, "Tell me about your weekend."),
+                    ChatLine(true, "I went to the beach with my family and we ate a lot of seafood."),
+                    ChatLine(false, "That sounds lovely! What was your favourite dish, and would you go back again?"),
+                    ChatLine(true, "Grilled squid, and yes, definitely next summer.")
+                )
+            ),
+            "chat_one_long_turn" to CardContent.Chat(listOf(ChatLine(false, "$longTurn $longTurn"))),
+            "chat_empty" to CardContent.Chat(emptyList())
+        )
+
+        for ((name, content) in cards) {
+            val bitmap = generator.renderCard(content)
+            // Kept under build/ so the cards can be eyeballed after a test run.
+            FileOutputStream(File(previewDir, "$name.png")).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            assertWithMessage(name).that(inkOutsideSafeBox(bitmap)).isEmpty()
+            assertWithMessage("$name has no text at all").that(inkPixelCount(bitmap)).isGreaterThan(40)
+        }
+    }
+
+    @Test
+    fun `renders a picture for every story`() {
+        val previewDir = File("build/artwork-preview").apply { mkdirs() }
+        val scenes = StoryScenes.BY_SCENARIO.entries.filterIndexed { index, _ -> index % 4 == 0 }
+
+        for ((id, scene) in scenes) {
+            val bitmap = generator.renderCard(CardContent.Story(scene))
+            FileOutputStream(File(previewDir, "$id.png")).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            assertThat(bitmap.width).isEqualTo(AutoCardArtworkGenerator.CARD_SIZE)
+        }
+    }
+
+    /** Bright pixels (text, divider, bubbles) outside the safe box, with a few pixels of slack for anti-aliasing. */
+    private fun inkOutsideSafeBox(bitmap: Bitmap): List<String> {
+        val slack = 4
+        val outside = mutableListOf<String>()
+        forEachInkPixel(bitmap) { x, y ->
+            val inside = x >= AutoCardArtworkGenerator.SAFE_LEFT - slack && x < AutoCardArtworkGenerator.SAFE_RIGHT + slack &&
+                y >= AutoCardArtworkGenerator.SAFE_TOP - slack && y < AutoCardArtworkGenerator.SAFE_BOTTOM + slack
+            if (!inside && outside.size < 10) outside += "($x, $y)"
+        }
+        return outside
+    }
+
+    private fun inkPixelCount(bitmap: Bitmap): Int {
+        var count = 0
+        forEachInkPixel(bitmap) { _, _ -> count++ }
+        return count
+    }
+
+    private inline fun forEachInkPixel(bitmap: Bitmap, action: (Int, Int) -> Unit) {
+        val width = bitmap.width
+        val pixels = IntArray(width * bitmap.height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, bitmap.height)
+        for (i in pixels.indices) {
+            val pixel = pixels[i]
+            val luma = 0.299 * Color.red(pixel) + 0.587 * Color.green(pixel) + 0.114 * Color.blue(pixel)
+            if (luma > 110) action(i % width, i / width)
+        }
+    }
+
+    private companion object {
+        val REPEAT_SAMPLES = listOf(
+            "Hello, how are you?" to "Xin chào, bạn khỏe không?",
+            "Fair enough, let's move forward together." to "Hợp lý đấy, chúng ta cùng tiến hành thôi.",
+            "I would like a window seat, please." to "Tôi muốn một ghế cạnh cửa sổ, làm ơn.",
+            "Could you please tell me how much it costs to take a taxi from the international airport to the central railway station during rush hour?" to
+                "Bạn có thể vui lòng cho tôi biết đi taxi từ sân bay quốc tế đến ga tàu trung tâm vào giờ cao điểm thì tốn bao nhiêu tiền không?"
+        )
     }
 }
-

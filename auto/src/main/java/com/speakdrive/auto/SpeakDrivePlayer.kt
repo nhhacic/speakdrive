@@ -13,7 +13,6 @@ import com.speakdrive.ai.ConversationEngine
 import com.speakdrive.ai.model.ConversationState
 import com.speakdrive.ai.model.LessonRequest
 import com.speakdrive.ai.model.SessionMode
-import com.speakdrive.ai.model.Speaker
 import com.speakdrive.ai.session.LearningSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
@@ -91,11 +90,9 @@ class SpeakDrivePlayer(
         }
         val isSwitching = engineState.isInLesson && selectedItem != null && !isSameAsCurrentLesson(selectedItem)
         val item = lesson?.let {
-            val transcript = engine.transcript.value
-            val lastAiText = transcript.lastOrNull { turn -> turn.speaker == Speaker.AI }?.text
             val drillTarget = engine.drillTarget.value
             val drillTargetTranslation = engine.drillTargetTranslation.value
-            contentProvider.lessonItem(it, engineState, lastAiText, drillTarget, drillTargetTranslation)
+            contentProvider.lessonItem(it, engineState, engine.transcript.value, drillTarget, drillTargetTranslation)
         } ?: selectedItem ?: contentProvider.standbyItem(justEnded = engineState == ConversationState.ENDED)
         val error = engine.error.value
 
