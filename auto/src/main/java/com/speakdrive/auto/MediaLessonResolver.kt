@@ -28,6 +28,7 @@ object MediaLessonResolver {
         MediaTarget.Random -> LessonRequest(topicId = null)
         MediaTarget.Review -> LessonRequest(mode = SessionMode.VOCAB_REVIEW, topicId = settings.snapshot().lastTopicId)
         MediaTarget.Mistakes -> LessonRequest(mode = SessionMode.MISTAKE_REVIEW, topicId = settings.snapshot().lastTopicId)
+        MediaTarget.Ielts -> LessonRequest(mode = SessionMode.IELTS_SPEAKING, topicId = settings.snapshot().lastTopicId)
         is MediaTarget.Vocab -> {
             val words = if (!target.word.isNullOrBlank()) {
                 listOf(ReviewWord(target.word, ""))

@@ -52,21 +52,46 @@ class ProgressTrendTest {
         assertThat(trend.averages.first()).isEqualTo(9.0)
     }
 
+    @Test
+    fun `calculateWeeklyFluency computes averages and comparison with previous week`() {
+        val now = 1_000_000_000_000L
+        val oneDay = 86_400_000L
+        val thisWeekSessions = listOf(
+            session("s1", startedAt = now - oneDay, wordsPerMinute = 120, fillerWordsRatio = 0.04f, meanLengthOfUtterance = 6.5f),
+            session("s2", startedAt = now - 2 * oneDay, wordsPerMinute = 130, fillerWordsRatio = 0.02f, meanLengthOfUtterance = 7.5f)
+        )
+        val prevWeekSessions = listOf(
+            session("s3", startedAt = now - 8 * oneDay, wordsPerMinute = 110, fillerWordsRatio = 0.08f, meanLengthOfUtterance = 5.0f)
+        )
+
+        val summary = com.speakdrive.ui.screens.calculateWeeklyFluency(thisWeekSessions + prevWeekSessions, now = now)
+
+        assertThat(summary.hasData).isTrue()
+        assertThat(summary.currentWeekWpm).isEqualTo(125)
+        assertThat(summary.previousWeekWpm).isEqualTo(110)
+        assertThat(summary.currentWeekFillerRatio).isWithin(0.001f).of(0.03f)
+        assertThat(summary.currentWeekMlu).isWithin(0.001f).of(7.0f)
+    }
+
     private fun session(
         id: String,
         fluency: Int? = null,
         grammar: Int? = null,
         vocabulary: Int? = null,
         pronunciation: Int? = null,
-        completed: Boolean = true
+        completed: Boolean = true,
+        startedAt: Long = 0L,
+        wordsPerMinute: Int? = null,
+        fillerWordsRatio: Float? = null,
+        meanLengthOfUtterance: Float? = null
     ) = SessionEntity(
         id = id,
         topicId = "travel",
         scenarioId = null,
         level = "INTERMEDIATE",
         mode = "FREE_TALK",
-        startedAt = 0,
-        endedAt = 0,
+        startedAt = startedAt,
+        endedAt = startedAt + 60_000,
         activeDurationMs = 60_000,
         fluencyScore = fluency,
         grammarScore = grammar,
@@ -74,6 +99,9 @@ class ProgressTrendTest {
         encouragement = null,
         nextSuggestion = null,
         isCompleted = completed,
-        pronunciationScore = pronunciation
+        pronunciationScore = pronunciation,
+        wordsPerMinute = wordsPerMinute,
+        fillerWordsRatio = fillerWordsRatio,
+        meanLengthOfUtterance = meanLengthOfUtterance
     )
 }

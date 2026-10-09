@@ -28,6 +28,12 @@ object MediaIds {
     /** Mistake review: the learner's own earlier mistakes, said correctly this time. */
     const val MISTAKES = "mistakes"
 
+    /** IELTS speaking exam simulation with 3 parts and estimated band score. */
+    const val IELTS = "ielts"
+
+    /** Custom user-created scenarios saved in local database. */
+    const val CUSTOM_SCENARIOS = "custom_scenarios"
+
     /** Repeat-after-me drill on the last topic; [pronunciation] targets a specific topic. */
     const val PRONUNCIATION = "pronunciation"
 
@@ -76,6 +82,7 @@ object MediaIds {
         mediaId == RANDOM -> MediaTarget.Random
         mediaId == REVIEW -> MediaTarget.Review
         mediaId == MISTAKES -> MediaTarget.Mistakes
+        mediaId == IELTS -> MediaTarget.Ielts
         mediaId.startsWith(VOCAB_PREFIX) -> {
             val rest = mediaId.removePrefix(VOCAB_PREFIX)
             when {
@@ -100,7 +107,7 @@ object MediaIds {
                 else -> MediaTarget.Story(rest, null)
             }
         }
-        mediaId in setOf(ROOT, HOME, TOPICS, ROLEPLAY, LEVELS, STORIES, STORIES_RECENT) -> MediaTarget.Browse(mediaId)
+        mediaId in setOf(ROOT, HOME, TOPICS, ROLEPLAY, LEVELS, STORIES, STORIES_RECENT, CUSTOM_SCENARIOS) -> MediaTarget.Browse(mediaId)
         mediaId.startsWith(ROLEPLAY_TOPIC_PREFIX) -> MediaTarget.Browse(mediaId)
         mediaId.startsWith(STORY_TOPIC_PREFIX) -> MediaTarget.Browse(mediaId)
         mediaId.startsWith(TOPIC_PREFIX) -> {
@@ -120,6 +127,7 @@ sealed interface MediaTarget {
     data object Random : MediaTarget
     data object Review : MediaTarget
     data object Mistakes : MediaTarget
+    data object Ielts : MediaTarget
     data class Vocab(val word: String?, val mode: String?) : MediaTarget
     data object StoryRecommended : MediaTarget
     data object StoryResume : MediaTarget

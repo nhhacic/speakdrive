@@ -107,10 +107,11 @@ class SentenceTranslator @Inject constructor(
         """.trimIndent()
 
         val candidateModels = listOf(
+            "gemini-2.5-flash",
             BuildConfig.TEXT_MODEL,
-            "gemini-3.5-flash-lite",
-            "gemini-2.5-flash"
-        ).distinct()
+            "gemini-2.0-flash",
+            "gemini-1.5-flash"
+        ).filter { it.isNotBlank() }.distinct()
         for (modelName in candidateModels) {
             try {
                 val model = Firebase.ai(backend = GenerativeBackend.googleAI())
@@ -234,7 +235,19 @@ class SentenceTranslator @Inject constructor(
             PronunciationDrill.key("Let me rephrase that for you") to "Để tôi diễn đạt lại điều đó cho bạn.",
             PronunciationDrill.key("That makes a lot of sense") to "Điều đó rất hợp lý.",
             PronunciationDrill.key("I appreciate your help") to "Tôi rất cảm kích sự giúp đỡ của bạn.",
-            PronunciationDrill.key("Take your time no rush") to "Cứ thong thả, không cần vội đâu."
+            PronunciationDrill.key("Take your time no rush") to "Cứ thong thả, không cần vội đâu.",
+            PronunciationDrill.key("She works at a bank") to "Cô ấy làm việc ở ngân hàng.",
+            PronunciationDrill.key("He works at a bank") to "Anh ấy làm việc ở ngân hàng.",
+            PronunciationDrill.key("I work at a bank") to "Tôi làm việc ở một ngân hàng.",
+            PronunciationDrill.key("She works at a hospital") to "Cô ấy làm việc ở bệnh viện.",
+            PronunciationDrill.key("He works at a hospital") to "Anh ấy làm việc ở bệnh viện.",
+            PronunciationDrill.key("I work at an office") to "Tôi làm việc ở văn phòng.",
+            PronunciationDrill.key("He works at six clinics") to "Anh ấy làm việc ở sáu phòng khám.",
+            PronunciationDrill.key("She likes hot tea") to "Cô ấy thích trà nóng.",
+            PronunciationDrill.key("This is his bag") to "Đây là túi của anh ấy.",
+            PronunciationDrill.key("Thank you very much") to "Cảm ơn bạn rất nhiều.",
+            PronunciationDrill.key("Look at that cat") to "Nhìn con mèo kìa.",
+            PronunciationDrill.key("Open the big box") to "Mở chiếc hộp lớn ra."
         )
 
         // Compound key pattern matching: all elements must exist in the text

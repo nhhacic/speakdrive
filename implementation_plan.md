@@ -1,74 +1,67 @@
-# Kế hoạch triển khai: Khắc phục lỗi hiển thị chữ mờ và bị cắt chữ trên Android Auto
+# Kế hoạch triển khai: Hoàn thiện 3 tính năng nâng cao (Android Auto IELTS & Custom Scenarios, Fluency Trends, Learner Facts Management)
 
-## 1. Phân tích nguyên nhân gốc rễ (Root Cause Analysis)
-
-Dựa vào hình ảnh thực tế trên Android Auto (Desktop Head Unit) do người dùng cung cấp:
-- Màn hình đang ở chế độ chia đôi Dashboard (Coolwalk split-screen) gồm bản đồ điều hướng bên trái và widget Media Player của SpeakDrive bên phải.
-- Hiện tượng: Chữ trong widget bên phải hiện ra là `pronunciation. Repeat after me Let's`, chữ có màu xám tối mờ ảo, câu bị cắt cụt và bị dòng tiêu đề cùng các nút điều khiển đè lên.
-
-### Nguyên nhân 1: Chữ khá mờ do cơ chế Dark Scrim của Android Auto
-- Android Auto Media Player lấy ảnh Cover Art (`MediaMetadata.artworkData`) làm ảnh nền cho widget Media.
-- Để đảm bảo các nút điều khiển (Play/Pause/Next) và tiêu đề của hệ thống nổi rõ, **Android Auto tự động phủ một lớp làm tối mờ (Dark Scrim / Gradient mờ đen 50%–70%)** lên toàn bộ bức ảnh bìa.
-- Trong `AutoCardArtworkGenerator.kt`, ảnh card hiện tại vẽ nền đen sẫm `#0B0F19`, hộp thẻ `#0B132B`, chữ trắng với bóng đen dày `0xB3000000`. Khi đi qua lớp scrim làm tối của xe, màu sắc bị chìm hoàn toàn vào màu đen, chữ trắng bị biến thành màu xám tối mờ nhạt.
-- Trong khi đó, **dòng Title và Subtitle nguyên bản của Android Auto** ở góc dưới (`🎯 Lặp lại theo AI`, `💬 Luyện phát âm: Giao tiếp hàng ...`) là chữ vector hệ thống nên hiển thị **sáng trắng 100%, sắc nét tuyệt đối, không hề bị mờ**. Tuy nhiên, app lại đang gán cứng `Title = "🎯 Lặp lại theo AI"` thay vì hiển thị câu tiếng Anh cần luyện!
-
-### Nguyên nhân 2: Màn hình không hiện đủ chữ / chữ bị che khuất
-- Trong `AutoCardArtworkGenerator.kt`, khung thẻ Hero Box đang vẽ từ `top = 20f` xuống tận `bottom = 576f` (toàn bộ chiều cao 600px).
-- Nửa dưới của màn hình (từ `y ≈ 295f` đến `600f`) là nơi Android Auto hiển thị Title, Subtitle và hàng phím điều khiển Play/Pause/Next.
-- Do đó, khi văn bản được căn giữa dọc theo chiều cao 576px, nửa dưới của câu luyện tập và toàn bộ câu dịch tiếng Việt bị các nút bấm của xe đè lên hoàn toàn, người lái không thể đọc được.
-- Đồng thời font size 54f / 48f quá lớn khiến mỗi dòng chỉ chứa được 2–3 từ, câu 7 từ đã chiếm 3–4 dòng và tràn xuống khu vực bị che.
-
-### Nguyên nhân 3: Lỗi trích xuất câu luyện tập trong `PronunciationDrill.kt`
-- Khi gia sư AI bắt đầu buổi học bằng câu: *"Welcome to SpeakDrive! Today let's practice pronunciation. Repeat after me: Let's start with..."*:
-  - Cụm từ `"let's practice"` khớp với `PREFIX_KEYWORD_REGEX`.
-  - Trong quá trình streaming, khi từ phía sau `"Repeat after me:"` chỉ mới có 1 từ `"Let's"`, bộ phân tích bỏ qua vì chưa đủ 2 từ.
-  - Vòng lặp quét ngược lùi về tiền tố trước đó là `"let's practice"` và lấy đoạn văn bản *"pronunciation. Repeat after me: Let's"* (5 từ) làm câu mục tiêu!
-  - Dẫn đến trên màn hình hiển thị nguyên văn 3 dòng: `"pronunciation."`, `"Repeat after me"`, `"Let's"`.
+## 1. Mục tiêu
+Nâng cấp và tinh chỉnh trải nghiệm người dùng toàn diện trên cả điện thoại và Android Auto:
+1. **Đồng bộ Android Auto cho IELTS & Custom Scenarios**:
+   - Thêm nút vào thẳng chế độ *"🎯 Luyện thi IELTS Speaking"* trên màn hình Android Auto.
+   - Thêm danh mục *"⭐ Tình huống tự tạo của bạn"* trong tab Nhập vai (Roleplay) trên xe để chọn rảnh tay các kịch bản đời thực đã lưu.
+   - Bổ sung nhận diện từ khóa giọng nói Assistant cho IELTS trong `VoiceCommandHandler`.
+2. **Biểu đồ xu hướng trôi chảy tuần (Weekly Fluency Trends) trên màn hình Tiến độ (`ProgressScreen`)**:
+   - Tổng hợp các chỉ số trôi chảy thực tế (WPM, Từ đệm, Độ dài câu MLU) của tuần hiện tại và so sánh với tuần trước.
+   - Hiển thị trực quan qua thẻ `WeeklyFluencyTrendsCard` trên màn hình Tiến độ.
+3. **Thêm và quản lý bộ nhớ cá nhân người học (`Learner Facts Management`)**:
+   - Cho phép người học tự nhập trực tiếp các thông tin/sở thích/công việc mà mình muốn AI ghi nhớ ngay trên `LearnerMemoryScreen`.
+   - Kết nối lưu trực tiếp vào cơ sở dữ liệu để AI nạp ngay vào prompt các buổi học tiếp theo.
 
 ---
 
-## 2. Giải pháp kỹ thuật toàn diện
+## 2. Kế hoạch thay đổi chi tiết
 
-### 2.1. Đưa Câu luyện tập vào Native Title & Subtitle của Android Auto (`MediaContentProvider.kt`)
-Tận dụng hệ thống hiển thị văn bản sắc nét 100% của Android Auto:
-- **Khi ở chế độ Luyện phát âm / Nhắc lại (`hasTarget = true`)**:
-  - `title`: Hiển thị chính câu tiếng Anh cần đọc (`drillTarget`).
-    *(Ví dụ: `"Where is the nearest train station?"`)*
-  - `subtitle`: Hiển thị bản dịch tiếng Việt nếu có (`"🇻🇳 $drillTargetTranslation"`), hoặc `"🎯 Lặp lại theo AI • ${lesson.topic.titleVi}"`.
-  - `artist`: `"🎯 Luyện phát âm • ${lesson.level.displayName}"`.
-- **Lợi ích**: Câu luyện tập và nghĩa tiếng Việt sẽ hiển thị trực tiếp trên dòng chữ to, rõ ràng, sáng trắng 100% của xe hơi, hoàn toàn không bị lớp phủ làm mờ của xe ảnh hưởng.
+### Hạng mục 1: Android Auto IELTS & Custom Scenarios
+- **`auto/src/main/java/com/speakdrive/auto/MediaIds.kt`**:
+  - Khai báo hằng số `IELTS = "ielts"`, `CUSTOM_SCENARIOS = "custom_scenarios"`.
+  - Khai báo `MediaTarget.Ielts`.
+  - Xử lý parse `mediaId == IELTS` và `mediaId == CUSTOM_SCENARIOS`.
+- **`auto/src/main/java/com/speakdrive/auto/MediaLessonResolver.kt`**:
+  - Ánh xạ `MediaTarget.Ielts` sang `LessonRequest(mode = SessionMode.IELTS_SPEAKING, topicId = settings.snapshot().lastTopicId)`.
+- **`auto/src/main/java/com/speakdrive/auto/MediaContentProvider.kt`**:
+  - Trong `homeItems()`: Thêm mục `playable(MediaIds.IELTS, ...)`.
+  - Trong `browseChildren`:
+    - Ở tab `ROLEPLAY`: Lấy `sessionStore.customScenarios()`, nếu có kịch bản thì hiển thị danh mục `browsable(MediaIds.CUSTOM_SCENARIOS, "⭐ Tình huống tự tạo của bạn", ...)`.
+    - Khi duyệt `CUSTOM_SCENARIOS`: Trả về danh sách kịch bản tự tạo dưới dạng `playable(MediaIds.scenario(it.id), it.titleVi, ...)`.
+  - Trong `item(mediaId)`: Hỗ trợ `MediaTarget.Ielts`.
+- **`auto/src/main/java/com/speakdrive/auto/VoiceCommandHandler.kt`**:
+  - Khai báo `IELTS_WORDS = listOf("ielts", "thi ielts", "luyen thi ielts", "ielts speaking", "practice ielts", "test ielts")`.
+  - Nhận diện `if (q.hasAny(IELTS_WORDS)) return MediaIds.IELTS`.
+- **Kiểm thử**: Cập nhật `VoiceCommandHandlerTest.kt` và `MediaContentProviderTest.kt`.
 
-### 2.2. Thiết kế lại Card Artwork chống mờ & an toàn (`AutoCardArtworkGenerator.kt`)
-1. **Giới hạn tuyệt đối trong Vùng an toàn nửa trên (Top Safe Zone)**:
-   - Thẻ nội dung chỉ nằm từ `y = 14f` đến `y = 295f` (chiều cao ~281px).
-   - Nửa dưới từ `y = 295f` đến `600f` giữ nền tối trơn sạch sẽ `#0B0F19`, không vẽ bất kỳ chữ hay viền nào để không xung đột với các nút bấm của xe.
-2. **Tăng cường độ sáng & tương phản chống mờ (High Luminance Contrast)**:
-   - Nền thẻ dùng màu xanh navy sâu có độ sáng cao hơn (`#132347`), viền dày `3.5f` màu xanh Sky rực rỡ (`#38BDF8`).
-   - Text tiếng Anh: Màu trắng tinh `#FFFFFF`, bật `isFakeBoldText = true`, bóng nét nhẹ chống nhòe.
-   - Text tiếng Việt: Màu vàng rực rỡ `#FDE047` (Yellow 300), tương phản mạnh mẽ xuyên qua lớp scrim tối của Android Auto.
-3. **Adaptive Font Sizing thông minh cho Top Safe Zone**:
-   - Khi không có bản dịch: Dải font `34f, 30f, 26f, 22f, 19f`, `maxLines = 4`, căn giữa dọc hoàn hảo trong 220px an toàn.
-   - Khi có cả câu tiếng Anh và bản dịch: Dải cặp font `(25f, 18f), (22f, 16f), (19f, 14.5f)`, `spacing = 8f`. Cả 2 câu nằm gọn gàng 100% không bao giờ bị cắt.
-4. **Áp dụng tương tự cho chế độ Story và Free Talk**:
-   - `mainBoxTop = 14f`, `mainBoxBottom = 295f`.
-   - Chữ hiển thị tối đa 5 dòng, font `21f -> 16f`.
+### Hạng mục 2: Xu hướng trôi chảy tuần trên màn hình Tiến độ
+- **`app/src/main/java/com/speakdrive/ui/screens/ProgressViewModel.kt`**:
+  - Tạo model `WeeklyFluencySummary(currentWeekWpm: Int?, previousWeekWpm: Int?, currentWeekFillerRatio: Float?, currentWeekMlu: Float?, hasData: Boolean)`.
+  - Bổ sung `weeklyFluency: WeeklyFluencySummary` vào `ProgressUiState`.
+  - Tính toán số liệu dựa trên các buổi học hoàn thành trong 7 ngày gần nhất so với 7 ngày trước đó.
+- **`app/src/main/java/com/speakdrive/ui/screens/ProgressScreen.kt`**:
+  - Thiết kế `WeeklyFluencyTrendsCard`: hiển thị Tốc độ nói WPM (kèm chỉ báo tăng/giảm so với tuần trước), Tỉ lệ từ đệm (filler words %), Độ dài câu trung bình (MLU).
+  - Tích hợp thẻ vào `ProgressContent` ngay dưới phần biểu đồ 7 ngày.
+- **Chuỗi đa ngôn ngữ (`strings.xml` en & vi)**: Bổ sung các chuỗi mô tả chỉ số trôi chảy tuần.
 
-### 2.3. Sửa triệt để lỗi trích xuất câu mục tiêu (`PronunciationDrill.kt`)
-1. Trong `cleanTargetSentence(raw)`:
-   - Nếu đoạn văn bản trích xuất vẫn còn chứa bất kỳ tiền tố drill nào (như `repeat after me`, `next sentence`...), từ chối ngay (`return null`) vì đây là câu mở đầu dính tiền tố lồng nhau.
-2. Tinh chỉnh `PREFIX_KEYWORD_REGEX`:
-   - Chỉ khớp `let's practice` khi đi kèm chỉ định câu/từ (ví dụ `let's practice saying:`, `let's practice this sentence:`), không khớp các câu trò chuyện chung chung như `let's practice pronunciation`.
+### Hạng mục 3: Quản lý và thêm thông tin cá nhân (`Learner Facts`)
+- **`app/src/main/java/com/speakdrive/data/repository/SessionRepository.kt`**:
+  - Bổ sung hàm `addLearnerFact(fact: String)`.
+- **`app/src/main/java/com/speakdrive/ui/screens/LearnerMemoryViewModel.kt`**:
+  - Thêm hàm `fun addFact(fact: String)`.
+- **`app/src/main/java/com/speakdrive/ui/screens/LearnerMemoryScreen.kt`**:
+  - Thêm nút `+ Thêm thông tin` ở tiêu đề mục Facts.
+  - Hiển thị `AlertDialog` nhập văn bản cho phép người dùng gõ thông tin và bấm "Lưu".
+- **Chuỗi đa ngôn ngữ (`strings.xml` en & vi)**: Bổ sung chuỗi cho dialog thêm fact.
 
 ---
 
-## 3. Kế hoạch kiểm thử & Phát hành
-
-1. **Unit Tests**:
-   - Cập nhật và bổ sung test cases trong `AutoCardArtworkGeneratorTest.kt`, `MediaContentProviderTest.kt`, `PronunciationDrillTest.kt`.
-   - Chạy toàn bộ test `:auto:testDebugUnitTest` và `:ai:testDebugUnitTest`.
-2. **Tăng số phiên bản**:
-   - Cập nhật `version.properties` lên `versionCode=43`, `versionName=1.4.3`.
-3. **Build & Release APK**:
-   - Chạy build `./gradlew :app:assembleDebug`.
-   - Upload file `app-debug.apk` lên GitHub Releases repo `nhhacic/speakdrive` với tag `v1.4.3`.
-   - Cung cấp link direct download cho người dùng cài đặt ngay.
+## 3. Quy trình thực hiện & Tiêu chuẩn phát hành
+1. Thực hiện các thay đổi mã nguồn theo kế hoạch.
+2. Chạy toàn bộ Unit Tests (`:auto:testDebugUnitTest`, `:ai:testDebugUnitTest`, `:app:testDebugUnitTest`).
+3. Tăng phiên bản trong `version.properties` lên `versionCode=45`, `versionName=1.4.5`.
+4. Biên dịch APK `:app:assembleDebug`.
+5. Tạo Git commit và push lên nhánh `main`.
+6. Tạo GitHub Release tag `v1.4.5-debug` và upload `app-debug.apk`.
+7. Gửi link tải trực tiếp cho người dùng.

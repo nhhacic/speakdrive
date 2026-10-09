@@ -110,9 +110,9 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val padX = 16f
         val boxWidth = width - 2 * padX
 
-        // Top Safe Zone Hero Card (y: 12f -> 290f = 278f height)
-        val heroBoxTop = 12f
-        val heroBoxBottom = 290f
+        // Top Safe Zone Hero Card (y: 8f -> 292f = 284f height)
+        val heroBoxTop = 8f
+        val heroBoxBottom = 292f
         val heroBoxRect = RectF(padX, heroBoxTop, width - padX, heroBoxBottom)
         val heroRadius = 24f
 
@@ -128,10 +128,10 @@ class AutoCardArtworkGenerator @Inject constructor() {
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBgPaint)
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBorderPaint)
 
-        // 1. Pill Badge at top center of Hero Box
-        val badgeTop = heroBoxTop + 12f
-        val badgeBottom = badgeTop + 28f
-        val badgeWidth = 220f
+        // 1. Pill Badge at top center of Hero Box (compact, leaving maximum room for text below)
+        val badgeTop = heroBoxTop + 8f
+        val badgeBottom = badgeTop + 24f
+        val badgeWidth = 200f
         val badgeLeft = (width - badgeWidth) / 2f
         val badgeRight = badgeLeft + badgeWidth
         val badgeRect = RectF(badgeLeft, badgeTop, badgeRight, badgeBottom)
@@ -145,30 +145,33 @@ class AutoCardArtworkGenerator @Inject constructor() {
             style = Paint.Style.STROKE
             strokeWidth = 1.5f
         }
-        canvas.drawRoundRect(badgeRect, 14f, 14f, pillBgPaint)
-        canvas.drawRoundRect(badgeRect, 14f, 14f, pillBorderPaint)
+        canvas.drawRoundRect(badgeRect, 12f, 12f, pillBgPaint)
+        canvas.drawRoundRect(badgeRect, 12f, 12f, pillBorderPaint)
 
         val badgeText = "🎯 LẶP LẠI THEO AI"
         val badgePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFFFFFFFF.toInt()
-            textSize = 13.5f
+            textSize = 12.5f
             typeface = Typeface.DEFAULT_BOLD
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText(badgeText, width / 2f, badgeTop + 19f, badgePaint)
+        canvas.drawText(badgeText, width / 2f, badgeTop + 16.5f, badgePaint)
 
         // Inner layout width with comfortable margin
         val innerPadX = 16f
         val textLayoutWidth = (boxWidth - 2 * innerPadX).toInt().coerceAtLeast(100)
-        val contentTopY = badgeBottom + 10f
-        val contentBottomY = heroBoxBottom - 12f
+        val contentTopY = badgeBottom + 8f
+        val contentBottomY = heroBoxBottom - 10f
         val maxAvailableHeight = contentBottomY - contentTopY
+
+        // Push text to top safe area so long sentences wrap downwards comfortably without clipping
+        val startY = contentTopY + 4f
 
         val hasTranslation = !translationText.isNullOrBlank()
 
         if (!hasTranslation) {
-            // Adaptive Font Size for Top Safe Zone: fits sentences cleanly without truncation
-            val candidateFontSizes = floatArrayOf(32f, 28f, 25f, 22f, 19f)
+            // Adaptive Font Size: fits sentences cleanly without truncation
+            val candidateFontSizes = floatArrayOf(30f, 26f, 23f, 20f, 17f)
             var chosenLayout: StaticLayout? = null
 
             for (fontSize in candidateFontSizes) {
@@ -183,7 +186,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
                     .setAlignment(Layout.Alignment.ALIGN_CENTER)
                     .setIncludePad(false)
                     .setLineSpacing(4f, 1.15f)
-                    .setMaxLines(5)
+                    .setMaxLines(6)
                     .build()
 
                 if (layout.height <= maxAvailableHeight || fontSize == candidateFontSizes.last()) {
@@ -192,25 +195,23 @@ class AutoCardArtworkGenerator @Inject constructor() {
                 }
             }
 
-            // Vertically center the text inside the hero card content area
             val layout = chosenLayout!!
-            val textY = contentTopY + ((maxAvailableHeight - layout.height) / 2f).coerceAtLeast(0f)
-
             canvas.save()
-            canvas.translate(padX + innerPadX, textY)
+            canvas.translate(padX + innerPadX, startY)
             layout.draw(canvas)
             canvas.restore()
         } else {
             // Both English target sentence and Translation subtitle
-            val translation = translationText
+            val translation = if (translationText.startsWith("🇻🇳")) translationText else "🇻🇳 $translationText"
             val spacing = 8f
 
             // Candidate font size pairs: (English size, Translation size)
             val sizePairs = listOf(
-                25f to 18f,
-                22f to 16f,
-                19f to 14.5f,
-                17f to 13f
+                25f to 17f,
+                22f to 15.5f,
+                19f to 14f,
+                17f to 12.5f,
+                15f to 11.5f
             )
 
             var chosenEnglishLayout: StaticLayout? = null
@@ -228,7 +229,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
                     .setAlignment(Layout.Alignment.ALIGN_CENTER)
                     .setIncludePad(false)
                     .setLineSpacing(3f, 1.15f)
-                    .setMaxLines(4)
+                    .setMaxLines(5)
                     .build()
 
                 val trPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -242,7 +243,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
                     .setAlignment(Layout.Alignment.ALIGN_CENTER)
                     .setIncludePad(false)
                     .setLineSpacing(3f, 1.15f)
-                    .setMaxLines(3)
+                    .setMaxLines(4)
                     .build()
 
                 val totalH = enLayout.height + spacing + trLayout.height
@@ -255,16 +256,14 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
             val enLayout = chosenEnglishLayout!!
             val trLayout = chosenTransLayout!!
-            val totalHeight = enLayout.height + spacing + trLayout.height
-            val startY = contentTopY + ((maxAvailableHeight - totalHeight) / 2f).coerceAtLeast(0f)
 
-            // Draw English Target
+            // Draw English Target (Top-aligned)
             canvas.save()
             canvas.translate(padX + innerPadX, startY)
             enLayout.draw(canvas)
             canvas.restore()
 
-            // Draw Translation Subtitle
+            // Draw Translation Subtitle directly below English target
             val transY = startY + enLayout.height + spacing
             canvas.save()
             canvas.translate(padX + innerPadX, transY)

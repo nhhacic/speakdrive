@@ -44,7 +44,16 @@ data class HistoryItem(
     val activeDurationMs: Long,
     val level: DifficultyLevel,
     val averageScore: Int?,
-    val isCompleted: Boolean
+    val isCompleted: Boolean,
+    val wordsPerMinute: Int? = null
+)
+
+data class WeeklyFluencySummary(
+    val currentWeekWpm: Int? = null,
+    val previousWeekWpm: Int? = null,
+    val currentWeekFillerRatio: Float? = null,
+    val currentWeekMlu: Float? = null,
+    val hasData: Boolean = false
 )
 
 data class ProgressUiState(
@@ -52,6 +61,7 @@ data class ProgressUiState(
     val currentLevel: DifficultyLevel = DifficultyLevel.BEGINNER,
     val roadmapRecommendation: LevelRecommendation? = null,
     val isAdaptiveEnabled: Boolean = true,
+    val weeklyFluency: WeeklyFluencySummary = WeeklyFluencySummary(),
     val history: List<HistoryItem> = emptyList(),
     val topicRows: List<TopicStatRow> = emptyList()
 )
@@ -79,6 +89,34 @@ fun recentTrend(sessions: List<SessionEntity>, correctionCounts: Map<String, Int
     )
 }
 
+fun calculateWeeklyFluency(sessions: List<SessionEntity>, now: Long = System.currentTimeMillis()): WeeklyFluencySummary {
+    val sevenDaysMs = 7L * 24 * 3600 * 1000
+    val fourteenDaysMs = 14L * 24 * 3600 * 1000
+
+    val completed = sessions.filter { it.isCompleted }
+    val thisWeek = completed.filter { it.startedAt >= now - sevenDaysMs }
+    val prevWeek = completed.filter { it.startedAt in (now - fourteenDaysMs) until (now - sevenDaysMs) }
+
+    val currentWpms = thisWeek.mapNotNull { it.wordsPerMinute }.filter { it > 0 }
+    val prevWpms = prevWeek.mapNotNull { it.wordsPerMinute }.filter { it > 0 }
+    val currentFillers = thisWeek.mapNotNull { it.fillerWordsRatio }
+    val currentMlus = thisWeek.mapNotNull { it.meanLengthOfUtterance }.filter { it > 0f }
+
+    val avgCurWpm = if (currentWpms.isNotEmpty()) currentWpms.average().toInt() else null
+    val avgPrevWpm = if (prevWpms.isNotEmpty()) prevWpms.average().toInt() else null
+    val avgFiller = if (currentFillers.isNotEmpty()) currentFillers.average().toFloat() else null
+    val avgMlu = if (currentMlus.isNotEmpty()) currentMlus.average().toFloat() else null
+
+    val hasData = avgCurWpm != null || avgFiller != null || avgMlu != null
+    return WeeklyFluencySummary(
+        currentWeekWpm = avgCurWpm,
+        previousWeekWpm = avgPrevWpm,
+        currentWeekFillerRatio = avgFiller,
+        currentWeekMlu = avgMlu,
+        hasData = hasData
+    )
+}
+
 @HiltViewModel
 class ProgressViewModel @Inject constructor(
     progressRepository: ProgressRepository,
@@ -101,11 +139,14 @@ class ProgressViewModel @Inject constructor(
             LevelEvaluator.evaluateTrend(currentLevel, trend.averages, trend.corrections)
         } else null
 
+        val weeklyFluency = calculateWeeklyFluency(sessions)
+
         ProgressUiState(
             stats = stats,
             currentLevel = currentLevel,
             roadmapRecommendation = roadmapRecommendation,
             isAdaptiveEnabled = isAdaptive,
+            weeklyFluency = weeklyFluency,
             history = sessions.map { session ->
                 val topic = topicManager.getTopicById(session.topicId)
                 val scenario = topicManager.getScenario(session.scenarioId)?.second
@@ -124,7 +165,8 @@ class ProgressViewModel @Inject constructor(
                     activeDurationMs = session.activeDurationMs,
                     level = DifficultyLevel.fromStored(session.level),
                     averageScore = scores.takeIf { it.isNotEmpty() }?.average()?.toInt(),
-                    isCompleted = session.isCompleted
+                    isCompleted = session.isCompleted,
+                    wordsPerMinute = session.wordsPerMinute
                 )
             },
             topicRows = topicManager.getAllTopics().map {

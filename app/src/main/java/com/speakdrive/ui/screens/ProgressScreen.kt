@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.Button
@@ -192,6 +193,16 @@ fun ProgressContent(
                                 .padding(top = 8.dp)
                         )
                     }
+                }
+            }
+
+            // Weekly Fluency Trends Card
+            if (state.weeklyFluency.hasData) {
+                item {
+                    WeeklyFluencyTrendsCard(
+                        fluency = state.weeklyFluency,
+                        isVi = isVi
+                    )
                 }
             }
 
@@ -629,6 +640,151 @@ private fun WeekChart(days: List<DayPractice>, modifier: Modifier = Modifier) {
                     color = if (isToday) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeeklyFluencyTrendsCard(
+    fluency: WeeklyFluencySummary,
+    isVi: Boolean
+) {
+    if (!fluency.hasData) return
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(20.dp)
+            )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.progress_fluency_trends_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // WPM
+                fluency.currentWeekWpm?.let { wpm ->
+                    val diff = fluency.previousWeekWpm?.let { wpm - it }
+                    val diffText = when {
+                        diff != null && diff > 0 -> "+$diff"
+                        diff != null && diff < 0 -> "$diff"
+                        else -> null
+                    }
+                    FluencyMetricBox(
+                        title = stringResource(R.string.progress_fluency_wpm_label),
+                        value = "$wpm",
+                        unit = "WPM",
+                        trend = diffText,
+                        trendPositive = (diff ?: 0) >= 0,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Filler Ratio
+                fluency.currentWeekFillerRatio?.let { filler ->
+                    val percent = (filler * 100).toInt()
+                    FluencyMetricBox(
+                        title = stringResource(R.string.progress_fluency_filler_label),
+                        value = "$percent%",
+                        unit = if (isVi) "từ đệm" else "fillers",
+                        trend = null,
+                        trendPositive = percent <= 5,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // MLU (Mean Length of Utterance)
+                fluency.currentWeekMlu?.let { mlu ->
+                    FluencyMetricBox(
+                        title = stringResource(R.string.progress_fluency_mlu_label),
+                        value = "%.1f".format(mlu),
+                        unit = if (isVi) "từ/câu" else "w/sent",
+                        trend = null,
+                        trendPositive = mlu >= 6f,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FluencyMetricBox(
+    title: String,
+    value: String,
+    unit: String,
+    trend: String?,
+    trendPositive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    value,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    unit,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 2.dp)
+                )
+            }
+            if (trend != null) {
+                Text(
+                    trend,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (trendPositive) AppColors.CorrectGreen else MaterialTheme.colorScheme.error
                 )
             }
         }

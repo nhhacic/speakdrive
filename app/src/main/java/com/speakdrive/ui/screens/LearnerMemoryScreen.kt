@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -20,12 +21,16 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -55,6 +60,7 @@ fun LearnerMemoryScreen(
         state = state,
         onBack = onBack,
         onStartReview = { onStartReview(MediaIds.MISTAKES) },
+        onAddFact = viewModel::addFact,
         onDeleteFact = viewModel::deleteFact,
         onForgetAllFacts = viewModel::forgetAllFacts,
         onDeleteMistake = viewModel::deleteMistake
@@ -67,11 +73,15 @@ fun LearnerMemoryContent(
     state: LearnerMemoryUiState,
     onBack: () -> Unit,
     onStartReview: () -> Unit,
+    onAddFact: (String) -> Unit = {},
     onDeleteFact: (Long) -> Unit,
     onForgetAllFacts: () -> Unit,
     onDeleteMistake: (Long) -> Unit,
     now: Long = System.currentTimeMillis()
 ) {
+    var showAddFactDialog by remember { mutableStateOf(false) }
+    var newFactText by remember { mutableStateOf("") }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -109,9 +119,18 @@ fun LearnerMemoryContent(
             item {
                 SectionHeader(
                     title = stringResource(R.string.memory_facts_title),
-                    action = if (state.facts.isNotEmpty()) {
-                        { TextButton(onClick = onForgetAllFacts) { Text(stringResource(R.string.memory_forget_all)) } }
-                    } else null
+                    action = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick = { showAddFactDialog = true }) {
+                                Text("+ " + stringResource(R.string.memory_add_fact))
+                            }
+                            if (state.facts.isNotEmpty()) {
+                                TextButton(onClick = onForgetAllFacts) {
+                                    Text(stringResource(R.string.memory_forget_all))
+                                }
+                            }
+                        }
+                    }
                 )
             }
             if (state.facts.isEmpty()) {
@@ -134,6 +153,48 @@ fun LearnerMemoryContent(
                 }
             }
         }
+    }
+
+    if (showAddFactDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAddFactDialog = false
+                newFactText = ""
+            },
+            title = { Text(stringResource(R.string.memory_add_fact_title)) },
+            text = {
+                OutlinedTextField(
+                    value = newFactText,
+                    onValueChange = { newFactText = it },
+                    placeholder = { Text(stringResource(R.string.memory_add_fact_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = false,
+                    maxLines = 3
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newFactText.isNotBlank()) {
+                            onAddFact(newFactText)
+                            newFactText = ""
+                            showAddFactDialog = false
+                        }
+                    },
+                    enabled = newFactText.isNotBlank()
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAddFactDialog = false
+                    newFactText = ""
+                }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
     }
 }
 

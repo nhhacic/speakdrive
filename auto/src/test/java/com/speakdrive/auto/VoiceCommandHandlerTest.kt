@@ -55,6 +55,14 @@ class VoiceCommandHandlerTest {
     }
 
     @Test
+    fun `ielts speaking voice queries`() {
+        assertThat(handler.resolve("luyện thi ielts")).isEqualTo(MediaIds.IELTS)
+        assertThat(handler.resolve("thi ielts")).isEqualTo(MediaIds.IELTS)
+        assertThat(handler.resolve("ielts speaking")).isEqualTo(MediaIds.IELTS)
+        assertThat(handler.resolve("practice ielts on SpeakDrive")).isEqualTo(MediaIds.IELTS)
+    }
+
+    @Test
     fun `vocabulary pronunciation and sentence challenge commands`() {
         assertThat(handler.resolve("luyện phát âm từ vựng")).isEqualTo(MediaIds.vocabMode("pronunciation"))
         assertThat(handler.resolve("vocab pronunciation")).isEqualTo(MediaIds.vocabMode("pronunciation"))

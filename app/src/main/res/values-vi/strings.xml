@@ -309,6 +309,13 @@
     <string name="progress_no_sessions">Chưa có buổi học nào</string>
     <string name="progress_no_sessions_desc">Hãy bắt đầu buổi luyện nói đầu tiên để theo dõi sự tiến bộ!</string>
     <string name="progress_view_vocab_button">Xem toàn bộ sổ từ vựng</string>
+    <string name="progress_fluency_trends_title">Xu hướng trôi chảy tuần</string>
+    <string name="progress_fluency_wpm_label">Tốc độ nói</string>
+    <string name="progress_fluency_filler_label">Từ đệm</string>
+    <string name="progress_fluency_mlu_label">Độ dài câu</string>
+    <string name="memory_add_fact">Thêm thông tin</string>
+    <string name="memory_add_fact_title">Thêm thông tin cho AI ghi nhớ</string>
+    <string name="memory_add_fact_hint">VD: Tôi làm trong ngành logistics, tôi thích leo núi</string>
 
     <!-- Summary Screen -->
     <string name="summary_screen_title">Kết quả buổi học</string>

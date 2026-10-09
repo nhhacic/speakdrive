@@ -309,6 +309,13 @@
     <string name="progress_no_sessions">No sessions completed yet</string>
     <string name="progress_no_sessions_desc">Start speaking to see your history and analysis here.</string>
     <string name="progress_view_vocab_button">Open Vocabulary Notebook</string>
+    <string name="progress_fluency_trends_title">Weekly Fluency Trends</string>
+    <string name="progress_fluency_wpm_label">Speech Rate</string>
+    <string name="progress_fluency_filler_label">Filler Words</string>
+    <string name="progress_fluency_mlu_label">Avg Length</string>
+    <string name="memory_add_fact">Add Info</string>
+    <string name="memory_add_fact_title">Add AI Memory Fact</string>
+    <string name="memory_add_fact_hint">e.g. I work in logistics, I love hiking</string>
 
     <!-- Summary Screen -->
     <string name="summary_screen_title">Lesson Summary</string>

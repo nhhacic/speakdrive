@@ -55,7 +55,7 @@ class MediaContentProviderTest {
         assertThat(home.map { it.mediaId })
             .containsExactly(
                 MediaIds.RESUME, MediaIds.STORY_RECOMMENDED, MediaIds.RANDOM, MediaIds.PRONUNCIATION, MediaIds.REVIEW,
-                MediaIds.MISTAKES, MediaIds.LEVELS
+                MediaIds.MISTAKES, MediaIds.IELTS, MediaIds.LEVELS
             )
             .inOrder()
         assertThat(home.dropLast(1).all { it.mediaMetadata.isPlayable == true }).isTrue()
@@ -94,6 +94,31 @@ class MediaContentProviderTest {
         val famousScenarios = provider.children(MediaIds.storyTopic("story_famous"))
         assertThat(famousScenarios).hasSize(5) // 1 dynamic ai recommendation + 4 static scenarios
         assertThat(famousScenarios.first().mediaId).contains("dynamic_story_recommended")
+    }
+
+    @Test
+    fun `custom scenarios browse and play when present`() = runTest {
+        val customStore = object : SessionStore by store {
+            override suspend fun customScenarios(): List<com.speakdrive.ai.model.CustomScenario> = listOf(
+                com.speakdrive.ai.model.CustomScenario(
+                    id = "custom_logistics",
+                    titleVi = "Phỏng vấn Logistics",
+                    titleEn = "Logistics Interview",
+                    aiRole = "Interviewer",
+                    learnerRole = "Candidate",
+                    customContext = "Logistics job interview",
+                    missionObjective = "Pass the interview"
+                )
+            )
+        }
+        val customProvider = MediaContentProvider(topics, customStore, settings)
+        val roleplayItems = customProvider.children(MediaIds.ROLEPLAY)
+        assertThat(roleplayItems.first().mediaId).isEqualTo(MediaIds.CUSTOM_SCENARIOS)
+
+        val customItems = customProvider.children(MediaIds.CUSTOM_SCENARIOS)
+        assertThat(customItems).hasSize(1)
+        assertThat(customItems.first().mediaId).isEqualTo(MediaIds.scenario("custom_logistics"))
+        assertThat(customItems.first().mediaMetadata.title.toString()).isEqualTo("Phỏng vấn Logistics")
     }
 
     @Test
@@ -159,7 +184,7 @@ class MediaContentProviderTest {
 
         assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
         assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 I'd like a window seat, please.")
-        assertThat(item.mediaMetadata.subtitle.toString()).contains("Du lịch")
+        assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("🗣️ Nhắc lại theo AI")
         assertThat(item.mediaMetadata.artist.toString()).contains("Intermediate")
         assertThat(item.mediaMetadata.artworkData).isNotNull()
         assertThat(item.mediaMetadata.artworkData!!.isNotEmpty()).isTrue()
@@ -179,7 +204,7 @@ class MediaContentProviderTest {
 
         assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
         assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 I'd like a window seat, please.")
-        assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("🇻🇳 Dịch: Tôi muốn một chỗ ngồi cạnh cửa sổ, làm ơn.")
+        assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("🇻🇳 Tôi muốn một chỗ ngồi cạnh cửa sổ, làm ơn.")
         assertThat(item.mediaMetadata.artworkData).isNotNull()
     }
 

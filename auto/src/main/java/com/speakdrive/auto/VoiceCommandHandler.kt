@@ -21,6 +21,7 @@ class VoiceCommandHandler @Inject constructor(
         if (q.hasAny(VOCAB_SENTENCE_WORDS)) return MediaIds.vocabMode("sentence")
         // Before vocabulary review: "review my mistakes" also contains "review".
         if (q.hasAny(MISTAKE_WORDS)) return MediaIds.MISTAKES
+        if (q.hasAny(IELTS_WORDS)) return MediaIds.IELTS
         if (q.hasAny(REVIEW_WORDS)) return MediaIds.REVIEW
         if (q.hasAny(RESUME_STORY_WORDS)) return MediaIds.STORY_RESUME
         if (q.hasAny(RANDOM_WORDS) && !q.hasAny(STORY_WORDS)) return MediaIds.RANDOM
@@ -128,6 +129,9 @@ class VoiceCommandHandler @Inject constructor(
         )
         val MISTAKE_WORDS = listOf(
             "mistake", "mistakes", "my errors", "loi sai", "on loi", "on lai loi", "loi cu", "cau sai"
+        )
+        val IELTS_WORDS = listOf(
+            "ielts", "thi ielts", "luyen thi ielts", "luyen ielts", "ielts speaking", "practice ielts", "ielts practice", "test ielts"
         )
         val REVIEW_WORDS = listOf(
             "review", "vocabulary", "vocab", "words", "on tap", "tu vung",

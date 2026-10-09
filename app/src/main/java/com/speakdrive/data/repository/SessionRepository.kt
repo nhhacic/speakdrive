@@ -324,6 +324,24 @@ class SessionRepository @Inject constructor(
 
     suspend fun deleteLearnerFact(id: Long) = memoryDao.deleteFact(id)
 
+    suspend fun addLearnerFact(fact: String) {
+        val trimmed = fact.trim()
+        val normalized = MemoryText.normalize(trimmed)
+        if (normalized.isNotBlank()) {
+            memoryDao.insertFacts(
+                listOf(
+                    LearnerFactEntity(
+                        fact = trimmed,
+                        normalizedFact = normalized,
+                        sessionId = null,
+                        createdAt = clock()
+                    )
+                )
+            )
+            memoryDao.trimFacts(MAX_STORED_FACTS)
+        }
+    }
+
     /** Forgets every personal fact; mistakes stay because they drive the review schedule. */
     suspend fun forgetLearnerFacts() = memoryDao.deleteAllFacts()
 

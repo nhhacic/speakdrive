@@ -131,8 +131,29 @@ class MediaContentProvider @Inject constructor(
         parentId == MediaIds.TOPICS -> topicManager.getConversationTopics().map { topic ->
             playable(MediaIds.topic(topic.id), "${topic.emoji} ${topic.titleVi}", topic.titleEn)
         }
-        parentId == MediaIds.ROLEPLAY -> topicManager.getConversationTopics().map { topic ->
-            browsable(MediaIds.roleplayTopic(topic.id), "${topic.emoji} ${topic.titleVi}", "${topic.scenarios.size} tình huống mẫu + AI mở rộng")
+        parentId == MediaIds.ROLEPLAY -> {
+            val customs = sessionStore.customScenarios()
+            val customItem = if (customs.isNotEmpty()) {
+                listOf(
+                    browsable(
+                        MediaIds.CUSTOM_SCENARIOS,
+                        "⭐ Tình huống tự tạo của bạn",
+                        "${customs.size} tình huống riêng bạn đã lưu"
+                    )
+                )
+            } else emptyList()
+            customItem + topicManager.getConversationTopics().map { topic ->
+                browsable(MediaIds.roleplayTopic(topic.id), "${topic.emoji} ${topic.titleVi}", "${topic.scenarios.size} tình huống mẫu + AI mở rộng")
+            }
+        }
+        parentId == MediaIds.CUSTOM_SCENARIOS -> {
+            sessionStore.customScenarios().map { custom ->
+                playable(
+                    MediaIds.scenario(custom.id),
+                    custom.titleVi,
+                    custom.missionObjective?.let { m -> "🎯 $m" } ?: custom.titleEn
+                )
+            }
         }
         parentId.startsWith(MediaIds.roleplayTopic("")) -> {
             val topic = topicManager.getTopicById(parentId.removePrefix(MediaIds.roleplayTopic("")))
@@ -211,13 +232,18 @@ class MediaContentProvider @Inject constructor(
                 "Ôn lỗi sai",
                 if (dueMistakes > 0) "$dueMistakes câu sai đến hạn nói lại" else "Nói lại đúng những câu từng sai"
             ),
+            playable(
+                MediaIds.IELTS,
+                "🎯 Luyện thi IELTS Speaking",
+                "Luyện Part 1, 2, 3 và ước lượng Band Score"
+            ),
             browsable(MediaIds.LEVELS, "Độ khó: ${snapshot.level.displayName}", "Chọn cấp độ từ A1 đến C2")
         )
     }
 
     /** Resolves any media id Android Auto or the phone may send back to us. */
     suspend fun item(mediaId: String): MediaItem? = when (val target = MediaIds.parse(mediaId)) {
-        MediaTarget.Resume, MediaTarget.Random, MediaTarget.Review, MediaTarget.Mistakes -> homeItems().find { it.mediaId == mediaId }
+        MediaTarget.Resume, MediaTarget.Random, MediaTarget.Review, MediaTarget.Mistakes, MediaTarget.Ielts -> homeItems().find { it.mediaId == mediaId }
         is MediaTarget.Vocab -> {
             val title = if (target.word != null) "Học từ: ${target.word}" else "Luyện tập từ vựng"
             val sub = when (target.mode) {
@@ -310,15 +336,15 @@ class MediaContentProvider @Inject constructor(
             hasTarget -> {
                 val title = "🎯 $drillTarget"
                 val subtitle = if (!drillTargetTranslation.isNullOrBlank()) {
-                    "🇻🇳 Dịch: $drillTargetTranslation"
+                    "🇻🇳 $drillTargetTranslation"
                 } else {
-                    "${lesson.topic.emoji} ${lesson.titleVi} • Đang nghe bạn nói"
+                    "🗣️ Nhắc lại theo AI"
                 }
                 val artist = "${lesson.level.displayName} • SpeakDrive"
                 Triple(title, subtitle, artist)
             }
             lesson.mode == SessionMode.REPEAT_AFTER_ME -> {
-                val title = "🎯 ${lesson.topic.emoji} ${lesson.titleVi}"
+                val title = "🎯 Luyện phát âm • ${lesson.topic.emoji} ${lesson.topic.titleVi}"
                 val subtitle = if (status.isNotEmpty()) "$status • Hãy nghe và nhắc lại" else "Hãy nghe và nhắc lại"
                 val artist = "${lesson.level.displayName} • Luyện phát âm"
                 Triple(title, subtitle, artist)

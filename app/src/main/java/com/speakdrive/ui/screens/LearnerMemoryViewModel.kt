@@ -84,6 +84,8 @@ class LearnerMemoryViewModel @Inject constructor(
 
     fun setOfflinePractice(enabled: Boolean) = viewModelScope.launch { preferences.setOfflinePractice(enabled) }
 
+    fun addFact(fact: String) = viewModelScope.launch { sessions.addLearnerFact(fact) }
+
     fun deleteFact(id: Long) = viewModelScope.launch { sessions.deleteLearnerFact(id) }
 
     fun forgetAllFacts() = viewModelScope.launch { sessions.forgetLearnerFacts() }
