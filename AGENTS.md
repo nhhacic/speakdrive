@@ -21,7 +21,8 @@ Khi bất kỳ AI agent nào thêm hoặc cập nhật một mục cài đặt (
    - Khi nhận lệnh giọng nói, cập nhật ngay vào repository/DataStore và áp dụng trực tiếp cho phiên học hiện tại nếu phiên đang diễn ra.
 
 5. **Phản hồi xác nhận bằng giọng nói (Voice Confirmation Feedback)**:
-   - Thông báo ngắn gọn bằng giọng nói cho người học biết setting đã được điều chỉnh thành công (ví dụ qua TTS thông báo nhanh hoặc câu thoại xác nhận của AI).
+   - Thông báo ngắn gọn bằng giọng nói cho người học biết setting đã được điều chỉnh thành công.
+   - **Chỉ MỘT giọng xác nhận**: khi AI đang trong phiên học (`ACTIVE` và Live client đã kết nối), AI tự xác nhận qua `instruction` trong kết quả tool (hoặc qua ghi chú "System:" bằng `notifyModelOf(...)` khi lệnh được nhận từ transcript). Câu xác nhận bằng TTS của máy phải đi qua `confirmOutLoud(...)`, hàm này chỉ đọc khi AI không nói được (tạm dừng, mất mạng, đang kết nối lại). Không gọi thẳng `announcer.announce(...)` cho xác nhận setting, nếu không người học sẽ nghe giọng TTS tiếng Việt chồng lên giọng AI tiếng Anh.
 
 6. **Viết Unit Test đầy đủ**:
    - Luôn bổ sung test case trong `VoiceSettingsToolsTest.kt`, `VoiceCommandParserTest.kt` và `VoiceCommandHandlerTest.kt` để kiểm tra cả trường hợp tiếng Việt lẫn tiếng Anh.

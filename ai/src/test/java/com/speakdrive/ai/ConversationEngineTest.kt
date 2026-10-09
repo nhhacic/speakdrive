@@ -1337,7 +1337,7 @@ class ConversationEngineTest {
     }
 
     @Test
-    fun `repeat in REPEAT_AFTER_ME mode announces and instructs AI to repeat current drill sentence`(): TestResult = engineTest {
+    fun `repeat in REPEAT_AFTER_ME mode lets the AI repeat the drill sentence without a second voice`(): TestResult = engineTest {
         val engine = createEngine()
         engine.start(LessonRequest(mode = SessionMode.REPEAT_AFTER_ME))
         say(Speaker.AI, "Repeat after me: I would like a cup of coffee.")
@@ -1346,8 +1346,22 @@ class ConversationEngineTest {
 
         engine.repeat()
         runCurrent()
-        assertThat(announcer.announcements.last()).contains("Đọc lại câu")
+        assertThat(announcer.announcements).isEmpty()
         assertThat(live.sentTexts.last()).contains("Repeat after me: I would like a cup of coffee.")
+    }
+
+    @Test
+    fun `repeat while the lesson is paused is confirmed by the on-device voice`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.REPEAT_AFTER_ME))
+        say(Speaker.AI, "Repeat after me: I would like a cup of coffee.")
+        runCurrent()
+        engine.pause()
+        runCurrent()
+
+        engine.repeat()
+        runCurrent()
+        assertThat(announcer.announcements.last()).contains("Đọc lại câu")
     }
 
     @Test
@@ -1361,7 +1375,7 @@ class ConversationEngineTest {
         engine.next()
         runCurrent()
         assertThat(engine.drillTarget.value).isNull()
-        assertThat(announcer.announcements.last()).contains("Chuyển câu tiếp theo")
+        assertThat(announcer.announcements).isEmpty()
         assertThat(live.sentTexts.last()).contains("The learner skipped to the next sentence")
     }
 
@@ -1375,7 +1389,7 @@ class ConversationEngineTest {
         // User says "đọc lại câu này"
         sayCommand("đọc lại câu này")
         runCurrent()
-        assertThat(announcer.announcements.last()).contains("Đọc lại câu")
+        assertThat(announcer.announcements).isEmpty()
         assertThat(live.sentTexts.last()).contains("Repeat after me: Where is the nearest station?")
 
         // User says "câu tiếp theo"
@@ -1402,7 +1416,7 @@ class ConversationEngineTest {
         )
         assertThat(result["status"]).isEqualTo("success")
         assertThat(result["instruction"].toString()).contains("Repeat after me: Keep your hands on the wheel.")
-        assertThat(announcer.announcements.last()).contains("Đọc lại câu")
+        assertThat(announcer.announcements).isEmpty()
     }
 
     @Test
@@ -1545,7 +1559,7 @@ class ConversationEngineTest {
     }
 
     @Test
-    fun `voice setting tool set_auto_pause_when_unfocused updates settings and announces confirmation`(): TestResult = engineTest {
+    fun `voice setting tool set_auto_pause_when_unfocused updates settings and lets the AI confirm`(): TestResult = engineTest {
         val engine = createEngine()
         engine.start(LessonRequest(topicId = "travel"))
         val config = live.connects.single()
@@ -1559,7 +1573,7 @@ class ConversationEngineTest {
         )
         assertThat(resultDisable["status"]).isEqualTo("success")
         assertThat(resultDisable["auto_pause_when_unfocused"]).isEqualTo(false)
-        assertThat(announcer.announcements.last()).contains("Đã tắt tự động tạm dừng")
+        assertThat(resultDisable["instruction"].toString()).contains("Confirm")
 
         val resultEnable = config.toolHandler!!.handle(
             LiveToolCall(
@@ -1570,7 +1584,8 @@ class ConversationEngineTest {
         )
         assertThat(resultEnable["status"]).isEqualTo("success")
         assertThat(resultEnable["auto_pause_when_unfocused"]).isEqualTo(true)
-        assertThat(announcer.announcements.last()).contains("Đã bật tự động tạm dừng")
+        // The AI confirms from the tool result: the on-device voice would talk over it.
+        assertThat(announcer.announcements).isEmpty()
     }
 
     @Test
@@ -1580,11 +1595,13 @@ class ConversationEngineTest {
 
         sayCommand("tắt tự động tạm dừng khi tắt màn hình")
         runCurrent()
-        assertThat(announcer.announcements.last()).contains("Đã tắt tự động tạm dừng")
+        assertThat(settings.settings.autoPauseWhenUnfocused).isFalse()
+        assertThat(live.sentTexts.last()).contains("Auto-pause")
 
         sayCommand("bật tự động tạm dừng khi rời app")
         runCurrent()
-        assertThat(announcer.announcements.last()).contains("Đã bật tự động tạm dừng")
+        assertThat(settings.settings.autoPauseWhenUnfocused).isTrue()
+        assertThat(announcer.announcements).isEmpty()
     }
 
     @Test
@@ -1602,7 +1619,9 @@ class ConversationEngineTest {
         )
         assertThat(result["status"]).isEqualTo("switched")
         assertThat(result["new_mode"]).isEqualTo(SessionMode.REPEAT_AFTER_ME.name)
+        // The lesson restarts, so the app (not the leaving AI) says it.
         assertThat(announcer.announcements.last()).contains("chế độ luyện phát âm shadowing")
+        assertThat(result["instruction"].toString()).contains("Say nothing")
 
         runCurrent()
         advanceTimeBy(500)
@@ -2076,7 +2095,8 @@ class ConversationEngineTest {
 
         assertThat(result["status"]).isEqualTo("success")
         assertThat(settings.settings.rememberLearner).isFalse()
-        assertThat(announcer.announced.last()).contains("tắt ghi nhớ")
+        assertThat(result["instruction"].toString()).contains("Memory has been turned off")
+        assertThat(announcer.announced).isEmpty()
         assertThat(store.saved.last().summary?.learnerFacts).isEmpty()
     }
 
@@ -2107,7 +2127,8 @@ class ConversationEngineTest {
         assertThat(set["status"]).isEqualTo("success")
         assertThat(settings.settings.practiceReminderEnabled).isTrue()
         assertThat(settings.settings.practiceReminderMinute).isEqualTo(7 * 60 + 30)
-        assertThat(announcer.announced.last()).contains("7:30")
+        assertThat(set["instruction"].toString()).contains("7:30")
+        assertThat(announcer.announced).isEmpty()
 
         handler.handle(LiveToolCall(VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION, mapOf("enabled" to true, "time" to "auto")))
         runCurrent()
@@ -2156,7 +2177,8 @@ class ConversationEngineTest {
 
         sayCommand("tắt bảo toàn chuỗi")
         assertThat(settings.settings.streakFreezeEnabled).isFalse()
-        assertThat(announcer.announced.last()).contains("bảo toàn chuỗi")
+        assertThat(live.sentTexts.last()).contains("streak freezes off")
+        assertThat(announcer.announced).isEmpty()
 
         // Later than the window in which a tool call repeating the fallback's change is ignored.
         advanceTimeBy(10_000)
@@ -2309,7 +2331,8 @@ class ConversationEngineTest {
 
         sayCommand("tắt luyện offline")
         assertThat(settings.settings.offlinePracticeEnabled).isFalse()
-        assertThat(announcer.announced.last()).contains("luyện offline")
+        assertThat(live.sentTexts.last()).contains("offline practice off")
+        assertThat(announcer.announced).isEmpty()
 
         advanceTimeBy(10_000)
         live.connects.single().toolHandler!!.handle(
@@ -2322,7 +2345,7 @@ class ConversationEngineTest {
     // endregion
 
     @Test
-    fun `car auto-start, daily goal, Azure and screen settings change by voice tool and confirm out loud`(): TestResult = engineTest {
+    fun `car auto-start, daily goal, Azure and screen settings change by voice tool and the AI confirms them`(): TestResult = engineTest {
         val engine = createEngine()
         engine.start(LessonRequest())
         val handler = live.connects.single().toolHandler!!
@@ -2341,8 +2364,10 @@ class ConversationEngineTest {
         assertThat(azure["azure_key_missing"]).isEqualTo(true) // no key entered yet: the learner is told
         assertThat(settings.settings.screenAwakeMode).isEqualTo(ScreenAwakeMode.FOLLOW_SYSTEM)
         assertThat(screen["status"]).isEqualTo("success")
-        assertThat(announcer.announcements.any { it.contains("Android Auto") }).isTrue()
-        assertThat(announcer.announcements.any { it.contains("25") }).isTrue()
+        assertThat(car["instruction"].toString()).contains("Android Auto")
+        assertThat(goal["instruction"].toString()).contains("25 minutes")
+        assertThat(azure["instruction"].toString()).contains("Settings")
+        assertThat(announcer.announcements).isEmpty()
     }
 
     @Test
@@ -2357,5 +2382,45 @@ class ConversationEngineTest {
         assertThat(settings.settings.autoStartOnCarConnect).isFalse()
         assertThat(settings.settings.dailyGoalMinutes).isEqualTo(30)
         assertThat(settings.settings.screenAwakeMode).isEqualTo(ScreenAwakeMode.AFTER_2_MINUTES)
+        // The model did not call the tool, so it is told what changed and confirms it.
+        assertThat(live.sentTexts.any { it.contains("30 minutes") }).isTrue()
+        assertThat(announcer.announcements).isEmpty()
+    }
+
+    @Test
+    fun `a setting changed by voice is confirmed by one voice only`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        val handler = live.connects.single().toolHandler!!
+
+        // Vietnamese request, the model calls the tool: the AI confirms, the device voice stays quiet.
+        val volume = handler.handle(
+            LiveToolCall(VoiceSettingsTools.SET_AI_VOLUME_FUNCTION, mapOf("volume" to "60"), learnerUtterance = "giảm âm lượng xuống 60")
+        )
+        runCurrent()
+        assertThat(settings.settings.aiVolume).isEqualTo(60)
+        assertThat(volume["instruction"].toString()).contains("Confirm")
+        assertThat(announcer.announcements).isEmpty()
+
+        // English request picked up from the transcript: the model is told, the device voice stays quiet.
+        advanceTimeBy(10_000)
+        sayCommand("turn off translation subtitles")
+        assertThat(settings.settings.showTranslationSubtitle).isFalse()
+        assertThat(live.sentTexts.last()).contains("translation subtitles")
+        assertThat(announcer.announcements).isEmpty()
+    }
+
+    @Test
+    fun `the on-device voice confirms a change when the AI cannot answer`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        val handler = live.connects.single().toolHandler!!
+        live.isConnected = false
+
+        handler.handle(LiveToolCall(VoiceSettingsTools.SET_DAILY_GOAL_FUNCTION, mapOf("minutes" to "20")))
+        runCurrent()
+
+        assertThat(settings.settings.dailyGoalMinutes).isEqualTo(20)
+        assertThat(announcer.announcements.last()).contains("20")
     }
 }

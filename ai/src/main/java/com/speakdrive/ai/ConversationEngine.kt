@@ -803,18 +803,24 @@ open class ConversationEngine @Inject constructor(
                 SessionMode.MISTAKE_REVIEW -> if (isVi) "Bạn đang ở chế độ ôn lỗi sai rồi." else "You are already in mistake review mode."
                 SessionMode.IELTS_SPEAKING -> if (isVi) "Bạn đang ở chế độ luyện thi IELTS Speaking rồi." else "You are already in IELTS speaking mode."
             }
-            announcer.announce(alreadyMsg)
-            return mapOf("status" to "already_active", "mode" to newMode.name)
+            confirmOutLoud(alreadyMsg)
+            return mapOf(
+                "status" to "already_active",
+                "mode" to newMode.name,
+                "instruction" to "The learner is already in ${newMode.name} mode. Tell them so in one short sentence and continue."
+            )
         }
 
+        // The lesson restarts in the new mode, so the AI leaves the conversation: the app says it,
+        // briefly, while the new session connects (the new AI greets in the new mode right after).
         val confirmationMsg = when (newMode) {
-            SessionMode.REPEAT_AFTER_ME -> if (isVi) "Đã chuyển sang chế độ luyện phát âm shadowing. Hãy nghe và nhắc lại từng câu nhé!" else "Switched to repeat-after-me pronunciation mode. Listen and repeat after me!"
+            SessionMode.REPEAT_AFTER_ME -> if (isVi) "Đã chuyển sang chế độ luyện phát âm shadowing." else "Switched to repeat-after-me pronunciation mode."
             SessionMode.FREE_TALK -> if (isVi) "Đã chuyển sang chế độ hội thoại tự do." else "Switched to free conversation mode."
             SessionMode.STORY_LISTENING -> if (isVi) "Đã chuyển sang chế độ luyện nghe kể chuyện." else "Switched to story listening mode."
             SessionMode.ROLEPLAY -> if (isVi) "Đã chuyển sang chế độ nhập vai." else "Switched to roleplay mode."
             SessionMode.VOCAB_REVIEW -> if (isVi) "Đã chuyển sang chế độ ôn tập từ vựng." else "Switched to vocabulary review mode."
             SessionMode.MISTAKE_REVIEW -> if (isVi) "Đã chuyển sang chế độ ôn lỗi sai." else "Switched to mistake review mode."
-            SessionMode.IELTS_SPEAKING -> if (isVi) "Đã chuyển sang chế độ luyện thi IELTS Speaking. Chúng ta sẽ cùng luyện các phần thi nhé!" else "Switched to IELTS speaking mode. Let's practice the test parts together!"
+            SessionMode.IELTS_SPEAKING -> if (isVi) "Đã chuyển sang chế độ luyện thi IELTS Speaking." else "Switched to IELTS speaking mode."
         }
         announcer.announce(confirmationMsg)
 
@@ -830,7 +836,11 @@ open class ConversationEngine @Inject constructor(
             start(LessonRequest(mode = newMode, topicId = effectiveTopicId))
         }
 
-        return mapOf("status" to "switched", "new_mode" to newMode.name)
+        return mapOf(
+            "status" to "switched",
+            "new_mode" to newMode.name,
+            "instruction" to "The app is restarting the lesson in the new mode right now and has already told the learner. Say nothing."
+        )
     }
 
     private fun handleApplyLevelRecommendation(call: LiveToolCall): Map<String, Any> {
@@ -844,11 +854,21 @@ open class ConversationEngine @Inject constructor(
         }
         val targetArg = call.args["target_level"] as? String
         val newLevel = answerLevelRecommendation(accept, VoiceSettingsTools.parseLevel(targetArg, learnerSettings.level))
-        return if (accept) {
-            mapOf("status" to "applied", "new_level" to newLevel.name)
-        } else {
-            mapOf("status" to "dismissed", "level" to newLevel.name)
-        }
+        return levelRecommendationResult(accept, newLevel)
+    }
+
+    private fun levelRecommendationResult(accept: Boolean, level: DifficultyLevel): Map<String, Any> = if (accept) {
+        mapOf(
+            "status" to "applied",
+            "new_level" to level.name,
+            "instruction" to "The learner's level is now ${level.displayName} (${level.cefr}) from the next lesson. Confirm in one short sentence and continue."
+        )
+    } else {
+        mapOf(
+            "status" to "dismissed",
+            "level" to level.name,
+            "instruction" to "The learner keeps the ${level.displayName} level. Acknowledge it in one short sentence and continue."
+        )
     }
 
     /**
@@ -862,7 +882,7 @@ open class ConversationEngine @Inject constructor(
         val recommendation = pendingLevelRecommendation
         pendingLevelRecommendation = null
         if (!accept) {
-            announcer.announce(if (isVi) "Giữ nguyên cấp độ ${currentLevel.getLabel(true)}" else "Kept current level ${currentLevel.displayName}")
+            confirmOutLoud(if (isVi) "Giữ nguyên cấp độ ${currentLevel.getLabel(true)}" else "Kept current level ${currentLevel.displayName}")
             return currentLevel
         }
         val newLevel = explicitTarget
@@ -871,7 +891,7 @@ open class ConversationEngine @Inject constructor(
             ?: currentLevel
         learnerSettings = learnerSettings.copy(level = newLevel)
         persist("level") { settings.setLevel(newLevel) }
-        announcer.announce(
+        confirmOutLoud(
             if (isVi) "Đã chuyển cấp độ sang ${newLevel.getLabel(true)} cho buổi học tiếp theo!"
             else "Updated learning level to ${newLevel.displayName} for your next lesson!"
         )
@@ -883,11 +903,10 @@ open class ConversationEngine @Inject constructor(
         val enabled = booleanArg(enabledArg)
             ?: (enabledArg as? String)?.let(VoiceSettingsTools::parseAdaptiveLevel)
             ?: return argumentError("enabled", enabledArg, "true, false")
-        applyAdaptiveLevelChange(enabled)
-        return mapOf("status" to "updated", "adaptive_level_enabled" to enabled)
+        return applyAdaptiveLevelChange(enabled)
     }
 
-    private fun applyAdaptiveLevelChange(enabled: Boolean) {
+    private fun applyAdaptiveLevelChange(enabled: Boolean): Map<String, Any> {
         learnerSettings = learnerSettings.copy(adaptiveLevelRecommendation = enabled)
         persist("adaptive level") { settings.setAdaptiveLevelRecommendation(enabled) }
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
@@ -896,7 +915,12 @@ open class ConversationEngine @Inject constructor(
         } else {
             if (isVi) "Đã tắt tự động gợi ý điều chỉnh cấp độ." else "Adaptive level recommendation disabled."
         }
-        announcer.announce(confirmation)
+        confirmOutLoud(confirmation)
+        return mapOf(
+            "status" to "updated",
+            "adaptive_level_enabled" to enabled,
+            "instruction" to "Level suggestions after each lesson were turned ${if (enabled) "on" else "off"}. Confirm in one short sentence and continue."
+        )
     }
 
     private fun handleSetDrillSentenceLength(call: LiveToolCall): Map<String, Any> {
@@ -924,20 +948,12 @@ open class ConversationEngine @Inject constructor(
                 DrillSentenceLength.STANDARD -> "Repeat sentences are now set to standard length."
             }
         }
-        announcer.announce(confirmation)
-
-        if (_state.value == ConversationState.ACTIVE) {
-            scope.launch {
-                suspendRunCatching {
-                    liveClient.sendText("System: Drill sentence length set to ${length.name}. " + PromptTemplates.drillSentenceLengthSwitchMessage(length, _isCarConnected.value))
-                }
-            }
-        }
+        confirmOutLoud(confirmation)
 
         return mapOf(
             "status" to "success",
             "new_length" to length.name,
-            "instruction" to "Confirm warmly in one short sentence to the learner, then continue with: " +
+            "instruction" to "Drill sentence length set to ${length.name}. Confirm warmly in one short sentence to the learner, then continue with: " +
                 PromptTemplates.drillSentenceLengthSwitchMessage(length, _isCarConnected.value)
         )
     }
@@ -959,17 +975,9 @@ open class ConversationEngine @Inject constructor(
         } else {
             "Drill category switched to: ${category.displayName}."
         }
-        announcer.announce(confirmation)
+        confirmOutLoud(confirmation)
 
         val switchMsg = PromptTemplates.drillCategorySwitchMessage(category)
-
-        if (_state.value == ConversationState.ACTIVE) {
-            scope.launch {
-                suspendRunCatching {
-                    liveClient.sendText("System: $switchMsg")
-                }
-            }
-        }
 
         return mapOf(
             "status" to "success",
@@ -1000,7 +1008,7 @@ open class ConversationEngine @Inject constructor(
         } else {
             "AI voice volume set to $clamped percent."
         }
-        announcer.announce(confirmation)
+        confirmOutLoud(confirmation)
 
         return mapOf(
             "status" to "success",
@@ -1028,7 +1036,7 @@ open class ConversationEngine @Inject constructor(
             if (enabled) "Auto-pause when leaving app or turning screen off enabled."
             else "Auto-pause when leaving app or turning screen off disabled."
         }
-        announcer.announce(confirmation)
+        confirmOutLoud(confirmation)
 
         if (enabled) {
             checkAutoPause()
@@ -1061,7 +1069,7 @@ open class ConversationEngine @Inject constructor(
             if (enabled) "Translation subtitles enabled."
             else "Translation subtitles disabled."
         }
-        announcer.announce(confirmation)
+        confirmOutLoud(confirmation)
 
         if (!enabled) {
             translationJob?.cancel()
@@ -1107,7 +1115,7 @@ open class ConversationEngine @Inject constructor(
             if (enabled) "Memory is on. From the next lesson your tutor will remember your mistakes and what you share."
             else "Memory is off. Your tutor will not remember anything new about you."
         }
-        announcer.announce(confirmation)
+        confirmOutLoud(confirmation)
 
         return mapOf(
             "status" to "success",
@@ -1151,12 +1159,16 @@ open class ConversationEngine @Inject constructor(
             time != null -> if (isVi) "Đã đặt nhắc luyện tập lúc $time mỗi ngày." else "Daily practice reminder set for $time."
             else -> if (isVi) "Đã bật nhắc luyện tập, tự động theo giờ bạn hay luyện." else "Daily practice reminder on, timed to when you usually practise."
         }
-        announcer.announce(confirmation)
+        confirmOutLoud(confirmation)
         return mapOf(
             "status" to "success",
             "reminder_enabled" to enabled,
             "reminder_time" to (time ?: if (enabled) "auto" else "off"),
-            "instruction" to "The practice reminder setting was updated. Confirm in one short sentence and continue the lesson."
+            "instruction" to when {
+                !enabled -> "The daily practice reminder was turned off."
+                time != null -> "The daily practice reminder is set for $time every day."
+                else -> "The daily practice reminder is on, timed to when the learner usually practises."
+            } + " Confirm in one short sentence and continue the lesson."
         )
     }
 
@@ -1175,7 +1187,7 @@ open class ConversationEngine @Inject constructor(
         } else {
             if (enabled) "Streak freezes are on." else "Streak freezes are off."
         }
-        announcer.announce(confirmation)
+        confirmOutLoud(confirmation)
         return mapOf(
             "status" to "success",
             "streak_freeze" to enabled,
@@ -1209,7 +1221,7 @@ open class ConversationEngine @Inject constructor(
         } else {
             if (enabled) "Natural phrasing upgrades are on." else "Natural phrasing upgrades are off."
         }
-        announcer.announce(confirmation)
+        confirmOutLoud(confirmation)
         return mapOf(
             "status" to "success",
             "better_phrasing" to enabled,
@@ -1225,11 +1237,12 @@ open class ConversationEngine @Inject constructor(
         } else {
             "You haven't had any practice sessions in the past week. Let's start practicing today!"
         }
-        announcer.announce(response)
+        confirmOutLoud(response)
         return mapOf(
             "status" to "success",
             "digest" to response,
-            "instruction" to "Spoken weekly progress digest was read to the learner. Continue the lesson warmly."
+            "instruction" to "Tell the learner this weekly progress digest in a few short spoken sentences, in the language it is written in, " +
+                "then continue the lesson warmly: $response"
         )
     }
 
@@ -1249,7 +1262,7 @@ open class ConversationEngine @Inject constructor(
         } else {
             if (enabled) "Weekly spoken digest is on." else "Weekly spoken digest is off."
         }
-        announcer.announce(confirmation)
+        confirmOutLoud(confirmation)
         return mapOf(
             "status" to "success",
             "weekly_digest" to enabled,
@@ -1286,7 +1299,7 @@ open class ConversationEngine @Inject constructor(
         } else {
             "Saved scenario \"$titleEn\" to your practice list."
         }
-        announcer.announce(feedback)
+        confirmOutLoud(feedback)
         return mapOf(
             "status" to "success",
             "scenario_id" to (scenario?.id ?: "saved"),
@@ -1294,26 +1307,28 @@ open class ConversationEngine @Inject constructor(
         )
     }
 
-    // Settings that do not change how the AI talks: the app confirms them out loud itself (works even
-    // when the AI cannot answer), so the model is told not to confirm a second time.
-    private fun appConfirmed(key: String, value: Any): Map<String, Any> = mapOf(
+    /** Tool result for a setting the AI confirms itself; [change] says what changed, in a sentence. */
+    private fun confirmedByModel(key: String, value: Any, change: String): Map<String, Any> = mapOf(
         "status" to "success",
         key to value,
-        "instruction" to "The app has already confirmed this change out loud. Do not repeat the confirmation; just continue naturally."
+        "instruction" to "$change Confirm it in one short sentence and continue the lesson."
     )
 
     internal fun applyAutoStartInCarChange(enabled: Boolean): Map<String, Any> {
         learnerSettings = learnerSettings.copy(autoStartOnCarConnect = enabled)
         persist("auto-start in the car") { settings.setAutoStartOnCarConnect(enabled) }
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
-        announcer.announce(
+        confirmOutLoud(
             if (isVi) {
                 if (enabled) "Đã bật tự động bắt đầu bài học khi kết nối Android Auto." else "Đã tắt tự động bắt đầu bài học khi kết nối Android Auto."
             } else {
                 if (enabled) "Lessons will start automatically when Android Auto connects." else "Lessons will no longer start automatically in the car."
             }
         )
-        return appConfirmed("auto_start_in_car", enabled)
+        return confirmedByModel(
+            "auto_start_in_car", enabled,
+            if (enabled) "Lessons will now start automatically when Android Auto connects." else "Lessons will no longer start automatically when Android Auto connects."
+        )
     }
 
     internal fun applyDailyGoalChange(minutes: Int): Map<String, Any> {
@@ -1321,8 +1336,8 @@ open class ConversationEngine @Inject constructor(
         learnerSettings = learnerSettings.copy(dailyGoalMinutes = goal)
         persist("daily goal") { settings.setDailyGoalMinutes(goal) }
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
-        announcer.announce(if (isVi) "Đã đặt mục tiêu $goal phút mỗi ngày." else "Daily goal set to $goal minutes.")
-        return appConfirmed("daily_goal_minutes", goal)
+        confirmOutLoud(if (isVi) "Đã đặt mục tiêu $goal phút mỗi ngày." else "Daily goal set to $goal minutes.")
+        return confirmedByModel("daily_goal_minutes", goal, "The daily practice goal is now $goal minutes.")
     }
 
     internal fun applyAzureScoringChange(enabled: Boolean): Map<String, Any> {
@@ -1330,7 +1345,7 @@ open class ConversationEngine @Inject constructor(
         persist("Azure scoring") { settings.setAzureEnabled(enabled) }
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
         val needsKey = enabled && !AzureSpeechConfig(learnerSettings.azureRegion, learnerSettings.azureKey).isComplete
-        announcer.announce(
+        confirmOutLoud(
             when {
                 needsKey && isVi -> "Đã bật chấm điểm Azure. Hãy nhập khoá Azure trong Cài đặt khi xe đã dừng."
                 needsKey -> "Azure scoring is on. Enter your Azure key in Settings when the car is parked."
@@ -1338,17 +1353,22 @@ open class ConversationEngine @Inject constructor(
                 else -> if (enabled) "Azure pronunciation scoring is on." else "Azure pronunciation scoring is off."
             }
         )
-        return appConfirmed("azure_scoring", enabled) + ("azure_key_missing" to needsKey)
+        val change = when {
+            needsKey -> "Azure pronunciation scoring is on, but no Azure key is set: tell the learner to enter it in Settings once the car is parked."
+            enabled -> "Azure pronunciation scoring is on."
+            else -> "Azure pronunciation scoring is off."
+        }
+        return confirmedByModel("azure_scoring", enabled, change) + ("azure_key_missing" to needsKey)
     }
 
     internal fun applyScreenAwakeChange(mode: ScreenAwakeMode): Map<String, Any> {
         learnerSettings = learnerSettings.copy(screenAwakeMode = mode)
         persist("screen awake mode") { settings.setScreenAwakeMode(mode) }
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
-        announcer.announce(
+        confirmOutLoud(
             if (isVi) "Màn hình khi học: ${mode.getLabel(true)}." else "Screen during lessons: ${mode.getLabel(false)}."
         )
-        return appConfirmed("screen_awake_mode", mode.name)
+        return confirmedByModel("screen_awake_mode", mode.name, "Screen during lessons is now set to: ${mode.getLabel(false)}.")
     }
 
     /** Turning it off while offline stops the practice; turning it on while offline starts it. */
@@ -1356,7 +1376,7 @@ open class ConversationEngine @Inject constructor(
         learnerSettings = learnerSettings.copy(offlinePracticeEnabled = enabled)
         persist("offline practice") { settings.setOfflinePractice(enabled) }
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
-        announcer.announce(
+        confirmOutLoud(
             if (isVi) {
                 if (enabled) "Đã bật luyện offline khi mất sóng." else "Đã tắt luyện offline khi mất sóng."
             } else {
@@ -1771,7 +1791,6 @@ open class ConversationEngine @Inject constructor(
 
     private fun handleRepeatDrillSentence(call: LiveToolCall): Map<String, Any> {
         Log.i(TAG, "Live tool repeat_drill_sentence invoked")
-        announcer.announce("Đọc lại câu")
         val target = _drillTarget.value
         val instruction = if (target.isNullOrBlank()) {
             "The learner requested to hear the sentence again. Please repeat the sentence clearly and slowly. " +
@@ -1835,7 +1854,7 @@ open class ConversationEngine @Inject constructor(
             SessionMode.STORY_LISTENING -> replayStory()
             SessionMode.REPEAT_AFTER_ME -> {
                 val target = _drillTarget.value
-                announcer.announce("Đọc lại câu")
+                confirmOutLoud("Đọc lại câu")
                 scope.launch {
                     suspendRunCatching {
                         if (target.isNullOrBlank()) {
@@ -1873,7 +1892,7 @@ open class ConversationEngine @Inject constructor(
         if (_lesson.value?.mode != SessionMode.REPEAT_AFTER_ME) return false
         setDrillTarget(null)
         awaitingNewDrillTarget = true
-        announcer.announce("Chuyển câu tiếp theo")
+        confirmOutLoud("Chuyển câu tiếp theo")
         return true
     }
 
@@ -2549,9 +2568,33 @@ open class ConversationEngine @Inject constructor(
         }
     }
 
+    /**
+     * A change made from the transcript: the model did not call the tool, so it gets the tool's
+     * instruction as a note and confirms the change itself, as it would after the tool call.
+     */
+    private fun notifyModelOf(toolResult: Map<String, Any>, aiAnswering: Boolean, fallback: String? = null) {
+        val instruction = toolResult["instruction"] as? String ?: return
+        notifyModel("System: The app applied the learner's spoken request. $instruction", aiAnswering, fallback)
+    }
+
+    /**
+     * One voice per confirmation. While the AI tutor is in the conversation it confirms a change
+     * itself (from the tool result, or from a "System:" note when the change came from the
+     * transcript); the on-device voice would only talk over it, in another voice and language.
+     * The app reads [text] itself only when the AI cannot answer (paused, offline, reconnecting).
+     */
+    private fun confirmOutLoud(text: String) {
+        if (!aiCanSpeak()) announcer.announce(text)
+    }
+
+    private fun aiCanSpeak(): Boolean = _state.value == ConversationState.ACTIVE && liveClient.isConnected
+
     private fun applyVoiceCommand(command: VoiceCommand, aiAnswering: Boolean) {
         when (command) {
-            is VoiceCommand.SwitchMode -> applySessionModeSwitch(command.mode)
+            is VoiceCommand.SwitchMode -> applySessionModeSwitch(command.mode).let { result ->
+                // A real switch restarts the lesson and the app says so; only "already in it" needs the AI.
+                if (result["status"] == "already_active") notifyModelOf(result, aiAnswering)
+            }
             is VoiceCommand.SetLevel -> {
                 val level = command.level
                 applyDifficultyChange(level)
@@ -2661,12 +2704,13 @@ open class ConversationEngine @Inject constructor(
             VoiceCommand.ReplayStory -> replayStory()
             VoiceCommand.RepeatDrillSentence -> repeat()
             VoiceCommand.SkipDrillSentence -> next()
-            is VoiceCommand.SetDrillLength -> applyDrillSentenceLength(command.length)
-            is VoiceCommand.SetDrillCategory -> applyDrillCategory(command.drillCategory)
-            is VoiceCommand.AnswerLevelRecommendation -> answerLevelRecommendation(command.accept)
-            is VoiceCommand.SetAdaptiveLevel -> applyAdaptiveLevelChange(command.enabled)
-            is VoiceCommand.SetVolume -> applyAiVolume(command.volume)
-            is VoiceCommand.SetAutoPause -> applyAutoPauseWhenUnfocusedChange(command.enabled)
+            is VoiceCommand.SetDrillLength -> notifyModelOf(applyDrillSentenceLength(command.length), aiAnswering)
+            is VoiceCommand.SetDrillCategory -> notifyModelOf(applyDrillCategory(command.drillCategory), aiAnswering)
+            is VoiceCommand.AnswerLevelRecommendation ->
+                notifyModelOf(levelRecommendationResult(command.accept, answerLevelRecommendation(command.accept)), aiAnswering)
+            is VoiceCommand.SetAdaptiveLevel -> notifyModelOf(applyAdaptiveLevelChange(command.enabled), aiAnswering)
+            is VoiceCommand.SetVolume -> notifyModelOf(applyAiVolume(command.volume), aiAnswering)
+            is VoiceCommand.SetAutoPause -> notifyModelOf(applyAutoPauseWhenUnfocusedChange(command.enabled), aiAnswering)
             is VoiceCommand.SetLearnerMemory -> {
                 val enabled = command.enabled
                 applyLearnerMemoryChange(enabled)
@@ -2680,14 +2724,8 @@ open class ConversationEngine @Inject constructor(
                     aiAnswering
                 )
             }
-            is VoiceCommand.SetPracticeReminder -> {
-                applyPracticeReminderChange(command.enabled, command.minuteOfDay)
-                notifyModel(
-                    "System: The learner changed the daily practice reminder. It is already confirmed by the app; " +
-                        "just say one short friendly sentence and continue.",
-                    aiAnswering
-                )
-            }
+            is VoiceCommand.SetPracticeReminder ->
+                notifyModelOf(applyPracticeReminderChange(command.enabled, command.minuteOfDay), aiAnswering)
             is VoiceCommand.SetOfflinePractice -> {
                 applyOfflinePracticeChange(command.enabled)
                 notifyModel(
@@ -2696,10 +2734,10 @@ open class ConversationEngine @Inject constructor(
                     aiAnswering
                 )
             }
-            is VoiceCommand.SetAutoStartInCar -> applyAutoStartInCarChange(command.enabled)
-            is VoiceCommand.SetDailyGoal -> applyDailyGoalChange(command.minutes)
-            is VoiceCommand.SetAzureScoring -> applyAzureScoringChange(command.enabled)
-            is VoiceCommand.SetScreenAwake -> applyScreenAwakeChange(command.mode)
+            is VoiceCommand.SetAutoStartInCar -> notifyModelOf(applyAutoStartInCarChange(command.enabled), aiAnswering)
+            is VoiceCommand.SetDailyGoal -> notifyModelOf(applyDailyGoalChange(command.minutes), aiAnswering)
+            is VoiceCommand.SetAzureScoring -> notifyModelOf(applyAzureScoringChange(command.enabled), aiAnswering)
+            is VoiceCommand.SetScreenAwake -> notifyModelOf(applyScreenAwakeChange(command.mode), aiAnswering)
             is VoiceCommand.SetStreakFreeze -> {
                 applyStreakFreezeChange(command.enabled)
                 notifyModel(
@@ -2726,8 +2764,10 @@ open class ConversationEngine @Inject constructor(
                     aiAnswering
                 )
             }
-            VoiceCommand.GetWeeklyDigest -> {
-                scope.launch { handleGetWeeklyDigest() }
+            VoiceCommand.GetWeeklyDigest -> scope.launch {
+                // The learner asked for it, so the AI reads it in a turn of its own even if it already started answering.
+                val result = handleGetWeeklyDigest()
+                notifyModelOf(result, aiAnswering = false, fallback = result["digest"] as? String)
             }
             is VoiceCommand.SetWeeklyDigest -> {
                 val enabled = command.enabled
