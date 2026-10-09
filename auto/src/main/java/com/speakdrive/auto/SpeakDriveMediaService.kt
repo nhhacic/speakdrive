@@ -113,7 +113,7 @@ class SpeakDriveMediaService : MediaLibraryService() {
         // When Media3 must start the foreground service (playback resumption from the car), always
         // post the notification, even before the engine has left IDLE.
         if (!engine.state.value.isInLesson && !startInForegroundRequired) {
-            dismissNotificationAndStopIfIdle()
+            dismissNotificationOnly()
             return Futures.immediateFuture(null)
         }
         val future = super.onUpdateNotificationAsync(session, startInForegroundRequired)
@@ -124,9 +124,9 @@ class SpeakDriveMediaService : MediaLibraryService() {
     }
 
     /**
-     * Stops the foreground service and removes any stale notification when no lesson is active.
+     * Removes foreground status and stale notification without stopping the service.
      */
-    private fun dismissNotificationAndStopIfIdle() {
+    private fun dismissNotificationOnly() {
         try {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         } catch (e: Exception) {
@@ -138,9 +138,16 @@ class SpeakDriveMediaService : MediaLibraryService() {
             notificationManager?.cancel(notificationId)
         }
         notificationProvider.clearLatest()
+    }
+
+    /**
+     * Stops the foreground service and removes any stale notification when no lesson is active.
+     */
+    private fun dismissNotificationAndStopIfIdle() {
+        dismissNotificationOnly()
 
         // If car is not connected and no lesson is in progress, stop the service.
-        if (!engine.isCarConnected.value) {
+        if (!engine.isCarConnected.value && !engine.state.value.isInLesson) {
             pauseAllPlayersAndStopSelf()
         }
     }
@@ -196,17 +203,22 @@ class SpeakDriveMediaService : MediaLibraryService() {
         if (controller.uid == android.os.Process.myUid()) return true
 
         // 2. System UID (Media notification, lockscreen controls, Bluetooth system routing)
-        if (controller.uid == android.os.Process.SYSTEM_UID) return true
+        if (controller.uid == android.os.Process.SYSTEM_UID || controller.uid == 1000 || controller.uid == 0) return true
 
         // 3. Trusted Media3 controller or matching package names
         val pkg = controller.packageName
-        if (controller.isTrusted || pkg == packageName || pkg == "com.speakdrive.ai" || pkg == "com.speakdrive" || pkg in TRUSTED_CONTROLLERS) return true
+        if (controller.isTrusted || pkg.isEmpty() || pkg == packageName || pkg == applicationContext.packageName || pkg == "com.speakdrive.ai" || pkg == "com.speakdrive" || pkg in TRUSTED_CONTROLLERS) return true
 
         // 4. System packages (Bluetooth, Android Auto, System UI, etc.)
-        return runCatching {
+        val isSystem = runCatching {
             val flags = packageManager.getApplicationInfo(pkg, 0).flags
             flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
         }.getOrDefault(false)
+        if (isSystem) return true
+
+        // 5. Common system/auto/media prefixes to avoid rejecting car headunits or OEM media routers
+        val lowerPkg = pkg.lowercase()
+        return lowerPkg.contains("android") || lowerPkg.contains("auto") || lowerPkg.contains("systemui") || lowerPkg.contains("bluetooth") || lowerPkg.contains("media")
     }
 
     private fun launchAppIntent(): PendingIntent? {
@@ -221,13 +233,14 @@ class SpeakDriveMediaService : MediaLibraryService() {
          * system (notification, Bluetooth / steering-wheel buttons), Android Auto and Assistant.
          */
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
+            Log.d(TAG, "onConnect from ${controller.packageName} (uid=${controller.uid}, isTrusted=${controller.isTrusted})")
             if (!isAllowedController(controller)) {
                 Log.w(TAG, "Rejected media controller ${controller.packageName} (uid=${controller.uid})")
                 return MediaSession.ConnectionResult.reject()
             }
             val repeatCommand = SessionCommand(CUSTOM_ACTION_REPEAT, Bundle.EMPTY)
             val nextCommand = SessionCommand(CUSTOM_ACTION_NEXT, Bundle.EMPTY)
-            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
                 .add(repeatCommand)
                 .add(nextCommand)
                 .build()
@@ -246,6 +259,7 @@ class SpeakDriveMediaService : MediaLibraryService() {
 
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(sessionCommands)
+                .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
                 .setCustomLayout(ImmutableList.of(repeatButton, nextButton))
                 .build()
         }
