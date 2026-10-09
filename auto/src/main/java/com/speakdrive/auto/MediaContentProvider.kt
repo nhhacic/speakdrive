@@ -336,12 +336,11 @@ class MediaContentProvider @Inject constructor(
 
         val (title, subtitle, artist) = when {
             hasTarget -> {
-                val title = drillTarget
-                val subtitle = if (!drillTargetTranslation.isNullOrBlank()) {
-                    "🇻🇳 $drillTargetTranslation"
-                } else {
-                    "🗣️ Nhắc lại theo AI"
-                }
+                // The artwork already shows the whole sentence and its translation. With the
+                // sentence as title too, Android Auto's title took two lines and covered the
+                // artwork; a fixed one-line title keeps its block short.
+                val title = "🎯 Nhắc lại theo AI"
+                val subtitle = "${lesson.topic.emoji} ${lesson.topic.titleVi}"
                 val artist = "${lesson.level.displayName} • SpeakDrive"
                 Triple(title, subtitle, artist)
             }

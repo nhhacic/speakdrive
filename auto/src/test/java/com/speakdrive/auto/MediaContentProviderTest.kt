@@ -174,26 +174,7 @@ class MediaContentProviderTest {
     }
 
     @Test
-    fun `lesson item shows AI text and repeat target on Android Auto`() {
-        val lesson = ActiveLesson("id", topics.getTopicById("travel")!!, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0, emptyList())
-
-        val item = provider.lessonItem(
-            lesson = lesson,
-            state = ConversationState.ACTIVE,
-            transcript = listOf(TranscriptTurn(1, Speaker.AI, "Repeat after me: I'd like a window seat, please.", 0)),
-            drillTarget = "I'd like a window seat, please."
-        )
-
-        assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
-        assertThat(item.mediaMetadata.title.toString()).isEqualTo("I'd like a window seat, please.")
-        assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("🗣️ Nhắc lại theo AI")
-        assertThat(item.mediaMetadata.artist.toString()).contains("Intermediate")
-        assertThat(item.mediaMetadata.artworkData).isNotNull()
-        assertThat(item.mediaMetadata.artworkData!!.isNotEmpty()).isTrue()
-    }
-
-    @Test
-    fun `lesson item displays translation subtitle when provided`() {
+    fun `repeat target goes on the artwork, not in Android Auto's title`() {
         val lesson = ActiveLesson("id", topics.getTopicById("travel")!!, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0, emptyList())
 
         val item = provider.lessonItem(
@@ -204,10 +185,14 @@ class MediaContentProviderTest {
             drillTargetTranslation = "Tôi muốn một chỗ ngồi cạnh cửa sổ, làm ơn."
         )
 
+        // A short fixed title keeps Android Auto's title block to one line, so it does not cover
+        // the sentence and translation drawn on the artwork.
         assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
-        assertThat(item.mediaMetadata.title.toString()).isEqualTo("I'd like a window seat, please.")
-        assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("🇻🇳 Tôi muốn một chỗ ngồi cạnh cửa sổ, làm ơn.")
+        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 Nhắc lại theo AI")
+        assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("${lesson.topic.emoji} ${lesson.topic.titleVi}")
+        assertThat(item.mediaMetadata.artist.toString()).contains("Intermediate")
         assertThat(item.mediaMetadata.artworkData).isNotNull()
+        assertThat(item.mediaMetadata.artworkData!!.isNotEmpty()).isTrue()
     }
 
     @Test

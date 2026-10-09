@@ -137,9 +137,9 @@ class AutoCardArtworkGenerator @Inject constructor() {
     // ---------------------------------------------------------------------------------------------
 
     /**
-     * Repeat drill: a small label, the English sentence in big white letters, a short divider and
-     * the Vietnamese meaning in yellow. Picks the largest size at which the whole sentence and the
-     * whole translation fit, so neither is cut off.
+     * Repeat drill: the English sentence in big white letters, a short divider and the Vietnamese
+     * meaning in yellow; Android Auto's own title already says it is a repeat drill. Picks the
+     * largest size at which the whole sentence and the whole translation fit, so neither is cut off.
      */
     internal fun layoutRepeatCard(targetText: String, translationText: String?): CardLayout {
         val target = targetText.trim()
@@ -150,11 +150,9 @@ class AutoCardArtworkGenerator @Inject constructor() {
             ?.takeIf { it.isNotEmpty() }
         val translationColor = if (translation != null) COLOR_TRANSLATION else COLOR_TEXT_MUTED
         val secondLine = translation ?: NO_TRANSLATION_HINT
-        val label = labelLayout(REPEAT_LABEL, COLOR_ACCENT)
 
         for (targetSize in TARGET_TEXT_SIZES) {
             val card = repeatCard(
-                label,
                 textLayout(target, targetPaint(targetSize)),
                 textLayout(secondLine, secondaryPaint(translationSizeFor(targetSize), translationColor)),
                 targetSize
@@ -164,21 +162,20 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
         // Only reachable for paragraph-long "sentences": clamp both to the space left.
         val targetSize = TARGET_TEXT_SIZES.last()
-        val textBudget = SAFE_HEIGHT - label.height - LABEL_GAP - DIVIDER_GAP
+        val textBudget = SAFE_HEIGHT - DIVIDER_GAP
         val translationLayout = textLayout(
             secondLine,
             secondaryPaint(translationSizeFor(targetSize), translationColor),
             maxHeight = (textBudget * 0.4f).toInt()
         )
         val targetLayout = textLayout(target, targetPaint(targetSize), maxHeight = textBudget - translationLayout.height)
-        return repeatCard(label, targetLayout, translationLayout, targetSize)
+        return repeatCard(targetLayout, translationLayout, targetSize)
     }
 
-    private fun repeatCard(label: StaticLayout, target: StaticLayout, translation: StaticLayout, targetSize: Float) =
+    private fun repeatCard(target: StaticLayout, translation: StaticLayout, targetSize: Float) =
         CardLayout(
             blocks = listOf(
-                CardBlock(label, gapBefore = 0),
-                CardBlock(target, gapBefore = LABEL_GAP),
+                CardBlock(target, gapBefore = 0),
                 CardBlock(translation, gapBefore = DIVIDER_GAP, dividerBefore = true)
             ),
             mainTextSize = targetSize
@@ -207,16 +204,6 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
     /** Top of the text stack, centred vertically inside the safe box. */
     private fun blockTop(card: CardLayout): Int = SAFE_TOP + max(0, (SAFE_HEIGHT - card.height) / 2)
-
-    private fun labelLayout(text: String, color: Int): StaticLayout {
-        val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.color = color
-            textSize = LABEL_TEXT_SIZE
-            typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.06f
-        }
-        return textLayout(text, paint, maxHeight = (LABEL_TEXT_SIZE * 1.6f).toInt())
-    }
 
     /** The English sentence: white and extra heavy, so it survives Android Auto's blur and scrim. */
     private fun targetPaint(size: Float) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -652,10 +639,8 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val TARGET_TEXT_SIZES = floatArrayOf(44f, 41f, 38f, 35f, 32f, 30f, 28f, 26f, 24f, 22f, 20f, 18f)
         private const val TRANSLATION_SCALE = 0.8f
         private const val MIN_TRANSLATION_SIZE = 16f
-        private const val LABEL_TEXT_SIZE = 17f
         private const val LINE_SPACING = 1.12f
 
-        private const val LABEL_GAP = 16
         private const val DIVIDER_GAP = 26
         private const val DIVIDER_WIDTH = 56f
         private const val DIVIDER_THICKNESS = 4f
@@ -681,7 +666,6 @@ class AutoCardArtworkGenerator @Inject constructor() {
         private val PROP_POSITIONS = listOf(192f to 92f, 188f to 292f, 412f to 292f)
         private const val FALLBACK_HERO = "📖"
 
-        private const val REPEAT_LABEL = "🎯 NHẮC LẠI THEO AI"
         private const val NO_TRANSLATION_HINT = "Nghe và nhắc lại"
         private const val CHAT_PLACEHOLDER = "• • •"
         private const val VN_FLAG = "🇻🇳"
