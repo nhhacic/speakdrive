@@ -107,14 +107,14 @@ class AutoCardArtworkGenerator @Inject constructor() {
         targetText: String,
         translationText: String? = null
     ) {
-        val padX = 54f
+        val padX = 24f
         val boxWidth = width - 2 * padX
 
-        // Central Safe Zone Hero Card: avoid top 0-75px blur/icon overlay & bottom controls
-        val heroBoxTop = 75f
-        val heroBoxBottom = 285f
+        // Full-frame Hero Card that beautifully fills Android Auto's album artwork canvas
+        val heroBoxTop = 24f
+        val heroBoxBottom = 576f
         val heroBoxRect = RectF(padX, heroBoxTop, width - padX, heroBoxBottom)
-        val heroRadius = 24f
+        val heroRadius = 32f
 
         val heroBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_TARGET_HERO_BG
@@ -123,15 +123,15 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val heroBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_TARGET_BORDER
             style = Paint.Style.STROKE
-            strokeWidth = 3f
+            strokeWidth = 3.5f
         }
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBgPaint)
         canvas.drawRoundRect(heroBoxRect, heroRadius, heroRadius, heroBorderPaint)
 
-        // 1. Pill Badge at top center of Hero Box (below top dark blur)
-        val badgeTop = heroBoxTop + 8f
-        val badgeBottom = badgeTop + 24f
-        val badgeWidth = 190f
+        // 1. Pill Badge at top center of Hero Box
+        val badgeTop = heroBoxTop + 18f
+        val badgeBottom = badgeTop + 32f
+        val badgeWidth = 230f
         val badgeLeft = (width - badgeWidth) / 2f
         val badgeRight = badgeLeft + badgeWidth
         val badgeRect = RectF(badgeLeft, badgeTop, badgeRight, badgeBottom)
@@ -145,27 +145,24 @@ class AutoCardArtworkGenerator @Inject constructor() {
             style = Paint.Style.STROKE
             strokeWidth = 1.5f
         }
-        canvas.drawRoundRect(badgeRect, 12f, 12f, pillBgPaint)
-        canvas.drawRoundRect(badgeRect, 12f, 12f, pillBorderPaint)
+        canvas.drawRoundRect(badgeRect, 16f, 16f, pillBgPaint)
+        canvas.drawRoundRect(badgeRect, 16f, 16f, pillBorderPaint)
 
         val badgeText = "🎯 LẶP LẠI THEO AI"
         val badgePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = 0xFFFFFFFF.toInt()
-            textSize = 12f
+            textSize = 13.5f
             typeface = Typeface.DEFAULT_BOLD
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText(badgeText, width / 2f, badgeTop + 16.5f, badgePaint)
+        canvas.drawText(badgeText, width / 2f, badgeTop + 21.5f, badgePaint)
 
-        // Inner layout width with comfortable margin
-        val innerPadX = 16f
+        // Inner layout width with generous margins for comfortable reading
+        val innerPadX = 24f
         val textLayoutWidth = (boxWidth - 2 * innerPadX).toInt().coerceAtLeast(100)
-        val contentTopY = badgeBottom + 8f
-        val contentBottomY = heroBoxBottom - 10f
+        val contentTopY = badgeBottom + 16f
+        val contentBottomY = heroBoxBottom - 20f
         val maxAvailableHeight = contentBottomY - contentTopY
-
-        // Push text to top of safe area, comfortably below the blurred header zone
-        val startY = contentTopY + 2f
 
         val hasTranslation = !translationText.isNullOrBlank()
         val translation = if (hasTranslation) {
@@ -173,15 +170,15 @@ class AutoCardArtworkGenerator @Inject constructor() {
         } else {
             "🗣️ Lắng nghe và nhắc lại theo AI"
         }
-        val spacing = 8f
+        val spacing = 16f
 
         // Candidate font size pairs: (English size, Translation size)
         val sizePairs = listOf(
-            19f to 14.5f,
-            17.5f to 13.5f,
-            16f to 12.5f,
-            14.5f to 11.5f,
-            13f to 10.5f
+            28f to 21f,
+            25f to 19f,
+            22f to 17f,
+            19f to 15f,
+            17f to 13.5f
         )
 
         var chosenEnglishLayout: StaticLayout? = null
@@ -193,13 +190,13 @@ class AutoCardArtworkGenerator @Inject constructor() {
                 textSize = enSize
                 typeface = Typeface.DEFAULT_BOLD
                 isFakeBoldText = true
-                setShadowLayer(4f, 0f, 1f, 0xCC000000.toInt())
+                setShadowLayer(5f, 0f, 2f, 0xCC000000.toInt())
             }
             val enLayout = StaticLayout.Builder.obtain(targetText, 0, targetText.length, enPaint, textLayoutWidth)
                 .setAlignment(Layout.Alignment.ALIGN_CENTER)
                 .setIncludePad(false)
-                .setLineSpacing(3f, 1.15f)
-                .setMaxLines(5)
+                .setLineSpacing(4f, 1.15f)
+                .setMaxLines(6)
                 .build()
 
             val trPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -207,13 +204,13 @@ class AutoCardArtworkGenerator @Inject constructor() {
                 textSize = trSize
                 typeface = Typeface.DEFAULT_BOLD
                 isFakeBoldText = true
-                setShadowLayer(3f, 0f, 1f, 0xCC000000.toInt())
+                setShadowLayer(4f, 0f, 1.5f, 0xCC000000.toInt())
             }
             val trLayout = StaticLayout.Builder.obtain(translation, 0, translation.length, trPaint, textLayoutWidth)
                 .setAlignment(Layout.Alignment.ALIGN_CENTER)
                 .setIncludePad(false)
-                .setLineSpacing(3f, 1.15f)
-                .setMaxLines(4)
+                .setLineSpacing(4f, 1.15f)
+                .setMaxLines(5)
                 .build()
 
             val totalH = enLayout.height + spacing + trLayout.height
@@ -226,8 +223,10 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
         val enLayout = chosenEnglishLayout!!
         val trLayout = chosenTransLayout!!
+        val totalH = enLayout.height + spacing + trLayout.height
+        val startY = contentTopY + ((maxAvailableHeight - totalH) / 2f).coerceAtLeast(0f)
 
-        // Draw English Target (Top-aligned in safe area)
+        // Draw English Target (Centered vertically in content area)
         canvas.save()
         canvas.translate(padX + innerPadX, startY)
         enLayout.draw(canvas)
@@ -242,7 +241,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
     }
 
     /**
-     * Clean conversation/story card in the top safe zone (y: 12f -> 290f) when no specific drill target is active.
+     * Clean conversation/story card that fills the artwork canvas when no specific drill target is active.
      */
     private fun renderGeneralConversationScreen(
         canvas: Canvas,
@@ -251,15 +250,15 @@ class AutoCardArtworkGenerator @Inject constructor() {
         lastAiText: String?,
         isStory: Boolean
     ) {
-        val padX = 54f
+        val padX = 24f
         val boxWidth = width - 2 * padX
 
-        // Central Card in Safe Zone (y: 75f -> 285f = 210f height)
-        val mainBoxTop = 75f
-        val mainBoxBottom = 285f
+        // Full-frame Card (y: 24f -> 576f = 552f height)
+        val mainBoxTop = 24f
+        val mainBoxBottom = 576f
         val mainBoxHeight = mainBoxBottom - mainBoxTop
         val mainBoxRect = RectF(padX, mainBoxTop, width - padX, mainBoxBottom)
-        val boxRadius = 24f
+        val boxRadius = 32f
 
         val mainBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_BOX_BG
@@ -268,29 +267,29 @@ class AutoCardArtworkGenerator @Inject constructor() {
         val mainBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = if (isStory) COLOR_AI_LABEL else COLOR_FREE_LABEL
             style = Paint.Style.STROKE
-            strokeWidth = 2.5f
+            strokeWidth = 3f
         }
         canvas.drawRoundRect(mainBoxRect, boxRadius, boxRadius, mainBgPaint)
         canvas.drawRoundRect(mainBoxRect, boxRadius, boxRadius, mainBorderPaint)
 
-        val innerPadX = 18f
+        val innerPadX = 24f
         val textLayoutWidth = (boxWidth - 2 * innerPadX).toInt().coerceAtLeast(100)
 
         // 1. Content label inside top of card
         val labelPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = if (isStory) COLOR_AI_LABEL else COLOR_FREE_LABEL
-            textSize = 14f
+            textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
         }
         val label = if (isStory) "📖 NỘI DUNG CÂU CHUYỆN:" else "🤖 GIA SƯ AI NÓI:"
-        canvas.drawText(label, padX + innerPadX, mainBoxTop + 28f, labelPaint)
+        canvas.drawText(label, padX + innerPadX, mainBoxTop + 36f, labelPaint)
 
         // 2. AI Content / Story Text
         val aiContent = lastAiText?.takeIf { it.isNotBlank() }
             ?: if (isStory) "Đang chuẩn bị câu chuyện thú vị cho bạn…" else "Đang kết nối với gia sư AI…"
 
-        val maxAvailableContentHeight = mainBoxHeight - 48f
-        val candidateFontSizes = floatArrayOf(23f, 20f, 18f, 16f)
+        val maxAvailableContentHeight = mainBoxHeight - 64f
+        val candidateFontSizes = floatArrayOf(24f, 21f, 18f, 16f)
         var chosenAiLayout: StaticLayout? = null
 
         for (fontSize in candidateFontSizes) {
@@ -299,13 +298,13 @@ class AutoCardArtworkGenerator @Inject constructor() {
                 textSize = fontSize
                 typeface = Typeface.DEFAULT
                 isFakeBoldText = (fontSize <= 20f)
-                setShadowLayer(3f, 0f, 1f, 0x80000000.toInt())
+                setShadowLayer(4f, 0f, 1.5f, 0x80000000.toInt())
             }
             val aiLayout = StaticLayout.Builder.obtain(aiContent, 0, aiContent.length, aiTextPaint, textLayoutWidth)
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                 .setIncludePad(false)
                 .setLineSpacing(4f, 1.15f)
-                .setMaxLines(6)
+                .setMaxLines(9)
                 .setEllipsize(TextUtils.TruncateAt.END)
                 .build()
 
@@ -317,7 +316,7 @@ class AutoCardArtworkGenerator @Inject constructor() {
 
         val aiLayout = chosenAiLayout!!
         canvas.save()
-        canvas.translate(padX + innerPadX, mainBoxTop + 40f)
+        canvas.translate(padX + innerPadX, mainBoxTop + 54f)
         aiLayout.draw(canvas)
         canvas.restore()
     }
