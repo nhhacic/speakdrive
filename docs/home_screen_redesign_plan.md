@@ -1,5 +1,7 @@
 # Kế hoạch: Bố trí lại màn hình chính (Home) trên điện thoại
 
+**Trạng thái: đã làm cả 3 giai đoạn trong v1.6.0.** Người dùng đã chốt: 5 chủ đề gợi ý + màn "Tất cả chủ đề", có ô IELTS, bỏ 2 icon đầu trang, làm liền 3 giai đoạn.
+
 Ngày khảo sát: 2026-10-09, bản v1.5.12 (Build 62), trên Galaxy Z Fold7 (màn ngoài 1080×2520, 420dpi ≈ 411dp ngang, **cỡ chữ hệ thống 150%**).
 
 ## 1. Hiện trạng (đo trên máy thật)

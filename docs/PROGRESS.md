@@ -108,6 +108,18 @@ Ký hiệu:
 | Giao diện đủ 8 ngôn ngữ (de/es/fr/ja/ko/zh trước đây chỉ dịch 72/369 chuỗi) | ✅ lint chặn thiếu bản dịch |
 | Script đồng bộ hai máy: không tự commit việc làm dở, pull chỉ fast-forward, receiver chỉ nghe trên Tailscale | ✅ (đồng bộ tự động đã tắt theo yêu cầu) |
 
+## Màn hình chính mới 09/10/2026 (v1.6.0)
+| Hạng mục | Trạng thái |
+|---|---|
+| Bố cục mới: đầu trang 1 dòng, thẻ Tiếp tục, dải Hôm nay, hàng Cần ôn, lưới 2×2 chế độ, 5 chủ đề gợi ý | ✅ `HomeLayoutTest` (có kiểm tra ở cỡ chữ 150%) |
+| Màn "Tất cả chủ đề" có tìm kiếm và lọc theo nhóm (`Topic.category`) | ✅ `HomeLayoutTest` |
+| Ô IELTS Speaking và Nhập vai (kịch bản riêng, tình huống AI) trên trang chủ | ✅ `HomeLayoutTest` |
+| Nút 🎙 Nói lệnh trên trang chủ (SpeechRecognizer → `VoiceCommandHandler`) | ✅ test trạng thái nút; 🧪 thử giọng thật trên máy |
+| Thanh "đang học" thu nhỏ ở các tab khác, banner khi kết nối Android Auto | ✅ `HomeLayoutTest` |
+| Màn rộng ≥ 600dp (Fold mở ra): 2 cột | ✅ `HomeLayoutTest`; 🧪 mở máy gập để xem |
+
+Chi tiết: [home_screen_redesign_plan.md](home_screen_redesign_plan.md)
+
 ## Thay đổi so với kế hoạch gốc
 
 - **Audio**: module `audio` có pipeline riêng (`LiveAudioIO`): ưu tiên đường cuộc gọi (khử vọng phần
