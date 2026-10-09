@@ -406,6 +406,66 @@ class SpeakDrivePlayerTest {
         assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.FREE_TALK)
     }
 
+    /** After a lesson ends the engine stays ENDED; the next pick must start what was picked, not the last mode. */
+    private fun pickAfterEndedLesson(mediaId: String): LessonRequest? {
+        settings.current = settings.current.copy(lastTopicId = "travel", lastSessionMode = SessionMode.REPEAT_AFTER_ME)
+        lessonFlow.value = null
+        stateFlow.value = ConversationState.ENDED
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        player.setMediaItem(MediaItem.Builder().setMediaId(mediaId).build())
+        player.prepare()
+        player.play()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+        return testEngine.lastStartRequest
+    }
+
+    @Test
+    fun `picking a topic after a pronunciation lesson ended starts FREE_TALK on that topic`() = runTest(testDispatcher) {
+        val request = pickAfterEndedLesson(MediaIds.topic("work"))
+        assertThat(request?.mode).isEqualTo(SessionMode.FREE_TALK)
+        assertThat(request?.topicId).isEqualTo("work")
+    }
+
+    @Test
+    fun `picking a scenario after a pronunciation lesson ended starts ROLEPLAY`() = runTest(testDispatcher) {
+        val request = pickAfterEndedLesson(MediaIds.scenario("hotel_checkin"))
+        assertThat(request?.mode).isEqualTo(SessionMode.ROLEPLAY)
+        assertThat(request?.scenarioId).isEqualTo("hotel_checkin")
+    }
+
+    @Test
+    fun `picking review or a story after a pronunciation lesson ended starts that mode`() = runTest(testDispatcher) {
+        assertThat(pickAfterEndedLesson(MediaIds.REVIEW)?.mode).isEqualTo(SessionMode.VOCAB_REVIEW)
+        assertThat(pickAfterEndedLesson(MediaIds.STORY_RECOMMENDED)?.mode).isEqualTo(SessionMode.STORY_LISTENING)
+    }
+
+    @Test
+    fun `play arriving while the old lesson is ending still starts the new pick, not the last mode`() = runTest(testDispatcher) {
+        settings.current = settings.current.copy(lastTopicId = "travel", lastSessionMode = SessionMode.REPEAT_AFTER_ME)
+        activeLesson(SessionMode.REPEAT_AFTER_ME)
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        // Picking during a lesson starts at once; the engine then ends the old lesson first.
+        player.setMediaItem(MediaItem.Builder().setMediaId(MediaIds.topic("work")).build())
+        testDispatcher.scheduler.advanceUntilIdle()
+        lessonFlow.value = null
+        stateFlow.value = ConversationState.ENDED
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        player.prepare()
+        player.play()
+        testDispatcher.scheduler.advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertThat(testEngine.lastStartRequest?.mode).isEqualTo(SessionMode.FREE_TALK)
+        assertThat(testEngine.lastStartRequest?.topicId).isEqualTo("work")
+    }
+
     @Test
     fun `picking free talk on the topic of a running pronunciation drill switches to FREE_TALK`() = runTest(testDispatcher) {
         lessonFlow.value = ActiveLesson(

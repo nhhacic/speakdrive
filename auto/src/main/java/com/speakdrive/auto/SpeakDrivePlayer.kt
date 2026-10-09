@@ -40,6 +40,10 @@ class SpeakDrivePlayer(
     /** What the learner picked last, shown before the lesson connects and after it ends. */
     private var selectedItem: MediaItem? = null
 
+    /** The pick startFromItem() started last, and the lesson that was running when it did. */
+    private var startedPick: MediaItem? = null
+    private var sessionBeforePick: String? = null
+
     init {
         scope.launch {
             combine(
@@ -86,10 +90,11 @@ class SpeakDrivePlayer(
     override fun getState(): State {
         val engineState = engine.state.value
         val lesson = engine.lesson.value
-        if (lesson != null && isSameAsCurrentLesson(selectedItem)) {
-            selectedItem = null
-        }
-        if (engineState == ConversationState.ENDED) {
+        // A pick is used up once the lesson it started is running. Never drop it just because the last
+        // lesson ENDED: the engine stays ENDED until the next start, so the play() that follows a pick
+        // found nothing selected and restarted the last mode (Resume) instead of the picked one.
+        val pickHasStarted = selectedItem != null && selectedItem === startedPick && lesson?.sessionId != sessionBeforePick
+        if (lesson != null && (isSameAsCurrentLesson(selectedItem) || pickHasStarted)) {
             selectedItem = null
         }
         val isSwitching = engineState.isInLesson && selectedItem != null && !isSameAsCurrentLesson(selectedItem)
@@ -222,7 +227,9 @@ class SpeakDrivePlayer(
 
     private suspend fun startFromItem(item: MediaItem?) {
         val mediaId = item?.mediaId ?: MediaIds.RESUME
-        if (startingMediaId == mediaId && engine.state.value.isInLesson) {
+        // setMediaItems() and play() both start a pick; while the first start runs (ending the old
+        // lesson on the way, so the state is briefly ENDED) the second must not start it again.
+        if (startingMediaId == mediaId) {
             return
         }
         startingMediaId = mediaId
@@ -238,6 +245,8 @@ class SpeakDrivePlayer(
                 invalidateState()
                 return
             }
+            startedPick = item
+            sessionBeforePick = engine.lesson.value?.sessionId
             engine.start(request)
         } finally {
             startingMediaId = null
