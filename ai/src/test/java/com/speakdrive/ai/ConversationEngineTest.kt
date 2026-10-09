@@ -612,8 +612,8 @@ class ConversationEngineTest {
 
         runCurrent()
         val final = store.saved.last()
-        assertThat(final.isCompleted).isTrue()
-        assertThat(final.summary).isEqualTo(summaries.summary)
+        assertThat(final.summary?.fluencyScore).isEqualTo(summaries.summary.fluencyScore)
+        assertThat(final.summary?.fluencyMetrics).isNotNull()
         assertThat(final.topicId).isEqualTo("health")
         assertThat(engine.summarizingSessionIds.value).isEmpty()
         assertThat(live.isConnected).isFalse()

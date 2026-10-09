@@ -48,6 +48,7 @@ class VoiceSettingsToolsTest {
             VoiceSettingsTools.SET_DAILY_GOAL_FUNCTION,
             VoiceSettingsTools.SET_AZURE_SCORING_FUNCTION,
             VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION,
+            VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION,
             VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION
         )
     }
@@ -570,5 +571,23 @@ class VoiceSettingsToolsTest {
         assertThat(VoiceSettingsTools.parseScreenAwakeMode("theo máy")).isEqualTo(ScreenAwakeMode.FOLLOW_SYSTEM)
         assertThat(VoiceSettingsTools.parseScreenAwakeMode("sau 2 phút")).isEqualTo(ScreenAwakeMode.AFTER_2_MINUTES)
         assertThat(VoiceSettingsTools.parseScreenAwakeMode("blue")).isNull()
+    }
+
+    @Test
+    fun `parseBetterPhrasing handles boolean and natural language keywords`() {
+        assertThat(VoiceSettingsTools.parseBetterPhrasing(true)).isTrue()
+        assertThat(VoiceSettingsTools.parseBetterPhrasing(false)).isFalse()
+        assertThat(VoiceSettingsTools.parseBetterPhrasing("bật")).isTrue()
+        assertThat(VoiceSettingsTools.parseBetterPhrasing("on")).isTrue()
+        assertThat(VoiceSettingsTools.parseBetterPhrasing("enable")).isTrue()
+        assertThat(VoiceSettingsTools.parseBetterPhrasing("gợi ý nói hay hơn")).isTrue()
+        assertThat(VoiceSettingsTools.parseBetterPhrasing("tắt")).isFalse()
+        assertThat(VoiceSettingsTools.parseBetterPhrasing("off")).isFalse()
+        assertThat(VoiceSettingsTools.parseBetterPhrasing("disable")).isFalse()
+        assertThat(VoiceSettingsTools.parseBetterPhrasing("maybe")).isNull()
+
+        val names = VoiceSettingsTools.allTools.map { it.name }
+        assertThat(names).contains(VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION)
+        assertThat(VoiceSettingsTools.setBetterPhrasingTool.description).contains("turn on better phrasing")
     }
 }

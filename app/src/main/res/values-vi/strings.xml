@@ -73,6 +73,17 @@
     <string name="settings_azure_status_ok">✓ Kết nối Azure thành công</string>
     <string name="settings_azure_status_error">✗ Kết nối thất bại: %1$s</string>
     <string name="settings_version_footer">SpeakDrive v%1$s\nAI: %2$s • %3$s</string>
+    <string name="settings_dashboard_summary_title">Cấu hình học tập của bạn</string>
+    <string name="settings_category_all">Tất cả cài đặt</string>
+    <string name="settings_view_all">Xem toàn bộ</string>
+    <string name="settings_view_categories">Theo danh mục</string>
+    <string name="settings_back_to_categories">Quay lại danh mục</string>
+    <string name="settings_sub_drill_title">Luyện phản xạ câu (Drill)</string>
+    <string name="settings_sub_story_title">Kể chuyện &amp; Luyện nghe</string>
+    <string name="settings_sub_voice_title">Giọng đọc AI &amp; Âm lượng</string>
+    <string name="settings_sub_speech_interaction">Tương tác thoại rảnh tay</string>
+    <string name="settings_sub_car_automation">Tự động hóa khi lái xe</string>
+    <string name="settings_sub_display_subtitles">Màn hình &amp; Phụ đề</string>
 
     <!-- Home Screen -->
     <string name="home_all_topics">Chủ đề luyện tập</string>
@@ -461,4 +472,18 @@
     <string name="vocab_practice_word_with_ai">Luyện từ này với AI</string>
     <string name="progress_session_vocab_review">📝 Ôn tập từ vựng</string>
     <string name="progress_session_pronunciation">🗣️ Phát âm: %1$s</string>
+
+    <!-- Quản lý & Sao lưu dữ liệu -->
+    <string name="settings_group_data">Sao lưu &amp; Dữ liệu</string>
+    <string name="settings_backup_title">Sao lưu dữ liệu</string>
+    <string name="settings_backup_desc">Xuất toàn bộ lịch sử học, từ vựng và trí nhớ người học ra file JSON.</string>
+    <string name="settings_restore_title">Khôi phục dữ liệu</string>
+    <string name="settings_restore_desc">Nhập lại lịch sử học và từ vựng từ file sao lưu JSON.</string>
+    <string name="settings_anki_title">Xuất từ vựng sang Anki</string>
+    <string name="settings_anki_desc">Xuất sổ tay từ vựng sang thẻ học flashcard Anki (định dạng TSV).</string>
+    <string name="settings_backup_success">Sao lưu dữ liệu thành công</string>
+    <string name="settings_restore_success">Đã khôi phục %1$d buổi học và %2$d từ vựng</string>
+    <string name="settings_anki_success">Đã xuất %1$d từ sang file Anki</string>
+    <string name="settings_backup_error">Sao lưu thất bại: %1$s</string>
+    <string name="settings_restore_error">Khôi phục thất bại: %1$s</string>
 </resources>

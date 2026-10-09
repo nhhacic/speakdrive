@@ -179,6 +179,8 @@ class MediaContentProvider @Inject constructor(
             SessionMode.MISTAKE_REVIEW -> "🔁 Ôn lỗi sai"
             SessionMode.STORY_LISTENING ->
                 "🎧 Luyện nghe kể chuyện" + (lastTopic?.let { " • ${it.titleVi}" } ?: "")
+            SessionMode.IELTS_SPEAKING ->
+                "🎯 Luyện thi IELTS" + (lastTopic?.let { " • ${it.titleVi}" } ?: "")
             SessionMode.FREE_TALK ->
                 lastTopic?.let { "${it.emoji} ${it.titleVi}" } ?: "AI chọn chủ đề cho bạn"
         }

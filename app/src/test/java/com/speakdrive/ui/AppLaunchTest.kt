@@ -29,14 +29,17 @@ class AppLaunchTest {
         compose.onNodeWithText("Chủ đề luyện tập").assertExists()
 
         compose.onNodeWithContentDescription("Cài đặt").performClick()
+        compose.onNodeWithText("Luyện tập & Trình độ").performScrollTo().assertExists()
         compose.onNodeWithText("Giọng nói & Tương tác AI").performScrollTo().assertExists()
-        compose.onNodeWithText("Tự động tạm dừng khi rời app hoặc tắt màn hình", substring = true).performScrollTo().assertExists()
-        compose.onNodeWithText("Chấm phát âm bằng Azure").performScrollTo().assertExists()
+        compose.onNodeWithText("Chế độ Lái xe & Màn hình").performScrollTo().assertExists()
+        compose.onNodeWithText("Dịch vụ Chấm phát âm Azure").performScrollTo().assertExists()
 
+        compose.onNodeWithText("Thông tin & Hỗ trợ").performScrollTo().performClick()
         compose.onNodeWithText("Giới thiệu ứng dụng & Tác giả").performScrollTo().performClick()
         compose.onNodeWithText("nhhacic").assertExists()
         compose.onNodeWithContentDescription("Quay lại").performClick()
 
+        compose.onNodeWithContentDescription("Quay lại danh mục").performClick()
         compose.onNodeWithContentDescription("Quay lại").performClick()
 
         compose.onNodeWithContentDescription("Tiến trình").performClick()

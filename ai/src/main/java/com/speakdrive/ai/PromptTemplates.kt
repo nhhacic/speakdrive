@@ -56,6 +56,9 @@ object PromptTemplates {
             SessionMode.MISTAKE_REVIEW ->
                 "You are Alex, a supportive English coach for $learnerDescription, reviewing the learner's own past mistakes.\n" +
                 "THIS IS A STRUCTURED MISTAKE REVIEW SESSION. DO NOT CHAT CASUALLY."
+            SessionMode.IELTS_SPEAKING ->
+                "You are Alex, an experienced and encouraging IELTS Speaking examiner and coach for $learnerDescription.\n" +
+                "THIS IS AN AUTHENTIC IELTS SPEAKING PREPARATION SESSION. CONDUCT REALISTIC IELTS PARTS (PART 1, PART 2, PART 3) WITH PROFESSIONAL PACING."
             SessionMode.FREE_TALK ->
                 "You are Alex, a warm, patient English conversation coach for $learnerDescription."
         }
@@ -101,6 +104,7 @@ object PromptTemplates {
         - If the learner asks to turn the daily practice reminder on or off or to change its time (e.g. "bật nhắc học", "tắt nhắc học", "nhắc tôi lúc 7 giờ sáng", "nhắc học tự động", "turn off reminders", "remind me at 6:30 pm"), call the ${VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION} tool immediately.
         - If the learner asks to turn streak freezes on or off (e.g. "bật bảo toàn chuỗi", "tắt bảo toàn chuỗi", "turn off streak freeze"), call the ${VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION} tool immediately.
         - If the learner asks to turn offline practice on or off (practising on the phone alone when the network is lost, e.g. "bật luyện offline", "tắt luyện offline", "turn off offline practice"), call the ${VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION} tool immediately.
+        - If the learner asks to enable or disable natural phrasing suggestions (e.g. "bật gợi ý nói hay hơn", "gợi ý diễn đạt tự nhiên", "tắt gợi ý diễn đạt", "đừng sửa cách nói", "turn on/off better phrasing", "suggest natural phrasing"), call the ${VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION} tool immediately.
         - After calling ANY settings tool, ALWAYS confirm the change warmly in ONE short spoken sentence to the learner so they hear the update hands-free, and immediately continue the lesson with the updated setting.
         - If the learner asks to stop or end the lesson, say a short goodbye and call the $END_LESSON_FUNCTION tool.
     """.trimIndent()
@@ -243,6 +247,35 @@ object PromptTemplates {
             """.trimIndent()
         }
         SessionMode.MISTAKE_REVIEW -> mistakeReviewRules(lesson)
+        SessionMode.IELTS_SPEAKING -> ieltsSpeakingRules(lesson)
+    }
+
+    /** IELTS Speaking test simulation rules covering Parts 1, 2, and 3 with scoring criteria. */
+    fun ieltsSpeakingRules(lesson: ActiveLesson): String {
+        return """
+            |IELTS SPEAKING EXAMINER & COACH:
+            |Conduct an authentic IELTS Speaking test simulation for topic: ${lesson.topic.titleEn} (${lesson.topic.titleVi}).
+            |
+            |STRUCTURE (PARTS 1, 2, 3):
+            |1. PART 1 (Introduction & Familiar Topics):
+            |   - Ask 3-4 concise, direct questions about familiar subtopics (daily habits, preferences, hobbies, work/study).
+            |   - Keep pacing steady and simulate real examiner demeanor.
+            |2. PART 2 (Individual Long Turn / Cue Card):
+            |   - Provide a clear cue card topic with 3-4 bullet prompts.
+            |   - Prompt the candidate to speak for 1-2 minutes continuously.
+            |   - Listen attentively without interrupting unnecessarily until they finish.
+            |3. PART 3 (Two-way In-depth Discussion):
+            |   - Ask 2-3 broader, more abstract, analytical questions linked to the Part 2 theme.
+            |   - Challenge viewpoints with thought-provoking follow-ups ("Why do some people think...?", "How do you foresee...?").
+            |
+            |SCORING & FEEDBACK CRITERIA:
+            |Evaluate based on official IELTS descriptors:
+            |- FC (Fluency & Coherence)
+            |- LR (Lexical Resource & Collocations)
+            |- GRA (Grammatical Range & Accuracy)
+            |- P (Pronunciation & Intonation)
+            |At the conclusion, summarize an estimated band score (0.0 to 9.0) with encouraging, actionable tips.
+        """.trimMargin()
     }
 
     /** One mistake at a time: hear the wrong sentence, say it right, then reuse the pattern in a new sentence. */
@@ -311,6 +344,17 @@ object PromptTemplates {
             }
             append("- Never say that you keep notes, a memory or a list about the learner, and never read these notes aloud.")
         }
+    }
+
+    /** Rules for gently offering native phrasing alternatives during conversation. */
+    fun betterPhrasingRules(enabled: Boolean, mode: SessionMode): String? {
+        if (!enabled || (mode != SessionMode.FREE_TALK && mode != SessionMode.ROLEPLAY)) return null
+        return """
+            NATURAL PHRASING UPGRADES:
+            - When the learner expresses an idea using grammatically correct but very simple or repetitive words (for example "very tired", "very happy", "good idea", "I think so"), occasionally offer a natural native-speaker phrasing upgrade in your response.
+            - Frame it warmly and smoothly without interrupting the conversational flow: e.g., "That's great! You could also say 'I was exhausted' or 'I was worn out'. How was the rest of your day?"
+            - Keep suggestions punchy (one alternative only) and continue the conversation naturally.
+        """.trimIndent()
     }
 
     /** Listening comprehension through captivating authentic web stories and audio drama. */
@@ -688,12 +732,21 @@ object PromptTemplates {
             appendLine()
             appendLine(it)
         }
+        betterPhrasingRules(settings.betterPhrasingEnabled, lesson.mode)?.let {
+            appendLine()
+            appendLine(it)
+        }
         if (recap.isNotEmpty()) {
             appendLine()
             appendLine("CONVERSATION SO FAR (the connection dropped briefly; continue naturally, do not greet again):")
             appendLine(formatTranscript(recap, maxChars = RECAP_MAX_CHARS))
         }
     }.trim()
+
+    /** Directive message sent to Gemini Live when better phrasing setting is toggled. */
+    fun betterPhrasingSwitchMessage(enabled: Boolean): String =
+        if (enabled) "System note: Natural phrasing upgrades have been turned ON. Occasionally suggest more natural native alternatives when the learner uses simple expressions."
+        else "System note: Natural phrasing upgrades have been turned OFF. Converse naturally without suggesting vocabulary upgrades."
 
     /** Directive message sent to Gemini Live when drill category focus is toggled during a session. */
     fun drillCategorySwitchMessage(category: com.speakdrive.ai.model.DrillCategory): String =
@@ -757,6 +810,8 @@ object PromptTemplates {
                     "Drop the listener straight into the opening scene: establish the intense atmosphere with sensory sounds, have characters speak in direct dramatic dialogue, and unfold the action beat-by-beat like a high-budget movie!"
             }
         }
+        SessionMode.IELTS_SPEAKING ->
+            "Start the IELTS Speaking simulation now. Introduce yourself warmly in one short sentence as the IELTS examiner and ask your first Part 1 question on ${lesson.topic.titleEn}."
     }
 
     const val RESUME_MESSAGE =
@@ -795,6 +850,9 @@ object PromptTemplates {
         SessionMode.STORY_LISTENING -> {
             "We are back after a short interruption. Welcome the learner back in one short sentence " +
                 "and smoothly continue narrating the story right where you left off."
+        }
+        SessionMode.IELTS_SPEAKING -> {
+            "We are back after a short interruption. Welcome the candidate back in one short sentence and resume the IELTS speaking test where you paused."
         }
         SessionMode.FREE_TALK -> RESUME_MESSAGE
     }

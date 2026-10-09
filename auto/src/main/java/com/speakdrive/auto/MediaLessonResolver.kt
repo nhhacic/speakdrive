@@ -21,6 +21,7 @@ object MediaLessonResolver {
                 SessionMode.VOCAB_REVIEW -> LessonRequest(topicId = topicId, mode = SessionMode.VOCAB_REVIEW)
                 SessionMode.MISTAKE_REVIEW -> LessonRequest(topicId = topicId, mode = SessionMode.MISTAKE_REVIEW)
                 SessionMode.STORY_LISTENING -> LessonRequest(topicId = topicId, scenarioId = snapshot.lastScenarioId, mode = SessionMode.STORY_LISTENING)
+                SessionMode.IELTS_SPEAKING -> LessonRequest(topicId = topicId, scenarioId = snapshot.lastScenarioId, mode = SessionMode.IELTS_SPEAKING)
                 SessionMode.FREE_TALK -> LessonRequest(topicId = topicId, mode = SessionMode.FREE_TALK)
             }
         }

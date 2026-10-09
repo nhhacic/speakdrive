@@ -50,6 +50,7 @@ object VoiceSettingsTools {
     const val SET_DAILY_GOAL_FUNCTION = "set_daily_goal"
     const val SET_AZURE_SCORING_FUNCTION = "set_azure_pronunciation_scoring"
     const val SET_SCREEN_AWAKE_FUNCTION = "set_screen_awake"
+    const val SET_BETTER_PHRASING_FUNCTION = "set_better_phrasing"
 
     val switchSessionModeTool = LiveTool(
         name = SWITCH_SESSION_MODE_FUNCTION,
@@ -477,6 +478,20 @@ object VoiceSettingsTools {
         parameters = emptyList()
     )
 
+    val setBetterPhrasingTool = LiveTool(
+        name = SET_BETTER_PHRASING_FUNCTION,
+        description = "Turns natural phrasing suggestions on or off: when enabled, the AI occasionally offers natural, native-like phrasing upgrades when the learner says grammatically correct but simple sentences (e.g. \"very tired\" -> \"exhausted\"). " +
+            "Call it when requested by the learner in Vietnamese or English " +
+            "(e.g. \"bật gợi ý nói hay hơn\", \"gợi ý diễn đạt tự nhiên hơn\", \"tắt gợi ý diễn đạt\", \"đừng sửa cách nói\", \"turn on better phrasing\", \"suggest better phrasing\", \"turn off phrasing upgrades\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "enabled",
+                type = LiveToolParam.Type.BOOLEAN,
+                description = "True to occasionally suggest natural phrasing upgrades, false to disable phrasing suggestions."
+            )
+        )
+    )
+
     val allTools: List<LiveTool> = listOf(
         setDifficultyLevelTool,
         setVietnameseHelpTool,
@@ -508,6 +523,7 @@ object VoiceSettingsTools {
         setDailyGoalTool,
         setAzureScoringTool,
         setScreenAwakeTool,
+        setBetterPhrasingTool,
         switchSessionModeTool
     )
 
@@ -598,6 +614,26 @@ object VoiceSettingsTools {
                     hasWord(normalized, "quen") || normalized.contains("forget") -> false
                 normalized.contains("true") || hasWord(normalized, "bat") || normalized.contains("enable") ||
                     hasWord(normalized, "on") || hasWord(normalized, "nho") || normalized.contains("remember") -> true
+                else -> null
+            }
+        }
+        else -> null
+    }
+
+    /** Resolves the better phrasing toggle from Gemini Live tool calls. */
+    fun parseBetterPhrasing(value: Any?): Boolean? = when (value) {
+        is Boolean -> value
+        is String -> {
+            val normalized = TopicManager.normalize(value.trim())
+            when {
+                normalized.contains("false") || hasWord(normalized, "tat") || normalized.contains("disable") ||
+                    hasWord(normalized, "off") || hasWord(normalized, "khong") || hasWord(normalized, "dung") ||
+                    normalized.contains("stop") -> false
+                normalized.contains("true") || hasWord(normalized, "bat") || normalized.contains("enable") ||
+                    hasWord(normalized, "on") || hasWord(normalized, "co") || normalized.contains("goi y") ||
+                    normalized.contains("hay hon") || normalized.contains("tu nhien") ||
+                    normalized.contains("better") || normalized.contains("natural") ||
+                    normalized.contains("phras") -> true
                 else -> null
             }
         }
@@ -1061,6 +1097,9 @@ object VoiceSettingsTools {
             normalized.contains("on tu") || normalized.contains("tu vung") ||
                 normalized.contains("vocab") || normalized.contains("word") ||
                 normalized.contains("tu moi") -> SessionMode.VOCAB_REVIEW
+
+            normalized.contains("ielts") || normalized.contains("luyen thi") ||
+                normalized.contains("speaking test") -> SessionMode.IELTS_SPEAKING
 
             else -> null
         }

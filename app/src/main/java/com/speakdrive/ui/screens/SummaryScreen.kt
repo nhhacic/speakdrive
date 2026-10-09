@@ -43,6 +43,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -287,6 +288,40 @@ fun SummaryContent(
                     )
                 }
 
+                // Objective Fluency Metrics (WPM, Fillers, MLU, Vietnamese ratio)
+                if (session.wordsPerMinute != null && session.wordsPerMinute > 0) {
+                    item {
+                        ObjectiveFluencyCard(
+                            wpm = session.wordsPerMinute,
+                            fillerCount = session.fillerWordsCount,
+                            fillerRatio = session.fillerWordsRatio,
+                            mlu = session.meanLengthOfUtterance,
+                            vietnameseRatio = session.vietnameseWordsRatio,
+                            isVi = isVi
+                        )
+                    }
+                }
+
+                // IELTS Speaking Band Score (if IELTS mode)
+                if (session.ieltsBandScore != null) {
+                    item {
+                        IeltsScoreCard(
+                            bandScore = session.ieltsBandScore,
+                            isVi = isVi
+                        )
+                    }
+                }
+
+                // Story Comprehension Quiz Score (if Story Listening mode)
+                if (session.comprehensionScore != null) {
+                    item {
+                        StoryComprehensionCard(
+                            score = session.comprehensionScore,
+                            isVi = isVi
+                        )
+                    }
+                }
+
                 // Adaptive Level Recommendation
                 if (!state.isSummarizing && state.isAdaptiveEnabled && state.levelRecommendation != null && state.level != null) {
                     item {
@@ -387,12 +422,31 @@ fun SummaryContent(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(
-                                word.word,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    word.word,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                if (word.isCollocation) {
+                                    androidx.compose.material3.Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.secondaryContainer
+                                    ) {
+                                        Text(
+                                            "Collocation",
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
+                                }
+                            }
                             if (word.meaning.isNotBlank()) {
                                 Text(word.meaning, style = MaterialTheme.typography.bodyMedium)
                             }
@@ -829,6 +883,161 @@ private fun LevelRecommendationCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ObjectiveFluencyCard(
+    wpm: Int,
+    fillerCount: Int?,
+    fillerRatio: Float?,
+    mlu: Float?,
+    vietnameseRatio: Float?,
+    isVi: Boolean
+) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(20.dp)
+            )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Filled.AutoAwesome,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    if (isVi) "Chỉ số trôi chảy đo lường thực tế" else "Objective Fluency Metrics",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                FluencyMetricItem(
+                    title = if (isVi) "Tốc độ nói" else "Speed",
+                    value = "$wpm WPM"
+                )
+                FluencyMetricItem(
+                    title = if (isVi) "Độ dài câu" else "Sentence len",
+                    value = "${mlu ?: 0f} từ"
+                )
+                FluencyMetricItem(
+                    title = if (isVi) "Từ đệm" else "Fillers",
+                    value = "${fillerCount ?: 0} (${((fillerRatio ?: 0f) * 100).toInt()}%)"
+                )
+                FluencyMetricItem(
+                    title = if (isVi) "Tiếng Việt" else "Vietnamese",
+                    value = "${((vietnameseRatio ?: 0f) * 100).toInt()}%"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FluencyMetricItem(title: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun IeltsScoreCard(bandScore: Float, isVi: Boolean) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(18.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    if (isVi) "Ước lượng IELTS Speaking" else "IELTS Speaking Estimate",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Text(
+                    if (isVi) "Dựa trên tiêu chuẩn 4 tiêu chí FC, LR, GRA, P" else "Evaluated across FC, LR, GRA, and Pronunciation",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primary
+            ) {
+                Text(
+                    "Band $bandScore",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoryComprehensionCard(score: Int, isVi: Boolean) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(20.dp)
+            )
+    ) {
+        Row(
+            modifier = Modifier.padding(18.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    if (isVi) "Kiểm tra nghe hiểu câu chuyện" else "Story Comprehension Quiz",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    if (isVi) "Điểm trả lời 3 câu hỏi sau khi nghe" else "Post-story 3-question quiz score",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                "$score%",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = AppColors.CorrectGreen
+            )
         }
     }
 }

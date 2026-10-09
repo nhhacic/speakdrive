@@ -757,6 +757,7 @@ open class ConversationEngine @Inject constructor(
             ?.let(::applyAzureScoringChange) ?: argumentError("enabled", call.args["enabled"], "true, false")
         VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION -> VoiceSettingsTools.parseScreenAwakeMode(call.args["mode"] as? String)
             ?.let(::applyScreenAwakeChange) ?: argumentError("mode", call.args["mode"], ScreenAwakeMode.entries.joinToString { it.name })
+        VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION -> handleSetBetterPhrasing(call)
         VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION -> handleSwitchSessionMode(call)
         else -> mapOf("status" to "unknown function")
     }
@@ -797,6 +798,7 @@ open class ConversationEngine @Inject constructor(
                 SessionMode.ROLEPLAY -> if (isVi) "Bạn đang ở chế độ nhập vai rồi." else "You are already in roleplay mode."
                 SessionMode.VOCAB_REVIEW -> if (isVi) "Bạn đang ở chế độ ôn tập từ vựng rồi." else "You are already in vocabulary review mode."
                 SessionMode.MISTAKE_REVIEW -> if (isVi) "Bạn đang ở chế độ ôn lỗi sai rồi." else "You are already in mistake review mode."
+                SessionMode.IELTS_SPEAKING -> if (isVi) "Bạn đang ở chế độ luyện thi IELTS Speaking rồi." else "You are already in IELTS speaking mode."
             }
             announcer.announce(alreadyMsg)
             return mapOf("status" to "already_active", "mode" to newMode.name)
@@ -809,6 +811,7 @@ open class ConversationEngine @Inject constructor(
             SessionMode.ROLEPLAY -> if (isVi) "Đã chuyển sang chế độ nhập vai." else "Switched to roleplay mode."
             SessionMode.VOCAB_REVIEW -> if (isVi) "Đã chuyển sang chế độ ôn tập từ vựng." else "Switched to vocabulary review mode."
             SessionMode.MISTAKE_REVIEW -> if (isVi) "Đã chuyển sang chế độ ôn lỗi sai." else "Switched to mistake review mode."
+            SessionMode.IELTS_SPEAKING -> if (isVi) "Đã chuyển sang chế độ luyện thi IELTS Speaking. Chúng ta sẽ cùng luyện các phần thi nhé!" else "Switched to IELTS speaking mode. Let's practice the test parts together!"
         }
         announcer.announce(confirmationMsg)
 
@@ -1181,6 +1184,34 @@ open class ConversationEngine @Inject constructor(
         val enabledArg = call.args["enabled"]
         val enabled = booleanArg(enabledArg) ?: return argumentError("enabled", enabledArg, "true, false")
         return applyOfflinePracticeChange(enabled)
+    }
+
+    private fun handleSetBetterPhrasing(call: LiveToolCall): Map<String, Any> {
+        val enabledArg = call.args["enabled"]
+        val enabled = VoiceSettingsTools.parseBetterPhrasing(enabledArg)
+            ?: return argumentError("enabled", enabledArg, "true, false")
+        return applyBetterPhrasingChange(enabled)
+    }
+
+    internal fun applyBetterPhrasingChange(enabled: Boolean): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(betterPhrasingEnabled = enabled)
+        persist("better phrasing") { settings.setBetterPhrasing(enabled) }
+        val current = _lesson.value
+        if (current != null) {
+            _lesson.value = current.copy(betterPhrasingEnabled = enabled)
+        }
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val confirmation = if (isVi) {
+            if (enabled) "Đã bật gợi ý nói tự nhiên hơn." else "Đã tắt gợi ý nói tự nhiên hơn."
+        } else {
+            if (enabled) "Natural phrasing upgrades are on." else "Natural phrasing upgrades are off."
+        }
+        announcer.announce(confirmation)
+        return mapOf(
+            "status" to "success",
+            "better_phrasing" to enabled,
+            "instruction" to "Natural phrasing upgrades were turned ${if (enabled) "on" else "off"}. Confirm warmly in one short sentence and continue."
+        )
     }
 
     // Settings that do not change how the AI talks: the app confirms them out loud itself (works even
@@ -2185,10 +2216,15 @@ open class ConversationEngine @Inject constructor(
             // when someone happened to say "the end" or "moral".
             val completedStatus = if (lesson.mode == SessionMode.STORY_LISTENING) storyCompleted else true
             val reviewedIds = lesson.reviewMistakes.mapTo(mutableSetOf()) { it.id }
+            val calculatedMetrics = com.speakdrive.ai.evaluation.FluencyMetricsCalculator.calculate(
+                transcript = draft.transcript,
+                activeDurationMs = draft.activeDurationMs
+            )
             val stored = graded.copy(
                 // The learner may have turned memory off during the lesson.
                 learnerFacts = if (lesson.learnerMemory != null && learnerSettings.rememberLearner) graded.learnerFacts else emptyList(),
-                mistakeResults = graded.mistakeResults.filter { it.mistakeId in reviewedIds }.distinctBy { it.mistakeId }
+                mistakeResults = graded.mistakeResults.filter { it.mistakeId in reviewedIds }.distinctBy { it.mistakeId },
+                fluencyMetrics = calculatedMetrics
             )
             sessionStore.saveSession(draft.copy(summary = stored, isCompleted = completedStatus))
             if (lesson.mode == SessionMode.VOCAB_REVIEW) sessionStore.markWordsReviewed(draft.reviewedWords)
@@ -2598,6 +2634,15 @@ open class ConversationEngine @Inject constructor(
                 notifyModel(
                     "System: The learner requested to ${if (enabled) "enable" else "disable"} translation subtitles. " +
                         "Confirm warmly in one short sentence (e.g. \"${if (enabled) "Translation subtitles enabled!" else "Subtitles hidden, challenge mode on!"}\") and continue.",
+                    aiAnswering
+                )
+            }
+            is VoiceCommand.SetBetterPhrasing -> {
+                val enabled = command.enabled
+                applyBetterPhrasingChange(enabled)
+                notifyModel(
+                    "System: The learner turned natural phrasing upgrades ${if (enabled) "on" else "off"}. " +
+                        "Confirm warmly in one short sentence and continue.",
                     aiAnswering
                 )
             }

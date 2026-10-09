@@ -379,7 +379,10 @@ enum class SessionMode {
     STORY_LISTENING,
 
     /** The AI brings back sentences the learner got wrong in earlier lessons and has them say them correctly. */
-    MISTAKE_REVIEW
+    MISTAKE_REVIEW,
+
+    /** IELTS Speaking preparation with Part 1, Part 2, and Part 3 format and band estimation. */
+    IELTS_SPEAKING
 }
 
 enum class ConversationState {
@@ -458,7 +461,9 @@ data class ActiveLesson(
     /** Earlier mistakes to practise in a [SessionMode.MISTAKE_REVIEW] lesson. */
     val reviewMistakes: List<ReviewMistake> = emptyList(),
     /** What the AI remembers about the learner; null when the learner turned memory off. */
-    val learnerMemory: LearnerMemory? = null
+    val learnerMemory: LearnerMemory? = null,
+    /** Whether the AI gently offers native speaker phrasing upgrades during conversation. */
+    val betterPhrasingEnabled: Boolean = true
 ) {
     val titleVi: String
         get() = when (mode) {
@@ -467,6 +472,7 @@ data class ActiveLesson(
             SessionMode.REPEAT_AFTER_ME -> "Luyện phát âm: ${topic.titleVi}"
             SessionMode.ROLEPLAY -> "Nhập vai: ${scenario?.titleVi ?: topic.titleVi}"
             SessionMode.STORY_LISTENING -> "Luyện nghe kể chuyện: ${scenario?.titleVi ?: topic.titleVi}"
+            SessionMode.IELTS_SPEAKING -> "Luyện thi IELTS: ${scenario?.titleVi ?: topic.titleVi}"
             SessionMode.FREE_TALK -> topic.titleVi
         }
 
@@ -477,6 +483,7 @@ data class ActiveLesson(
             SessionMode.REPEAT_AFTER_ME -> "Pronunciation Drill: ${topic.titleEn}"
             SessionMode.ROLEPLAY -> "Roleplay: ${scenario?.titleEn ?: topic.titleEn}"
             SessionMode.STORY_LISTENING -> "Story Listening: ${scenario?.titleEn ?: topic.titleEn}"
+            SessionMode.IELTS_SPEAKING -> "IELTS Speaking: ${scenario?.titleEn ?: topic.titleEn}"
             SessionMode.FREE_TALK -> topic.titleEn
         }
 
@@ -485,7 +492,13 @@ data class ActiveLesson(
 
 data class ReviewWord(val word: String, val meaning: String)
 
-data class NewWord(val word: String, val meaning: String, val example: String)
+data class NewWord(
+    val word: String,
+    val meaning: String,
+    val example: String,
+    /** Whether this entry is a natural multi-word collocation rather than a single vocabulary word. */
+    val isCollocation: Boolean = false
+)
 
 data class Correction(val original: String, val corrected: String, val explanation: String)
 
@@ -494,6 +507,48 @@ data class ReviewMistake(val id: Long, val original: String, val corrected: Stri
 
 /** Whether the learner said a reviewed mistake correctly this time. */
 data class MistakeReviewResult(val mistakeId: Long, val fixed: Boolean)
+
+/** Objective fluency metrics computed deterministically from the user's transcript. */
+data class ObjectiveFluencyMetrics(
+    val wordsPerMinute: Int = 0,
+    val fillerWordsCount: Int = 0,
+    val fillerWordsRatio: Float = 0f,
+    val meanLengthOfUtterance: Float = 0f,
+    val vietnameseWordsRatio: Float = 0f
+)
+
+/** IELTS Speaking criteria scores and estimated band score. */
+data class IeltsEvaluation(
+    val fluencyAndCoherence: Float = 0f,
+    val lexicalResource: Float = 0f,
+    val grammaticalRangeAndAccuracy: Float = 0f,
+    val pronunciation: Float = 0f,
+    val overallBand: Float = 0f,
+    val feedbackVi: String = "",
+    val feedbackEn: String = ""
+)
+
+/** User-tailored roleplay or practice scenario created dynamically from life/work events. */
+data class CustomScenario(
+    val id: String,
+    val titleVi: String,
+    val titleEn: String,
+    val aiRole: String,
+    val learnerRole: String,
+    val customContext: String,
+    val missionObjective: String? = null,
+    val createdAt: Long = System.currentTimeMillis()
+) {
+    fun toScenario(): Scenario = Scenario(
+        id = id,
+        titleVi = titleVi,
+        titleEn = titleEn,
+        aiRole = aiRole,
+        learnerRole = learnerRole,
+        customContext = customContext,
+        missionObjective = missionObjective
+    )
+}
 
 /**
  * What the AI remembers about the learner across lessons, built from earlier summaries and drills.
@@ -543,7 +598,13 @@ data class SessionSummary(
     /** New personal facts the learner shared, for the AI to remember next time. */
     val learnerFacts: List<String> = emptyList(),
     /** Outcome for each mistake practised in a mistake review lesson. */
-    val mistakeResults: List<MistakeReviewResult> = emptyList()
+    val mistakeResults: List<MistakeReviewResult> = emptyList(),
+    /** Objective fluency metrics calculated directly on-device from speech transcripts. */
+    val fluencyMetrics: ObjectiveFluencyMetrics? = null,
+    /** Score (0-100) for story comprehension listening quiz, if applicable. */
+    val comprehensionScore: Int? = null,
+    /** IELTS speaking evaluation and estimated band score (for IELTS mode). */
+    val ieltsEvaluation: IeltsEvaluation? = null
 )
 
 data class CompletedSession(
@@ -598,6 +659,8 @@ data class LearnerSettings(
     val showTranslationSubtitle: Boolean = true,
     /** Let the AI remember the learner's mistakes and personal details across lessons. Default is true. */
     val rememberLearner: Boolean = true,
+    /** Gently suggest native and natural phrasing upgrades when simple correct English is spoken. Default is true. */
+    val betterPhrasingEnabled: Boolean = true,
     /** Daily notification when the learner has not practised yet. */
     val practiceReminderEnabled: Boolean = true,
     /** Minutes after midnight for the reminder, or [REMINDER_AUTO] to follow the learner's usual practice time. */

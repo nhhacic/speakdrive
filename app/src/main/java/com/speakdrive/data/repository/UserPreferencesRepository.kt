@@ -92,6 +92,7 @@ class UserPreferencesRepository @Inject constructor(
                 autoPauseWhenUnfocused = prefs[AUTO_PAUSE_WHEN_UNFOCUSED] ?: true,
                 showTranslationSubtitle = showSubs,
                 rememberLearner = prefs[REMEMBER_LEARNER] ?: true,
+                betterPhrasingEnabled = prefs[BETTER_PHRASING_ENABLED] ?: true,
                 practiceReminderEnabled = prefs[PRACTICE_REMINDER_ENABLED] ?: true,
                 practiceReminderMinute = prefs[PRACTICE_REMINDER_MINUTE]
                     ?.takeIf { it in 0 until MINUTES_PER_DAY } ?: LearnerSettings.REMINDER_AUTO,
@@ -254,6 +255,10 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[OFFLINE_PRACTICE_ENABLED] = enabled }
     }
 
+    override suspend fun setBetterPhrasing(enabled: Boolean) {
+        dataStore.edit { it[BETTER_PHRASING_ENABLED] = enabled }
+    }
+
     private fun clampGoal(minutes: Int): Int =
         minutes.coerceIn(LearnerSettings.MIN_DAILY_GOAL_MINUTES, LearnerSettings.MAX_DAILY_GOAL_MINUTES)
 
@@ -293,6 +298,7 @@ class UserPreferencesRepository @Inject constructor(
         val AUTO_PAUSE_WHEN_UNFOCUSED = booleanPreferencesKey("auto_pause_when_unfocused")
         val SHOW_TRANSLATION_SUBTITLE = booleanPreferencesKey("show_translation_subtitle")
         val REMEMBER_LEARNER = booleanPreferencesKey("remember_learner")
+        val BETTER_PHRASING_ENABLED = booleanPreferencesKey("better_phrasing_enabled")
         val PRACTICE_REMINDER_ENABLED = booleanPreferencesKey("practice_reminder_enabled")
         val PRACTICE_REMINDER_MINUTE = intPreferencesKey("practice_reminder_minute")
         val STREAK_FREEZE_ENABLED = booleanPreferencesKey("streak_freeze_enabled")

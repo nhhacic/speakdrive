@@ -112,6 +112,24 @@ interface SessionDao {
     /** Messages and corrections go with their sessions (ON DELETE CASCADE). */
     @Query("DELETE FROM sessions")
     suspend fun deleteAllSessions()
+
+    @Query("SELECT * FROM sessions ORDER BY startedAt ASC")
+    suspend fun getAllSessions(): List<SessionEntity>
+
+    @Query("SELECT * FROM messages ORDER BY id ASC")
+    suspend fun getAllMessages(): List<MessageEntity>
+
+    @Query("SELECT * FROM corrections ORDER BY id ASC")
+    suspend fun getAllCorrections(): List<CorrectionEntity>
+
+    @Query("SELECT * FROM pronunciation_attempts ORDER BY id ASC")
+    suspend fun getAllAttempts(): List<PronunciationAttemptEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSessions(sessions: List<SessionEntity>)
+
+    @Query("SELECT * FROM sessions WHERE startedAt >= :since ORDER BY startedAt ASC")
+    suspend fun getSessionsSince(since: Long): List<SessionEntity>
 }
 
 data class PracticeEntry(val startedAt: Long, val activeDurationMs: Long)

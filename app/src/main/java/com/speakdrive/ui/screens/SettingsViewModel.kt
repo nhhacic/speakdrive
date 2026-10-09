@@ -11,6 +11,7 @@ import com.speakdrive.ai.model.PronunciationStrictness
 import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.ai.pronunciation.AzureSpeechConfig
 import com.speakdrive.ai.pronunciation.PronunciationAssessor
+import com.speakdrive.data.backup.DataBackupManager
 import com.speakdrive.data.repository.UserPreferences
 import com.speakdrive.data.repository.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,6 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.InputStream
+import java.io.OutputStream
 import javax.inject.Inject
 
 sealed interface AzureTestState {
@@ -34,7 +37,8 @@ sealed interface AzureTestState {
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: UserPreferencesRepository,
-    private val assessor: PronunciationAssessor
+    private val assessor: PronunciationAssessor,
+    private val backupManager: DataBackupManager
 ) : ViewModel() {
 
     val preferences: StateFlow<UserPreferences> =
@@ -42,6 +46,46 @@ class SettingsViewModel @Inject constructor(
 
     private val _azureTest = MutableStateFlow<AzureTestState>(AzureTestState.Idle)
     val azureTest: StateFlow<AzureTestState> = _azureTest.asStateFlow()
+
+    private val _backupStatus = MutableStateFlow<String?>(null)
+    val backupStatus: StateFlow<String?> = _backupStatus.asStateFlow()
+
+    fun exportBackup(outputStream: OutputStream) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                backupManager.exportToJson(outputStream)
+                _backupStatus.value = "BACKUP_SUCCESS"
+            } catch (e: Exception) {
+                _backupStatus.value = "BACKUP_ERROR: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun importBackup(inputStream: InputStream) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val count = backupManager.importFromJson(inputStream).getOrThrow()
+                _backupStatus.value = "RESTORE_SUCCESS: $count"
+            } catch (e: Exception) {
+                _backupStatus.value = "RESTORE_ERROR: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun exportAnki(outputStream: OutputStream) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val count = backupManager.exportToAnki(outputStream)
+                _backupStatus.value = "ANKI_SUCCESS: $count"
+            } catch (e: Exception) {
+                _backupStatus.value = "ANKI_ERROR: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun clearBackupStatus() {
+        _backupStatus.value = null
+    }
 
     fun setAppLanguage(language: AppLanguage) = viewModelScope.launch { repository.setAppLanguage(language) }
 
@@ -122,5 +166,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setShowTranslationSubtitle(enabled: Boolean) =
         viewModelScope.launch { repository.setShowTranslationSubtitle(enabled) }
+
+    fun setBetterPhrasing(enabled: Boolean) =
+        viewModelScope.launch { repository.setBetterPhrasing(enabled) }
 }
 

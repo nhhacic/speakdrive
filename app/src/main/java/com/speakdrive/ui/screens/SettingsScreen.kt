@@ -1,73 +1,43 @@
 package com.speakdrive.ui.screens
 
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.RecordVoiceOver
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.background
-import androidx.compose.material3.Button
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.speakdrive.BuildConfig
 import com.speakdrive.R
 import com.speakdrive.ai.model.AiVoice
 import com.speakdrive.ai.model.AppLanguage
@@ -75,10 +45,17 @@ import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.DrillCategory
 import com.speakdrive.ai.model.DrillSentenceLength
 import com.speakdrive.ai.model.PronunciationStrictness
+import com.speakdrive.ai.model.ScreenAwakeMode
 import com.speakdrive.ai.model.StoryDuration
 import com.speakdrive.ai.model.StorytellingStyle
 import com.speakdrive.data.repository.UserPreferences
-import kotlin.math.roundToInt
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import java.io.InputStream
+import java.io.OutputStream
 
 @Composable
 fun SettingsScreen(
@@ -92,9 +69,35 @@ fun SettingsScreen(
 ) {
     val prefs by viewModel.preferences.collectAsStateWithLifecycle()
     val azureTest by viewModel.azureTest.collectAsStateWithLifecycle()
+    val backupStatus by viewModel.backupStatus.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    LaunchedEffect(backupStatus) {
+        backupStatus?.let { status ->
+            val message = when {
+                status == "BACKUP_SUCCESS" -> context.getString(R.string.settings_backup_success)
+                status.startsWith("RESTORE_SUCCESS") -> {
+                    val count = status.substringAfter(": ").toIntOrNull() ?: 0
+                    context.getString(R.string.settings_restore_success, count, 0)
+                }
+                status.startsWith("ANKI_SUCCESS") -> {
+                    val count = status.substringAfter(": ").toIntOrNull() ?: 0
+                    context.getString(R.string.settings_anki_success, count)
+                }
+                status.startsWith("BACKUP_ERROR") -> context.getString(R.string.settings_backup_error, status.substringAfter(": "))
+                status.startsWith("RESTORE_ERROR") -> context.getString(R.string.settings_restore_error, status.substringAfter(": "))
+                else -> status
+            }
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearBackupStatus()
+        }
+    }
+
     SettingsContent(
         prefs = prefs,
         azureTest = azureTest,
+        snackbarHostState = snackbarHostState,
         onBack = onBack,
         onOpenProgress = onOpenProgress,
         onOpenVocabulary = onOpenVocabulary,
@@ -122,15 +125,20 @@ fun SettingsScreen(
         onSetShowTranslationSubtitle = viewModel::setShowTranslationSubtitle,
         onSetAutoStartOnCarConnect = viewModel::setAutoStartOnCarConnect,
         onSetScreenAwakeMode = viewModel::setScreenAwakeMode,
+        onSetBetterPhrasing = viewModel::setBetterPhrasing,
+        onExportBackup = viewModel::exportBackup,
+        onImportBackup = viewModel::importBackup,
+        onExportAnki = viewModel::exportAnki,
         extraGroups = { MemorySettingsGroup(onOpenMemory = onOpenMemory) }
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsContent(
     prefs: UserPreferences,
     azureTest: AzureTestState,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onBack: () -> Unit,
     onOpenProgress: () -> Unit,
     onOpenVocabulary: () -> Unit,
@@ -157,640 +165,289 @@ fun SettingsContent(
     onSetAutoPauseWhenUnfocused: (Boolean) -> Unit = {},
     onSetShowTranslationSubtitle: (Boolean) -> Unit = {},
     onSetAutoStartOnCarConnect: (Boolean) -> Unit = {},
-    onSetScreenAwakeMode: (com.speakdrive.ai.model.ScreenAwakeMode) -> Unit = {},
-    /** Groups with their own view model (memory and reminders), shown before the Azure group. */
+    onSetScreenAwakeMode: (ScreenAwakeMode) -> Unit = {},
+    onSetBetterPhrasing: (Boolean) -> Unit = {},
+    onExportBackup: (OutputStream) -> Unit = {},
+    onImportBackup: (InputStream) -> Unit = {},
+    onExportAnki: (OutputStream) -> Unit = {},
+    initialSection: SettingsSection? = null,
     extraGroups: @Composable () -> Unit = {}
 ) {
+    var selectedSection by rememberSaveable { mutableStateOf(initialSection) }
+    var viewAllMode by rememberSaveable { mutableStateOf(false) }
+
+    // Xử lý nút Back của Android: nếu đang trong sub-screen hoặc view all thì quay lại Hub Overview
+    BackHandler(enabled = selectedSection != null || viewAllMode) {
+        selectedSection = null
+        viewAllMode = false
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
+                title = {
+                    Text(
+                        when {
+                            viewAllMode -> stringResource(R.string.settings_category_all)
+                            selectedSection != null -> stringResource(selectedSection!!.titleRes)
+                            else -> stringResource(R.string.settings_title)
+                        }
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back)) }
+                    if (selectedSection != null || viewAllMode) {
+                        IconButton(onClick = {
+                            selectedSection = null
+                            viewAllMode = false
+                        }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.settings_back_to_categories)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.back)
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    if (selectedSection == null) {
+                        if (viewAllMode) {
+                            IconButton(onClick = { viewAllMode = false }) {
+                                Icon(
+                                    Icons.Filled.GridView,
+                                    contentDescription = stringResource(R.string.settings_view_categories)
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = { viewAllMode = true }) {
+                                Icon(
+                                    Icons.Filled.ViewAgenda,
+                                    contentDescription = stringResource(R.string.settings_view_all)
+                                )
+                            }
+                        }
+                    }
                 }
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Group 0: Interface Language (Multilingual UI)
-            SettingsGroupCard(title = stringResource(R.string.settings_group_language), icon = Icons.Filled.Language) {
-                Text(
-                    stringResource(R.string.settings_group_language),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AppLanguage.entries.forEach { lang ->
-                        FilterChip(
-                            selected = lang == prefs.appLanguage,
-                            onClick = { onSetAppLanguage(lang) },
-                            label = {
-                        val name = if (lang == AppLanguage.SYSTEM) stringResource(R.string.settings_language_system) else lang.nativeName
-                        Text("${lang.flagEmoji} $name")
-                    }
-                        )
-                    }
-                }
-                Text(
-                    stringResource(R.string.settings_language_desc) + "\n" + stringResource(R.string.settings_language_voice_tip),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            val isVi = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language == "vi"
-
-            // Group 1: Learning & Level
-            SettingsGroupCard(title = stringResource(R.string.settings_group_learning), icon = Icons.Filled.School) {
-                Text(
-                    stringResource(R.string.settings_learner_level),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DifficultyLevel.entries.forEach { level ->
-                        FilterChip(
-                            selected = level == prefs.learner.level,
-                            onClick = { onSetLevel(level) },
-                            label = { Text("${level.displayName} (${level.cefr})") }
-                        )
-                    }
-                }
-                Text(
-                    "${prefs.learner.level.getLabel(isVi)} — ${prefs.learner.level.getDescription(isVi)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_adaptive_level), fontWeight = FontWeight.SemiBold) },
-                    supportingContent = {
-                        Text(
-                            stringResource(R.string.settings_adaptive_level_desc) + "\n" +
-                                stringResource(R.string.settings_adaptive_level_voice_tip)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = prefs.learner.adaptiveLevelRecommendation,
-                            onCheckedChange = onSetAdaptiveLevelRecommendation
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSetAdaptiveLevelRecommendation(!prefs.learner.adaptiveLevelRecommendation) }
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                Text(
-                    stringResource(R.string.settings_strictness),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PronunciationStrictness.userFacingEntries.forEach { strictness ->
-                        FilterChip(
-                            selected = strictness == prefs.learner.pronunciationStrictness,
-                            onClick = { onSetPronunciationStrictness(strictness) },
-                            label = { Text(strictness.getLabel(isVi)) }
-                        )
-                    }
-                }
-                val currentStrictness = prefs.learner.pronunciationStrictness
-                val strictnessDesc = if (currentStrictness == PronunciationStrictness.AUTO) {
-                    val resolved = currentStrictness.resolveForLevel(prefs.learner.level)
-                    stringResource(
-                        R.string.settings_strictness_auto_desc,
-                        prefs.learner.level.getLabel(isVi),
-                        prefs.learner.level.cefr,
-                        resolved.getDescription(isVi)
-                    )
-                } else {
-                    currentStrictness.getDescription(isVi)
-                }
-                Text(
-                    strictnessDesc,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    stringResource(R.string.settings_strictness_voice_tip),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                var goal by remember { mutableFloatStateOf(prefs.dailyGoalMinutes.toFloat()) }
-                LaunchedEffect(prefs.dailyGoalMinutes) { goal = prefs.dailyGoalMinutes.toFloat() }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.settings_daily_goal),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        stringResource(R.string.settings_goal_minutes_format, goal.roundToInt()),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Slider(
-                    value = goal,
-                    onValueChange = { goal = it },
-                    onValueChangeFinished = { onSetDailyGoal(goal.roundToInt()) },
-                    valueRange = 5f..60f,
-                    steps = 10
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                Text(
-                    stringResource(R.string.settings_storytelling_mode),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StorytellingStyle.entries.forEach { style ->
-                        FilterChip(
-                            selected = style == prefs.learner.storytellingStyle,
-                            onClick = { onSetStorytellingStyle(style) },
-                            label = { Text(style.getLabel(isVi)) }
-                        )
-                    }
-                }
-                Text(
-                    prefs.learner.storytellingStyle.getDescription(isVi) + "\n" + stringResource(R.string.settings_story_style_voice_tip),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                Text(
-                    stringResource(R.string.settings_story_duration),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StoryDuration.entries.forEach { duration ->
-                        FilterChip(
-                            selected = duration == prefs.learner.storyDuration,
-                            onClick = { onSetStoryDuration(duration) },
-                            label = { Text(duration.getLabel(isVi)) }
-                        )
-                    }
-                }
-                Text(
-                    prefs.learner.storyDuration.getDescription(isVi) + "\n" + stringResource(R.string.settings_story_duration_voice_tip),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_multi_voice), fontWeight = FontWeight.SemiBold) },
-                    supportingContent = {
-                        Text(
-                            stringResource(R.string.settings_multi_voice_desc) + "\n" +
-                                stringResource(R.string.settings_multi_voice_voice_tip)
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = prefs.learner.multiVoiceStorytelling,
-                            onCheckedChange = onSetMultiVoiceStorytelling
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSetMultiVoiceStorytelling(!prefs.learner.multiVoiceStorytelling) }
-                )
-            }
-
-            // Group 2: AI Voice & Speech Interaction
-            SettingsGroupCard(title = stringResource(R.string.settings_group_voice), icon = Icons.Filled.RecordVoiceOver) {
-                // AI Voice Volume Setting
-                // Follow the finger locally and save once, when the drag ends.
-                var dragVolume by remember(prefs.learner.aiVolume) { mutableFloatStateOf(prefs.learner.aiVolume.toFloat()) }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.ai_volume_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "${dragVolume.roundToInt()}%",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Slider(
-                    value = dragVolume,
-                    onValueChange = { dragVolume = it },
-                    onValueChangeFinished = { onSetAiVolume(dragVolume.roundToInt().coerceIn(10, 100)) },
-                    valueRange = 10f..100f,
-                    steps = 8,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    stringResource(R.string.settings_volume_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                Text(
-                    stringResource(R.string.settings_voice_choice),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Column(Modifier.selectableGroup()) {
-                    val isRandom = prefs.learner.randomVoice
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.settings_voice_random), fontWeight = FontWeight.SemiBold) },
-                        supportingContent = { Text(stringResource(R.string.settings_voice_random_desc)) },
-                        leadingContent = { RadioButton(selected = isRandom, onClick = null) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        AnimatedContent(
+            targetState = Triple(selectedSection, viewAllMode, initialSection),
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            label = "SettingsSectionTransition"
+        ) { (section, isViewAll, _) ->
+            when {
+                // 1. Chế độ xem toàn bộ (View All Mode)
+                isViewAll -> {
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .selectable(selected = isRandom, role = Role.RadioButton) { onSetRandomVoice(true) }
-                    )
-                    AiVoice.entries.forEach { voice ->
-                        val selected = !isRandom && voice.id == prefs.learner.voiceId
-                        ListItem(
-                            headlineContent = { Text(voice.id, fontWeight = FontWeight.SemiBold) },
-                            supportingContent = { Text(voice.getLabel(isVi)) },
-                            leadingContent = { RadioButton(selected = selected, onClick = null) },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            .fillMaxSize()
+                            .padding(padding)
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        LearningSettingsSection(
+                            prefs = prefs,
+                            onSetLevel = onSetLevel,
+                            onSetAdaptiveLevelRecommendation = onSetAdaptiveLevelRecommendation,
+                            onSetDailyGoal = onSetDailyGoal,
+                            onSetDrillSentenceLength = onSetDrillSentenceLength,
+                            onSetDrillCategory = onSetDrillCategory,
+                            onSetStorytellingStyle = onSetStorytellingStyle,
+                            onSetStoryDuration = onSetStoryDuration,
+                            onSetMultiVoiceStorytelling = onSetMultiVoiceStorytelling,
+                            onSetBetterPhrasing = onSetBetterPhrasing
+                        )
+
+                        VoiceSettingsSection(
+                            prefs = prefs,
+                            onSetAiVolume = onSetAiVolume,
+                            onSetVoice = onSetVoice,
+                            onSetRandomVoice = onSetRandomVoice,
+                            onSetPronunciationStrictness = onSetPronunciationStrictness,
+                            onSetAllowVietnameseHelp = onSetAllowVietnameseHelp,
+                            onSetAllowBargeIn = onSetAllowBargeIn
+                        )
+
+                        DrivingSettingsSection(
+                            prefs = prefs,
+                            onSetAutoStartOnCarConnect = onSetAutoStartOnCarConnect,
+                            onSetAutoPauseWhenUnfocused = onSetAutoPauseWhenUnfocused,
+                            onSetScreenAwakeMode = onSetScreenAwakeMode,
+                            onSetShowTranslationSubtitle = onSetShowTranslationSubtitle
+                        )
+
+                        extraGroups()
+
+                        DataBackupSettingsSection(
+                            onExportBackup = onExportBackup,
+                            onImportBackup = onImportBackup,
+                            onExportAnki = onExportAnki
+                        )
+
+                        AzureSettingsSection(
+                            prefs = prefs,
+                            azureTest = azureTest,
+                            onSetAzureEnabled = onSetAzureEnabled,
+                            onTestAzure = onTestAzure,
+                            onSaveAndTestAzure = onSaveAndTestAzure
+                        )
+
+                        AboutSettingsSection(
+                            prefs = prefs,
+                            onSetAppLanguage = onSetAppLanguage,
+                            onOpenPrivacy = onOpenPrivacy,
+                            onOpenAbout = onOpenAbout
+                        )
+                    }
+                }
+
+                // 2. Màn hình con của Danh mục đã chọn (Sub-screen Detail)
+                section != null -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                    ) {
+                        // Quick Category Selector Bar: Giúp đổi nhóm cài đặt tức thì
+                        QuickCategorySelector(
+                            currentSection = section,
+                            onSelectSection = { selectedSection = it }
+                        )
+
+                        Column(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .selectable(selected = selected, role = Role.RadioButton) { onSetVoice(voice) }
-                        )
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            when (section) {
+                                SettingsSection.LEARNING -> {
+                                    LearningSettingsSection(
+                                        prefs = prefs,
+                                        onSetLevel = onSetLevel,
+                                        onSetAdaptiveLevelRecommendation = onSetAdaptiveLevelRecommendation,
+                                        onSetDailyGoal = onSetDailyGoal,
+                                        onSetDrillSentenceLength = onSetDrillSentenceLength,
+                                        onSetDrillCategory = onSetDrillCategory,
+                                        onSetStorytellingStyle = onSetStorytellingStyle,
+                                        onSetStoryDuration = onSetStoryDuration,
+                                        onSetMultiVoiceStorytelling = onSetMultiVoiceStorytelling,
+                                        onSetBetterPhrasing = onSetBetterPhrasing
+                                    )
+                                }
+                                SettingsSection.VOICE -> {
+                                    VoiceSettingsSection(
+                                        prefs = prefs,
+                                        onSetAiVolume = onSetAiVolume,
+                                        onSetVoice = onSetVoice,
+                                        onSetRandomVoice = onSetRandomVoice,
+                                        onSetPronunciationStrictness = onSetPronunciationStrictness,
+                                        onSetAllowVietnameseHelp = onSetAllowVietnameseHelp,
+                                        onSetAllowBargeIn = onSetAllowBargeIn
+                                    )
+                                }
+                                SettingsSection.DRIVING -> {
+                                    DrivingSettingsSection(
+                                        prefs = prefs,
+                                        onSetAutoStartOnCarConnect = onSetAutoStartOnCarConnect,
+                                        onSetAutoPauseWhenUnfocused = onSetAutoPauseWhenUnfocused,
+                                        onSetScreenAwakeMode = onSetScreenAwakeMode,
+                                        onSetShowTranslationSubtitle = onSetShowTranslationSubtitle
+                                    )
+                                }
+                                SettingsSection.MEMORY -> {
+                                    extraGroups()
+                                }
+                                SettingsSection.DATA -> {
+                                    DataBackupSettingsSection(
+                                        onExportBackup = onExportBackup,
+                                        onImportBackup = onImportBackup,
+                                        onExportAnki = onExportAnki
+                                    )
+                                }
+                                SettingsSection.AZURE -> {
+                                    AzureSettingsSection(
+                                        prefs = prefs,
+                                        azureTest = azureTest,
+                                        onSetAzureEnabled = onSetAzureEnabled,
+                                        onTestAzure = onTestAzure,
+                                        onSaveAndTestAzure = onSaveAndTestAzure
+                                    )
+                                }
+                                SettingsSection.ABOUT -> {
+                                    AboutSettingsSection(
+                                        prefs = prefs,
+                                        onSetAppLanguage = onSetAppLanguage,
+                                        onOpenPrivacy = onOpenPrivacy,
+                                        onOpenAbout = onOpenAbout
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
-                Text(
-                    stringResource(R.string.settings_voice_switch_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_vietnamese_help), fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text(stringResource(R.string.settings_vietnamese_help_desc)) },
-                    trailingContent = {
-                        Switch(checked = prefs.learner.allowVietnameseHelp, onCheckedChange = onSetAllowVietnameseHelp)
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_barge_in), fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text(stringResource(R.string.settings_barge_in_desc)) },
-                    trailingContent = {
-                        Switch(checked = prefs.learner.allowBargeIn, onCheckedChange = onSetAllowBargeIn)
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                Text(
-                    stringResource(R.string.settings_drill_sentence_length),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DrillSentenceLength.entries.forEach { length ->
-                        FilterChip(
-                            selected = length == prefs.learner.drillSentenceLength,
-                            onClick = { onSetDrillSentenceLength(length) },
-                            label = { Text(length.getLabel(isVi)) }
-                        )
-                    }
-                }
-                Text(
-                    prefs.learner.drillSentenceLength.getDescription(isVi) + "\n" + stringResource(R.string.settings_drill_sentence_length_voice_tip),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                Text(
-                    stringResource(R.string.settings_drill_category),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DrillCategory.entries.forEach { category ->
-                        FilterChip(
-                            selected = category == prefs.learner.drillCategory,
-                            onClick = { onSetDrillCategory(category) },
-                            label = { Text(category.getLabel(isVi)) }
-                        )
-                    }
-                }
-                Text(
-                    prefs.learner.drillCategory.getDescription(isVi) + "\n" + stringResource(R.string.settings_drill_category_voice_tip),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            stringResource(R.string.settings_auto_pause_unfocused),
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            stringResource(R.string.settings_auto_pause_unfocused_desc) + "\n" + stringResource(R.string.settings_auto_pause_unfocused_voice_tip),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = prefs.learner.autoPauseWhenUnfocused,
-                            onCheckedChange = onSetAutoPauseWhenUnfocused
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                ListItem(
-                    headlineContent = {
-                        Text(stringResource(R.string.settings_auto_start_car), fontWeight = FontWeight.Bold)
-                    },
-                    supportingContent = {
-                        Text(
-                            stringResource(R.string.settings_auto_start_car_desc) + "\n" + stringResource(R.string.settings_auto_start_car_voice_tip),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = prefs.learner.autoStartOnCarConnect,
-                            onCheckedChange = onSetAutoStartOnCarConnect
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                Text(
-                    stringResource(R.string.settings_screen_awake),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    com.speakdrive.ai.model.ScreenAwakeMode.entries.forEach { mode ->
-                        FilterChip(
-                            selected = prefs.learner.screenAwakeMode == mode,
-                            onClick = { onSetScreenAwakeMode(mode) },
-                            label = { Text(mode.getLabel(isVi)) }
-                        )
-                    }
-                }
-                Text(
-                    prefs.learner.screenAwakeMode.getDescription(isVi) + "\n" + stringResource(R.string.settings_screen_awake_voice_tip),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            stringResource(R.string.settings_show_translation_subtitles),
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    supportingContent = {
-                        Text(
-                            stringResource(R.string.settings_show_translation_subtitles_desc) + "\n" + stringResource(R.string.settings_show_translation_subtitles_voice_tip),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    trailingContent = {
-                        Switch(
-                            checked = prefs.learner.showTranslationSubtitle,
-                            onCheckedChange = onSetShowTranslationSubtitle
-                        )
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-            }
-
-            extraGroups()
-
-            // Group 3: Azure Speech Service
-            SettingsGroupCard(title = stringResource(R.string.settings_group_azure), icon = Icons.Filled.Cloud) {
-                AzureSection(
-                    enabled = prefs.learner.azureEnabled,
-                    savedRegion = prefs.learner.azureRegion,
-                    savedKey = prefs.learner.azureKey,
-                    testState = azureTest,
-                    onEnabledChange = onSetAzureEnabled,
-                    onTestConnection = onTestAzure,
-                    onSaveAndTest = onSaveAndTestAzure
-                )
-            }
-
-            // Group 4: Information & About
-            SettingsGroupCard(title = stringResource(R.string.settings_group_info), icon = Icons.Filled.Info) {
-                NavRow(stringResource(R.string.settings_privacy_policy), onOpenPrivacy)
-                NavRow(stringResource(R.string.settings_about), onOpenAbout)
-            }
-
-            // App Version Footer
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    stringResource(
-                        R.string.settings_version_footer,
-                        BuildConfig.VERSION_NAME,
-                        com.speakdrive.ai.BuildConfig.LIVE_MODEL,
-                        com.speakdrive.ai.BuildConfig.TEXT_MODEL
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun SettingsGroupCard(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant,
-                shape = RoundedCornerShape(20.dp)
-            )
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
+                // 3. Màn hình Cài đặt chính: Bảng điều khiển Hub Danh mục (Settings Dashboard)
+                else -> {
+                    SettingsDashboard(
+                        prefs = prefs,
+                        onSelectSection = { selectedSection = it },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp)
                     )
                 }
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
             }
-            content()
         }
     }
 }
-
 
 /**
- * Optional third judge for pronunciation drills: Azure Pronunciation Assessment. The learner brings
- * their own key (free tier: 5 hours/month); it is stored only on this device, never in the APK.
+ * Thanh chuyển đổi nhanh danh mục cài đặt nằm ở đầu màn hình con.
  */
 @Composable
-private fun AzureSection(
-    enabled: Boolean,
-    savedRegion: String,
-    savedKey: String,
-    testState: AzureTestState,
-    onEnabledChange: (Boolean) -> Unit,
-    onTestConnection: () -> Unit,
-    onSaveAndTest: (String, String) -> Unit
+private fun QuickCategorySelector(
+    currentSection: SettingsSection,
+    onSelectSection: (SettingsSection) -> Unit
 ) {
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.settings_azure_enable)) },
-        supportingContent = {
-            Text(stringResource(R.string.settings_azure_enable_desc))
-        },
-        trailingContent = { Switch(checked = enabled, onCheckedChange = onEnabledChange) }
-    )
-
-    var region by rememberSaveable(savedRegion) { mutableStateOf(savedRegion) }
-    var key by rememberSaveable(savedKey) { mutableStateOf(savedKey) }
-    val changed = region.trim() != savedRegion || key.trim() != savedKey
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
-        OutlinedTextField(
-            value = region,
-            onValueChange = { region = it },
-            label = { Text(stringResource(R.string.settings_azure_region)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = key,
-            onValueChange = { key = it },
-            label = { Text(stringResource(R.string.settings_azure_key)) },
-            supportingText = { Text(stringResource(R.string.settings_azure_key_hint)) },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Button(
-            onClick = { if (changed) onSaveAndTest(region, key) else onTestConnection() },
-            enabled = testState != AzureTestState.Testing && region.isNotBlank() && key.isNotBlank(),
-            modifier = Modifier.fillMaxWidth()
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                when {
-                    testState == AzureTestState.Testing -> stringResource(R.string.settings_azure_status_testing)
-                    changed -> stringResource(R.string.settings_azure_save_test)
-                    else -> stringResource(R.string.settings_azure_status_idle)
-                }
-            )
-        }
-        val (message, color) = when (testState) {
-            AzureTestState.Idle -> "" to MaterialTheme.colorScheme.onSurfaceVariant
-            AzureTestState.Testing -> stringResource(R.string.settings_azure_status_testing) to MaterialTheme.colorScheme.onSurfaceVariant
-            AzureTestState.Ok -> stringResource(R.string.settings_azure_status_ok) to MaterialTheme.colorScheme.tertiary
-            is AzureTestState.Failed -> stringResource(R.string.settings_azure_status_error, testState.message) to MaterialTheme.colorScheme.error
-        }
-        if (message.isNotEmpty()) {
-            Text(message, style = MaterialTheme.typography.bodySmall, color = color)
+            SettingsSection.entries.forEach { section ->
+                val isSelected = section == currentSection
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelectSection(section) },
+                    leadingIcon = {
+                        Icon(
+                            section.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    label = { Text(stringResource(section.titleRes)) }
+                )
+            }
         }
     }
-}
-
-@Composable
-private fun NavRow(title: String, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(title) },
-        trailingContent = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) },
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
-    )
 }

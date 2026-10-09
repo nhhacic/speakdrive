@@ -1240,4 +1240,19 @@ class VoiceCommandParserTest {
         assertThat(VoiceCommandParser.parseScreenAwakeCommand("tạm dừng khi tắt màn hình")).isNull()
         assertThat(VoiceCommandParser.parseScreenAwakeCommand("màn hình điện thoại tôi bị vỡ")).isNull()
     }
+
+    @Test
+    fun `better phrasing is recognised in Vietnamese and English`() {
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("bật gợi ý nói hay hơn")).isTrue()
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("bat goi y noi hay hon")).isTrue()
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("hãy gợi ý cách nói tự nhiên hơn")).isTrue()
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("turn on better phrasing")).isTrue()
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("suggest more natural phrases")).isTrue()
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("tắt gợi ý nói hay hơn")).isFalse()
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("tat goi y noi tu nhien")).isFalse()
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("đừng sửa câu hay hơn")).isFalse()
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("turn off better phrasing")).isFalse()
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("stop natural suggestions")).isFalse()
+        assertThat(VoiceCommandParser.parseBetterPhrasingCommand("hôm nay thời tiết rất đẹp")).isNull()
+    }
 }

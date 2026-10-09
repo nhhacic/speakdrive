@@ -41,6 +41,15 @@ interface WordDao {
     @Query("SELECT * FROM learned_words ORDER BY learnedAt DESC")
     fun observeAllWords(): Flow<List<LearnedWordEntity>>
 
+    @Query("SELECT * FROM learned_words WHERE isCollocation = 1 ORDER BY learnedAt DESC")
+    fun observeCollocations(): Flow<List<LearnedWordEntity>>
+
+    @Query("SELECT * FROM learned_words ORDER BY learnedAt DESC")
+    suspend fun getAllWords(): List<LearnedWordEntity>
+
+    @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun insertAll(words: List<LearnedWordEntity>)
+
     @Query("SELECT COUNT(*) FROM learned_words WHERE learnedAt >= :since")
     fun observeCountLearnedSince(since: Long): Flow<Int>
 

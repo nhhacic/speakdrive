@@ -246,13 +246,15 @@ class SpeakDriveMediaService : MediaLibraryService() {
                     .add(nextCommand)
                     .build()
 
-                val repeatButton = CommandButton.Builder(R.drawable.ic_repeat)
+                val repeatButton = CommandButton.Builder()
+                    .setIconResId(R.drawable.ic_repeat)
                     .setDisplayName(getString(R.string.action_repeat))
                     .setSessionCommand(repeatCommand)
                     .setEnabled(true)
                     .build()
 
-                val nextButton = CommandButton.Builder(R.drawable.ic_skip_next)
+                val nextButton = CommandButton.Builder()
+                    .setIconResId(R.drawable.ic_skip_next)
                     .setDisplayName(getString(R.string.action_next))
                     .setSessionCommand(nextCommand)
                     .setEnabled(true)

@@ -28,7 +28,21 @@ data class SessionEntity(
     /** "LEVEL_UP", "LEVEL_DOWN", or "KEEP". Added in schema v5. */
     val levelRecommendationDirection: String? = null,
     /** Reason for the recommendation. Added in schema v5. */
-    val levelRecommendationReason: String? = null
+    val levelRecommendationReason: String? = null,
+    /** Words per minute. Added in schema v7. */
+    val wordsPerMinute: Int? = null,
+    /** Total filler words count. Added in schema v7. */
+    val fillerWordsCount: Int? = null,
+    /** Filler words ratio. Added in schema v7. */
+    val fillerWordsRatio: Float? = null,
+    /** Mean length of utterance (MLU). Added in schema v7. */
+    val meanLengthOfUtterance: Float? = null,
+    /** Vietnamese words ratio. Added in schema v7. */
+    val vietnameseWordsRatio: Float? = null,
+    /** Comprehension score in story quiz (0-100). Added in schema v7. */
+    val comprehensionScore: Int? = null,
+    /** IELTS Speaking estimated band score. Added in schema v7. */
+    val ieltsBandScore: Float? = null
 )
 
 /** One graded "repeat after me" attempt. Added in schema v3. */
@@ -103,7 +117,9 @@ data class LearnedWordEntity(
     val sessionId: String?,
     val learnedAt: Long,
     val reviewCount: Int = 0,
-    val nextReviewAt: Long
+    val nextReviewAt: Long,
+    /** Whether this item is a collocation/idiomatic phrase. Added in schema v7. */
+    val isCollocation: Boolean = false
 )
 
 /**
@@ -143,5 +159,18 @@ data class LearnerFactEntity(
     val fact: String,
     val normalizedFact: String,
     val sessionId: String?,
+    val createdAt: Long
+)
+
+/** User-created or AI-generated personalized roleplay scenario from real-life events. Added in schema v7. */
+@Entity(tableName = "custom_scenarios")
+data class CustomScenarioEntity(
+    @PrimaryKey val id: String,
+    val titleVi: String,
+    val titleEn: String,
+    val aiRole: String,
+    val learnerRole: String,
+    val customContext: String,
+    val missionObjective: String? = null,
     val createdAt: Long
 )

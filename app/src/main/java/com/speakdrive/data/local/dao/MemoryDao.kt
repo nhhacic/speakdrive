@@ -72,4 +72,13 @@ interface MemoryDao {
     /** Failed drill attempts' problem words ("|"-separated), newest first. */
     @Query("SELECT problemWords FROM pronunciation_attempts WHERE passed = 0 AND problemWords != '' ORDER BY timestamp DESC LIMIT :limit")
     suspend fun recentProblemWords(limit: Int): List<String>
+
+    @Query("SELECT * FROM mistakes ORDER BY id ASC")
+    suspend fun getAllMistakes(): List<MistakeEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllMistakes(mistakes: List<MistakeEntity>)
+
+    @Query("SELECT * FROM learner_facts ORDER BY id ASC")
+    suspend fun getAllFacts(): List<LearnerFactEntity>
 }

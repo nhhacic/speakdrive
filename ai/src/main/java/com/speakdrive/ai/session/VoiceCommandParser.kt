@@ -1005,6 +1005,28 @@ object VoiceCommandParser {
         "don t remember me", "don t remember anything about me", "stop remembering me"
     ).map { TopicManager.normalize(it) }
 
+    fun parseBetterPhrasingCommand(text: String): Boolean? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return null
+        if (containsAny(q, OFF_BETTER_PHRASING_PHRASES)) return false
+        if (containsAny(q, ON_BETTER_PHRASING_PHRASES)) return true
+        return null
+    }
+
+    private val ON_BETTER_PHRASING_PHRASES = listOf(
+        "bat goi y noi hay hon", "bat goi y dien dat", "goi y noi hay hon", "goi y tu nhien hon",
+        "goi y cach noi hay hon", "goi y cach noi tu nhien hon", "sua cach noi tu nhien", "nang cap cau noi", "nang cap dien dat",
+        "turn on better phrasing", "enable better phrasing", "suggest better phrasing",
+        "suggest more natural phrases", "natural phrasing on", "better phrasing on"
+    ).map { TopicManager.normalize(it) }
+
+    private val OFF_BETTER_PHRASING_PHRASES = listOf(
+        "tat goi y noi hay hon", "tat goi y noi tu nhien", "tat goi y dien dat", "tat goi y", "dung sua cau hay hon",
+        "dung goi y noi hay hon", "dung sua cach noi", "khong can goi y dien dat", "tat nang cap cau",
+        "turn off better phrasing", "disable better phrasing", "no phrasing suggestions",
+        "better phrasing off", "stop suggesting better phrasing", "stop natural suggestions"
+    ).map { TopicManager.normalize(it) }
+
     fun parseSessionModeCommand(text: String): SessionMode? {
         val q = TopicManager.normalize(text)
         if (q.isBlank()) return null
@@ -1061,6 +1083,13 @@ object VoiceCommandParser {
             "talk freely", "open conversation"
         ).map { TopicManager.normalize(it) }
         if (containsAny(q, freeTalkPhrases)) return SessionMode.FREE_TALK
+
+        // 7. IELTS SPEAKING
+        val ieltsPhrases = listOf(
+            "luyen thi ielts", "chuyen sang ielts", "luyen ielts", "thi ielts", "ielts speaking",
+            "chuyen sang luyen thi ielts", "ielts mode", "switch to ielts", "practice ielts"
+        ).map { TopicManager.normalize(it) }
+        if (containsAny(q, ieltsPhrases)) return SessionMode.IELTS_SPEAKING
 
         return null
     }

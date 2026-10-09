@@ -35,4 +35,7 @@ object DatabaseModule {
 
     @Provides
     fun provideMemoryDao(database: AppDatabase): MemoryDao = database.memoryDao()
+
+    @Provides
+    fun provideScenarioDao(database: AppDatabase): com.speakdrive.data.local.dao.ScenarioDao = database.scenarioDao()
 }

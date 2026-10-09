@@ -41,7 +41,7 @@ object SummaryParser {
         val newWords = dto.newWords
             .filter { it.word.isNotBlank() }
             .distinctBy { it.word.trim().lowercase() }
-            .map { NewWord(it.word.trim(), it.meaningVi.trim(), it.example.trim()) }
+            .map { NewWord(it.word.trim(), it.meaningVi.trim(), it.example.trim(), it.isCollocation) }
         val corrections = dto.corrections
             .filter { it.original.isNotBlank() && it.corrected.isNotBlank() }
             .map { Correction(it.original.trim(), it.corrected.trim(), it.explanationVi.trim()) }
@@ -73,6 +73,18 @@ object SummaryParser {
             )
         }
 
+        val ielts = dto.ieltsEvaluation?.let {
+            com.speakdrive.ai.model.IeltsEvaluation(
+                fluencyAndCoherence = it.fc ?: 0f,
+                lexicalResource = it.lr ?: 0f,
+                grammaticalRangeAndAccuracy = it.gra ?: 0f,
+                pronunciation = it.p ?: 0f,
+                overallBand = it.overallBand ?: 0f,
+                feedbackVi = it.feedbackVi.trim(),
+                feedbackEn = it.feedbackEn.trim()
+            )
+        }
+
         return SessionSummary(
             fluencyScore = fluency,
             grammarScore = grammar,
@@ -92,7 +104,9 @@ object SummaryParser {
                 val id = r.id ?: return@mapNotNull null
                 val fixed = r.fixed ?: return@mapNotNull null
                 MistakeReviewResult(id, fixed)
-            }
+            },
+            comprehensionScore = dto.comprehensionScore?.coerceIn(0, 100),
+            ieltsEvaluation = ielts
         )
     }
 
@@ -254,7 +268,20 @@ object SummaryParser {
         @SerialName("level_recommendation_reason_vi") val levelRecommendationReasonVi: String? = null,
         @SerialName("level_recommendation_reason_en") val levelRecommendationReasonEn: String? = null,
         @SerialName("learner_facts") val learnerFacts: List<String> = emptyList(),
-        @SerialName("mistake_results") val mistakeResults: List<MistakeResultDto> = emptyList()
+        @SerialName("mistake_results") val mistakeResults: List<MistakeResultDto> = emptyList(),
+        @SerialName("comprehension_score") val comprehensionScore: Int? = null,
+        @SerialName("ielts_evaluation") val ieltsEvaluation: IeltsEvaluationDto? = null
+    )
+
+    @Serializable
+    private data class IeltsEvaluationDto(
+        val fc: Float? = null,
+        val lr: Float? = null,
+        val gra: Float? = null,
+        val p: Float? = null,
+        @SerialName("overall_band") val overallBand: Float? = null,
+        @SerialName("feedback_vi") val feedbackVi: String = "",
+        @SerialName("feedback_en") val feedbackEn: String = ""
     )
 
     @Serializable
@@ -267,7 +294,8 @@ object SummaryParser {
     private data class WordDto(
         val word: String = "",
         @SerialName("meaning_vi") val meaningVi: String = "",
-        val example: String = ""
+        val example: String = "",
+        @SerialName("is_collocation") val isCollocation: Boolean = false
     )
 
     @Serializable

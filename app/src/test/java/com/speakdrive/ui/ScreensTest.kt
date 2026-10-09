@@ -37,6 +37,7 @@ import com.speakdrive.ui.screens.ConversationContent
 import com.speakdrive.ui.screens.ConversationUiState
 import com.speakdrive.ui.screens.DrillUiState
 import com.speakdrive.ui.screens.SettingsContent
+import com.speakdrive.ui.screens.SettingsSection
 import com.speakdrive.ai.pronunciation.AzureAssessment
 import com.speakdrive.ai.pronunciation.AzurePhoneme
 import com.speakdrive.ai.pronunciation.AzureWord
@@ -379,7 +380,8 @@ class ScreensTest {
                     onSetDrillSentenceLength = { selectedLength = it },
                     onSetAzureEnabled = {},
                     onSaveAndTestAzure = { _, _ -> },
-                    onSetDailyGoal = {}
+                    onSetDailyGoal = {},
+                    initialSection = SettingsSection.LEARNING
                 )
             }
         }
@@ -415,7 +417,8 @@ class ScreensTest {
                     onSetAllowBargeIn = {},
                     onSetAzureEnabled = {},
                     onSaveAndTestAzure = { _, _ -> },
-                    onSetDailyGoal = {}
+                    onSetDailyGoal = {},
+                    initialSection = SettingsSection.VOICE
                 )
             }
         }
@@ -459,7 +462,8 @@ class ScreensTest {
                     onSetAllowBargeIn = {},
                     onSetAzureEnabled = {},
                     onSaveAndTestAzure = { _, _ -> },
-                    onSetDailyGoal = {}
+                    onSetDailyGoal = {},
+                    initialSection = SettingsSection.VOICE
                 )
             }
         }
@@ -490,7 +494,8 @@ class ScreensTest {
                     onSetAllowBargeIn = {},
                     onSetAzureEnabled = {},
                     onSaveAndTestAzure = { _, _ -> },
-                    onSetDailyGoal = {}
+                    onSetDailyGoal = {},
+                    initialSection = SettingsSection.LEARNING
                 )
             }
         }
@@ -523,7 +528,8 @@ class ScreensTest {
                     onSetAllowBargeIn = {},
                     onSetAzureEnabled = {},
                     onTestAzure = { testTriggered = true },
-                    onSetDailyGoal = {}
+                    onSetDailyGoal = {},
+                    initialSection = SettingsSection.AZURE
                 )
             }
         }
@@ -607,7 +613,8 @@ class ScreensTest {
                     onSetAppLanguage = { selectedLang = it },
                     onSetLevel = {},
                     onSetVoice = {},
-                    onSetDailyGoal = {}
+                    onSetDailyGoal = {},
+                    initialSection = SettingsSection.ABOUT
                 )
             }
         }
@@ -633,7 +640,8 @@ class ScreensTest {
                     onOpenProgress = {},
                     onOpenVocabulary = {},
                     onOpenPrivacy = {},
-                    onSetAdaptiveLevelRecommendation = { adaptiveEnabled = it }
+                    onSetAdaptiveLevelRecommendation = { adaptiveEnabled = it },
+                    initialSection = SettingsSection.LEARNING
                 )
             }
         }

@@ -116,6 +116,7 @@ class EnglishUiTest {
             }
         }
 
+        compose.onNodeWithContentDescription("View All").performClick()
         compose.onAllNodesWithText("Interface Language")[0].assertExists()
         compose.onNodeWithText("Practice & Proficiency").performScrollTo().assertExists()
         compose.onNodeWithText("AI Voice & Speech").performScrollTo().assertExists()

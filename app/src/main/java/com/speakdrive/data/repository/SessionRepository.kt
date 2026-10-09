@@ -67,7 +67,14 @@ class SessionRepository @Inject constructor(
             pronunciationScore = summary?.pronunciationScore,
             recommendedLevel = summary?.levelRecommendation?.targetLevel?.name,
             levelRecommendationDirection = summary?.levelRecommendation?.direction?.name,
-            levelRecommendationReason = summary?.levelRecommendation?.reasonVi
+            levelRecommendationReason = summary?.levelRecommendation?.reasonVi,
+            wordsPerMinute = summary?.fluencyMetrics?.wordsPerMinute,
+            fillerWordsCount = summary?.fluencyMetrics?.fillerWordsCount,
+            fillerWordsRatio = summary?.fluencyMetrics?.fillerWordsRatio,
+            meanLengthOfUtterance = summary?.fluencyMetrics?.meanLengthOfUtterance,
+            vietnameseWordsRatio = summary?.fluencyMetrics?.vietnameseWordsRatio,
+            comprehensionScore = summary?.comprehensionScore,
+            ieltsBandScore = summary?.ieltsEvaluation?.overallBand
         )
         val messages = session.transcript.mapIndexed { index, turn ->
             MessageEntity(sessionId = session.id, speaker = turn.speaker.name, text = turn.text, timestamp = turn.timestamp, position = index)
@@ -85,7 +92,8 @@ class SessionRepository @Inject constructor(
                 sessionId = session.id,
                 learnedAt = now,
                 reviewCount = 0,
-                nextReviewAt = SpacedRepetition.nextReviewAt(reviewCount = 0, from = now)
+                nextReviewAt = SpacedRepetition.nextReviewAt(reviewCount = 0, from = now),
+                isCollocation = it.isCollocation
             )
         }
         val attempts = session.pronunciationAttempts.map {

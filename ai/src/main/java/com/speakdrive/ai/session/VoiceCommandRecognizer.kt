@@ -20,7 +20,8 @@ enum class CommandCategory {
     SESSION_MODE, LEVEL, VIETNAMESE_HELP, APP_LANGUAGE, STORY_STYLE, STRICTNESS, BARGE_IN, RANDOM_VOICE,
     VOICE, STORY_DURATION, MULTI_VOICE, STORY_NAVIGATION, DRILL_NAVIGATION, DRILL_LENGTH, DRILL_CATEGORY,
     LEVEL_RECOMMENDATION, ADAPTIVE_LEVEL, VOLUME, AUTO_PAUSE, SUBTITLES, LEARNER_MEMORY,
-    PRACTICE_REMINDER, STREAK_FREEZE, OFFLINE_PRACTICE, AUTO_START_IN_CAR, DAILY_GOAL, AZURE_SCORING, SCREEN_AWAKE;
+    PRACTICE_REMINDER, STREAK_FREEZE, OFFLINE_PRACTICE, AUTO_START_IN_CAR, DAILY_GOAL, AZURE_SCORING, SCREEN_AWAKE,
+    BETTER_PHRASING;
 
     companion object {
         /** The category a Gemini Live tool works on, so the fallback never applies the same change twice. */
@@ -56,6 +57,7 @@ enum class CommandCategory {
             VoiceSettingsTools.SET_AZURE_SCORING_FUNCTION -> AZURE_SCORING
             VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION -> SCREEN_AWAKE
             VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION -> OFFLINE_PRACTICE
+            VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION -> BETTER_PHRASING
             else -> null
         }
     }
@@ -158,6 +160,9 @@ sealed interface VoiceCommand {
     }
     data class SetOfflinePractice(val enabled: Boolean) : VoiceCommand {
         override val category get() = CommandCategory.OFFLINE_PRACTICE
+    }
+    data class SetBetterPhrasing(val enabled: Boolean) : VoiceCommand {
+        override val category get() = CommandCategory.BETTER_PHRASING
     }
 }
 
@@ -309,6 +314,9 @@ object VoiceCommandRecognizer {
         }
         VoiceCommandParser.parseScreenAwakeCommand(text)?.let { mode ->
             if (mode != s.screenAwakeMode && lenient) return VoiceCommand.SetScreenAwake(mode)
+        }
+        VoiceCommandParser.parseBetterPhrasingCommand(text)?.let { enabled ->
+            if (enabled != s.betterPhrasingEnabled && lenient) return VoiceCommand.SetBetterPhrasing(enabled)
         }
         return null
     }

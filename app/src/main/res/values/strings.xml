@@ -73,6 +73,17 @@
     <string name="settings_azure_status_ok">✓ Azure connection successful</string>
     <string name="settings_azure_status_error">✗ Connection failed: %1$s</string>
     <string name="settings_version_footer">SpeakDrive v%1$s\nAI: %2$s • %3$s</string>
+    <string name="settings_dashboard_summary_title">Learner Profile Overview</string>
+    <string name="settings_category_all">All Settings</string>
+    <string name="settings_view_all">View All</string>
+    <string name="settings_view_categories">Categories</string>
+    <string name="settings_back_to_categories">Back to categories</string>
+    <string name="settings_sub_drill_title">Reflex Drill Practice</string>
+    <string name="settings_sub_story_title">Storytelling &amp; Listening</string>
+    <string name="settings_sub_voice_title">AI Voice &amp; Volume</string>
+    <string name="settings_sub_speech_interaction">Hands-free Speech Interaction</string>
+    <string name="settings_sub_car_automation">Driving Automation</string>
+    <string name="settings_sub_display_subtitles">Screen &amp; Subtitles</string>
 
     <!-- Home Screen -->
     <string name="home_all_topics">Practice Topics</string>
@@ -461,4 +472,18 @@
     <string name="vocab_practice_word_with_ai">Practise this word with AI</string>
     <string name="progress_session_vocab_review">📝 Vocabulary review</string>
     <string name="progress_session_pronunciation">🗣️ Pronunciation: %1$s</string>
+
+    <!-- Data Management & Backup -->
+    <string name="settings_group_data">Data Backup &amp; Sync</string>
+    <string name="settings_backup_title">Backup Data</string>
+    <string name="settings_backup_desc">Export your learning history, vocabulary, and memories to a JSON file.</string>
+    <string name="settings_restore_title">Restore Data</string>
+    <string name="settings_restore_desc">Import learning records and vocabulary from a backup JSON file.</string>
+    <string name="settings_anki_title">Export to Anki</string>
+    <string name="settings_anki_desc">Export your learned vocabulary to Anki flashcards (TSV format).</string>
+    <string name="settings_backup_success">Data backed up successfully</string>
+    <string name="settings_restore_success">Restored %1$d sessions and %2$d words</string>
+    <string name="settings_anki_success">Exported %1$d words to Anki file</string>
+    <string name="settings_backup_error">Backup failed: %1$s</string>
+    <string name="settings_restore_error">Restore failed: %1$s</string>
 </resources>
