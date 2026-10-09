@@ -334,7 +334,7 @@ class MediaContentProvider @Inject constructor(
 
         val (title, subtitle, artist) = when {
             hasTarget -> {
-                val title = "🎯 $drillTarget"
+                val title = drillTarget
                 val subtitle = if (!drillTargetTranslation.isNullOrBlank()) {
                     "🇻🇳 $drillTargetTranslation"
                 } else {

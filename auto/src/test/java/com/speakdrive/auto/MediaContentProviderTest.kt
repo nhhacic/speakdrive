@@ -183,7 +183,7 @@ class MediaContentProviderTest {
         )
 
         assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
-        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 I'd like a window seat, please.")
+        assertThat(item.mediaMetadata.title.toString()).isEqualTo("I'd like a window seat, please.")
         assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("🗣️ Nhắc lại theo AI")
         assertThat(item.mediaMetadata.artist.toString()).contains("Intermediate")
         assertThat(item.mediaMetadata.artworkData).isNotNull()
@@ -203,7 +203,7 @@ class MediaContentProviderTest {
         )
 
         assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
-        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 I'd like a window seat, please.")
+        assertThat(item.mediaMetadata.title.toString()).isEqualTo("I'd like a window seat, please.")
         assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("🇻🇳 Tôi muốn một chỗ ngồi cạnh cửa sổ, làm ơn.")
         assertThat(item.mediaMetadata.artworkData).isNotNull()
     }
