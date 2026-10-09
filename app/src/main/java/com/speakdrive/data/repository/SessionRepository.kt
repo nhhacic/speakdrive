@@ -2,6 +2,7 @@ package com.speakdrive.data.repository
 
 import com.speakdrive.ai.model.CompletedSession
 import com.speakdrive.ai.model.Correction
+import com.speakdrive.ai.model.CustomScenario
 import com.speakdrive.ai.model.DifficultyLevel
 import com.speakdrive.ai.model.LearnerMemory
 import com.speakdrive.ai.model.MistakeReviewResult
@@ -20,8 +21,10 @@ import com.speakdrive.data.local.entity.MessageEntity
 import com.speakdrive.data.local.entity.MistakeEntity
 import com.speakdrive.data.local.entity.PronunciationAttemptEntity
 import com.speakdrive.data.local.entity.SessionEntity
+import com.speakdrive.data.scenario.CustomScenarioManager
 import com.speakdrive.domain.MemoryText
 import com.speakdrive.domain.SpacedRepetition
+import com.speakdrive.domain.WeeklyDigestGenerator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -41,7 +44,9 @@ data class SessionDetail(
 class SessionRepository @Inject constructor(
     private val sessionDao: SessionDao,
     private val wordDao: WordDao,
-    private val memoryDao: MemoryDao
+    private val memoryDao: MemoryDao,
+    private val weeklyDigestGenerator: WeeklyDigestGenerator? = null,
+    private val customScenarioManager: CustomScenarioManager? = null
 ) : SessionStore {
 
     /** Replaceable in tests. */
@@ -275,6 +280,38 @@ class SessionRepository @Inject constructor(
             .map { it.key }
         val facts = memoryDao.recentFacts(MEMORY_FACTS).map { it.fact }
         return LearnerMemory(recurringMistakes = mistakes, weakWords = weakWords, facts = facts)
+    }
+
+    override suspend fun weeklyDigest(now: Long): String? {
+        val generator = weeklyDigestGenerator ?: WeeklyDigestGenerator(sessionDao, wordDao)
+        val stats = generator.generateDigest(now)
+        return stats.spokenSpokenSummaryVi
+    }
+
+    override suspend fun saveCustomScenario(
+        titleVi: String,
+        titleEn: String,
+        aiRole: String,
+        learnerRole: String,
+        customContext: String,
+        missionObjective: String?
+    ): CustomScenario? {
+        return customScenarioManager?.createScenario(
+            titleVi = titleVi,
+            titleEn = titleEn,
+            aiRole = aiRole,
+            learnerRole = learnerRole,
+            customContext = customContext,
+            missionObjective = missionObjective
+        )
+    }
+
+    override suspend fun customScenarios(): List<CustomScenario> {
+        return customScenarioManager?.getCustomScenarios().orEmpty()
+    }
+
+    override suspend fun deleteCustomScenario(id: String) {
+        customScenarioManager?.deleteScenario(id)
     }
 
     fun observeDueMistakeCount(): Flow<Int> = memoryDao.observeDueMistakeCount(clock())

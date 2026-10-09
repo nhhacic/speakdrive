@@ -27,6 +27,7 @@ data class LearnerMemoryUiState(
     val autoReminderMinute: Int = ReminderPlanner.DEFAULT_MINUTE,
     val streakFreezeEnabled: Boolean = true,
     val offlinePracticeEnabled: Boolean = true,
+    val weeklyDigestEnabled: Boolean = true,
     val canNotify: Boolean = true,
     val facts: List<LearnerFactEntity> = emptyList(),
     val mistakes: List<MistakeEntity> = emptyList()
@@ -56,11 +57,16 @@ class LearnerMemoryViewModel @Inject constructor(
             autoReminderMinute = reminder.reminderMinute(learner.copy(practiceReminderMinute = LearnerSettings.REMINDER_AUTO)),
             streakFreezeEnabled = learner.streakFreezeEnabled,
             offlinePracticeEnabled = learner.offlinePracticeEnabled,
+            weeklyDigestEnabled = learner.weeklyDigestEnabled,
             canNotify = notify,
             facts = facts,
             mistakes = mistakes
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LearnerMemoryUiState())
+
+    fun setWeeklyDigestEnabled(enabled: Boolean) {
+        viewModelScope.launch { preferences.setWeeklyDigestEnabled(enabled) }
+    }
 
     /** Call after returning from the permission dialog or the system notification settings. */
     fun refreshNotificationState() {

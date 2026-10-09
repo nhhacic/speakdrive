@@ -386,4 +386,26 @@ class PromptTemplatesTest {
         assertThat(review).contains("mistake_results: one entry per mistake")
         assertThat(review).contains("Mistake 3: \"I goed\" -> \"I went\"")
     }
+
+    @Test
+    fun `storyListeningRules contains mandatory 3-question comprehension quiz at end of story`() {
+        val storyLesson = lesson(SessionMode.STORY_LISTENING, level = DifficultyLevel.INTERMEDIATE)
+        val prompt = PromptTemplates.storyListeningRules(storyLesson)
+        assertThat(prompt).contains("MANDATORY STORY COMPREHENSION QUIZ AT END OF STORY")
+        assertThat(prompt).contains("brief 3-question listening comprehension quiz")
+        assertThat(prompt).contains("Ask one short, clear question at a time")
+    }
+
+    @Test
+    fun `summaryPrompt requests is_collocation and comprehension_score appropriately`() {
+        val storyLesson = lesson(SessionMode.STORY_LISTENING)
+        val storyPrompt = PromptTemplates.summaryPrompt(storyLesson, emptyList())
+        assertThat(storyPrompt).contains("is_collocation")
+        assertThat(storyPrompt).contains("comprehension_score: an integer from 0 to 100")
+
+        val freeTalkLesson = lesson(SessionMode.FREE_TALK)
+        val freeTalkPrompt = PromptTemplates.summaryPrompt(freeTalkLesson, emptyList())
+        assertThat(freeTalkPrompt).contains("is_collocation")
+        assertThat(freeTalkPrompt).contains("comprehension_score: null")
+    }
 }

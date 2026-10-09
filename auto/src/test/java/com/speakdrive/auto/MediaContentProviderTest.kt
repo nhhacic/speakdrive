@@ -158,7 +158,7 @@ class MediaContentProviderTest {
         )
 
         assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
-        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 Lặp lại theo AI")
+        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 I'd like a window seat, please.")
         assertThat(item.mediaMetadata.subtitle.toString()).contains("Du lịch")
         assertThat(item.mediaMetadata.artist.toString()).contains("Intermediate")
         assertThat(item.mediaMetadata.artworkData).isNotNull()
@@ -178,9 +178,25 @@ class MediaContentProviderTest {
         )
 
         assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
-        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 Lặp lại theo AI")
+        assertThat(item.mediaMetadata.title.toString()).isEqualTo("🎯 I'd like a window seat, please.")
         assertThat(item.mediaMetadata.subtitle.toString()).isEqualTo("🇻🇳 Dịch: Tôi muốn một chỗ ngồi cạnh cửa sổ, làm ơn.")
         assertThat(item.mediaMetadata.artworkData).isNotNull()
+    }
+
+    @Test
+    fun `lesson item in repeat after me mode without drill target shows topic and waiting prompt`() {
+        val lesson = ActiveLesson("id", topics.getTopicById("travel")!!, null, DifficultyLevel.INTERMEDIATE, SessionMode.REPEAT_AFTER_ME, 0, emptyList())
+
+        val item = provider.lessonItem(
+            lesson = lesson,
+            state = ConversationState.ACTIVE,
+            lastAiText = null,
+            drillTarget = null
+        )
+
+        assertThat(item.mediaId).isEqualTo(MediaIds.LESSON)
+        assertThat(item.mediaMetadata.title.toString()).contains("Du lịch")
+        assertThat(item.mediaMetadata.subtitle.toString()).contains("Hãy nghe và nhắc lại")
     }
 
     @Test

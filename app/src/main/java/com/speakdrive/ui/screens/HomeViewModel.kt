@@ -23,6 +23,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.speakdrive.ai.model.CustomScenario
+import com.speakdrive.ai.model.LessonRequest
+import com.speakdrive.ai.model.SessionMode
+
 data class TopicProgressUi(val topic: Topic, val completedLessons: Int)
 
 data class HomeUiState(
@@ -34,6 +38,7 @@ data class HomeUiState(
     val storyTopics: List<Topic> = emptyList(),
     val recentStories: List<CompletedSession> = emptyList(),
     val unfinishedStory: CompletedSession? = null,
+    val customScenarios: List<CustomScenario> = emptyList(),
     val isCarConnected: Boolean = false,
     /** A lesson that is running right now (possibly started from the car). */
     val currentLesson: ActiveLesson? = null,
@@ -52,14 +57,17 @@ class HomeViewModel @Inject constructor(
 
     private val recentStoriesFlow = MutableStateFlow<List<CompletedSession>>(emptyList())
     private val unfinishedStoryFlow = MutableStateFlow<CompletedSession?>(null)
+    private val customScenariosFlow = MutableStateFlow<List<CustomScenario>>(emptyList())
 
     init {
         viewModelScope.launch {
             refreshRecentStories()
+            refreshCustomScenarios()
         }
         viewModelScope.launch {
             engine.endedSessions.collect {
                 refreshRecentStories()
+                refreshCustomScenarios()
             }
         }
     }
@@ -69,8 +77,32 @@ class HomeViewModel @Inject constructor(
         unfinishedStoryFlow.value = sessionStore.latestUnfinishedStorySession()
     }
 
+    private suspend fun refreshCustomScenarios() {
+        customScenariosFlow.value = sessionStore.customScenarios()
+    }
+
     fun resumeStory() {
         engine.resumeStory()
+    }
+
+    fun startCustomScenario(scenario: CustomScenario) {
+        viewModelScope.launch {
+            val defaultTopic = topicManager.getConversationTopics().firstOrNull()?.id ?: "daily"
+            engine.start(
+                LessonRequest(
+                    topicId = defaultTopic,
+                    scenarioId = scenario.id,
+                    mode = SessionMode.ROLEPLAY
+                )
+            )
+        }
+    }
+
+    fun deleteCustomScenario(id: String) {
+        viewModelScope.launch {
+            sessionStore.deleteCustomScenario(id)
+            refreshCustomScenarios()
+        }
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -79,8 +111,9 @@ class HomeViewModel @Inject constructor(
         },
         engine.lesson,
         recentStoriesFlow,
-        unfinishedStoryFlow
-    ) { (stats, prefs, inCar), lesson, recentStories, unfinishedStory ->
+        unfinishedStoryFlow,
+        customScenariosFlow
+    ) { (stats, prefs, inCar), lesson, recentStories, unfinishedStory, customScenarios ->
         HomeUiState(
             stats = stats,
             dailyGoalMinutes = prefs.dailyGoalMinutes,
@@ -90,6 +123,7 @@ class HomeViewModel @Inject constructor(
             storyTopics = topicManager.getStoryTopics(),
             recentStories = recentStories,
             unfinishedStory = unfinishedStory,
+            customScenarios = customScenarios,
             isCarConnected = inCar,
             currentLesson = lesson,
             isLoading = false

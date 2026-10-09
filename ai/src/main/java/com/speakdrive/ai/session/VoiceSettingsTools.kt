@@ -51,6 +51,9 @@ object VoiceSettingsTools {
     const val SET_AZURE_SCORING_FUNCTION = "set_azure_pronunciation_scoring"
     const val SET_SCREEN_AWAKE_FUNCTION = "set_screen_awake"
     const val SET_BETTER_PHRASING_FUNCTION = "set_better_phrasing"
+    const val GET_WEEKLY_DIGEST_FUNCTION = "get_weekly_digest"
+    const val SET_WEEKLY_DIGEST_FUNCTION = "set_weekly_digest"
+    const val CREATE_CUSTOM_SCENARIO_FUNCTION = "create_custom_scenario"
 
     val switchSessionModeTool = LiveTool(
         name = SWITCH_SESSION_MODE_FUNCTION,
@@ -492,6 +495,69 @@ object VoiceSettingsTools {
         )
     )
 
+    val getWeeklyDigestTool = LiveTool(
+        name = GET_WEEKLY_DIGEST_FUNCTION,
+        description = "Reports the learner's weekly progress summary (minutes spoken, session count, average WPM speaking speed, and new words learned over the past 7 days) " +
+            "when requested by the learner in Vietnamese or English " +
+            "(e.g. \"báo cáo tuần\", \"tổng kết tuần qua\", \"tóm tắt tuần\", \"xem tiến độ tuần\", \"tuần qua tôi học thế nào\", " +
+            "\"weekly digest\", \"weekly report\", \"how did i do last week\", \"summarize last week\").",
+        parameters = emptyList()
+    )
+
+    val setWeeklyDigestTool = LiveTool(
+        name = SET_WEEKLY_DIGEST_FUNCTION,
+        description = "Turns the automatic weekly spoken progress digest on or off at the beginning of each week when requested in Vietnamese or English " +
+            "(e.g. \"bật báo cáo tuần\", \"tắt báo cáo tuần\", \"đừng báo cáo tuần nữa\", \"tự động tóm tắt tuần\", " +
+            "\"turn on weekly digest\", \"turn off weekly digest\", \"disable weekly summary\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "enabled",
+                type = LiveToolParam.Type.BOOLEAN,
+                description = "True to hear a weekly progress digest at the start of each week, false to turn it off."
+            )
+        )
+    )
+
+    val createCustomScenarioTool = LiveTool(
+        name = CREATE_CUSTOM_SCENARIO_FUNCTION,
+        description = "Creates and saves a personalized custom roleplay scenario when the learner shares a real-world upcoming life event, job interview, travel, or negotiation " +
+            "(e.g. \"tuần sau tôi đi phỏng vấn xin việc\", \"tôi sắp đi du lịch Nhật Bản\", \"tạo tình huống phỏng vấn cho tôi\", \"lưu tình huống này lại\", " +
+            "\"i have a job interview next week\", \"create a custom scenario for me\", \"save this scenario\").",
+        parameters = listOf(
+            LiveToolParam(
+                name = "title_vi",
+                type = LiveToolParam.Type.STRING,
+                description = "Short Vietnamese title for the scenario (e.g. \"Phỏng vấn xin việc logistics\")."
+            ),
+            LiveToolParam(
+                name = "title_en",
+                type = LiveToolParam.Type.STRING,
+                description = "Short English title for the scenario (e.g. \"Logistics Job Interview\")."
+            ),
+            LiveToolParam(
+                name = "ai_role",
+                type = LiveToolParam.Type.STRING,
+                description = "The character or professional role played by the AI (e.g. \"Senior Logistics Hiring Manager\")."
+            ),
+            LiveToolParam(
+                name = "learner_role",
+                type = LiveToolParam.Type.STRING,
+                description = "The role played by the learner (e.g. \"Job candidate applying for warehouse supervisor\")."
+            ),
+            LiveToolParam(
+                name = "custom_context",
+                type = LiveToolParam.Type.STRING,
+                description = "Detailed situational background and conversational context."
+            ),
+            LiveToolParam(
+                name = "mission_objective",
+                type = LiveToolParam.Type.STRING,
+                description = "Optional key target or mission objective for the learner to accomplish.",
+                optional = true
+            )
+        )
+    )
+
     val allTools: List<LiveTool> = listOf(
         setDifficultyLevelTool,
         setVietnameseHelpTool,
@@ -524,6 +590,9 @@ object VoiceSettingsTools {
         setAzureScoringTool,
         setScreenAwakeTool,
         setBetterPhrasingTool,
+        getWeeklyDigestTool,
+        setWeeklyDigestTool,
+        createCustomScenarioTool,
         switchSessionModeTool
     )
 
@@ -634,6 +703,23 @@ object VoiceSettingsTools {
                     normalized.contains("hay hon") || normalized.contains("tu nhien") ||
                     normalized.contains("better") || normalized.contains("natural") ||
                     normalized.contains("phras") -> true
+                else -> null
+            }
+        }
+        else -> null
+    }
+
+    /** Resolves the weekly digest toggle from Gemini Live tool calls. */
+    fun parseWeeklyDigest(value: Any?): Boolean? = when (value) {
+        is Boolean -> value
+        is String -> {
+            val normalized = TopicManager.normalize(value.trim())
+            when {
+                normalized.contains("false") || hasWord(normalized, "tat") || normalized.contains("disable") ||
+                    hasWord(normalized, "off") || hasWord(normalized, "khong") || hasWord(normalized, "dung") ||
+                    normalized.contains("stop") -> false
+                normalized.contains("true") || hasWord(normalized, "bat") || normalized.contains("enable") ||
+                    hasWord(normalized, "on") || hasWord(normalized, "co") -> true
                 else -> null
             }
         }

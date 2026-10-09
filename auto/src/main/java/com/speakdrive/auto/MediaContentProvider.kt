@@ -308,13 +308,19 @@ class MediaContentProvider @Inject constructor(
 
         val (title, subtitle, artist) = when {
             hasTarget -> {
-                val title = "🎯 Lặp lại theo AI"
+                val title = "🎯 $drillTarget"
                 val subtitle = if (!drillTargetTranslation.isNullOrBlank()) {
                     "🇻🇳 Dịch: $drillTargetTranslation"
                 } else {
                     "${lesson.topic.emoji} ${lesson.titleVi} • Đang nghe bạn nói"
                 }
                 val artist = "${lesson.level.displayName} • SpeakDrive"
+                Triple(title, subtitle, artist)
+            }
+            lesson.mode == SessionMode.REPEAT_AFTER_ME -> {
+                val title = "🎯 ${lesson.topic.emoji} ${lesson.titleVi}"
+                val subtitle = if (status.isNotEmpty()) "$status • Hãy nghe và nhắc lại" else "Hãy nghe và nhắc lại"
+                val artist = "${lesson.level.displayName} • Luyện phát âm"
                 Triple(title, subtitle, artist)
             }
             isStory -> {

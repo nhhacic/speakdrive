@@ -21,7 +21,7 @@ enum class CommandCategory {
     VOICE, STORY_DURATION, MULTI_VOICE, STORY_NAVIGATION, DRILL_NAVIGATION, DRILL_LENGTH, DRILL_CATEGORY,
     LEVEL_RECOMMENDATION, ADAPTIVE_LEVEL, VOLUME, AUTO_PAUSE, SUBTITLES, LEARNER_MEMORY,
     PRACTICE_REMINDER, STREAK_FREEZE, OFFLINE_PRACTICE, AUTO_START_IN_CAR, DAILY_GOAL, AZURE_SCORING, SCREEN_AWAKE,
-    BETTER_PHRASING;
+    BETTER_PHRASING, WEEKLY_DIGEST, CUSTOM_SCENARIO;
 
     companion object {
         /** The category a Gemini Live tool works on, so the fallback never applies the same change twice. */
@@ -58,6 +58,9 @@ enum class CommandCategory {
             VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION -> SCREEN_AWAKE
             VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION -> OFFLINE_PRACTICE
             VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION -> BETTER_PHRASING
+            VoiceSettingsTools.GET_WEEKLY_DIGEST_FUNCTION,
+            VoiceSettingsTools.SET_WEEKLY_DIGEST_FUNCTION -> WEEKLY_DIGEST
+            VoiceSettingsTools.CREATE_CUSTOM_SCENARIO_FUNCTION -> CUSTOM_SCENARIO
             else -> null
         }
     }
@@ -163,6 +166,12 @@ sealed interface VoiceCommand {
     }
     data class SetBetterPhrasing(val enabled: Boolean) : VoiceCommand {
         override val category get() = CommandCategory.BETTER_PHRASING
+    }
+    data class SetWeeklyDigest(val enabled: Boolean) : VoiceCommand {
+        override val category get() = CommandCategory.WEEKLY_DIGEST
+    }
+    object GetWeeklyDigest : VoiceCommand {
+        override val category get() = CommandCategory.WEEKLY_DIGEST
     }
 }
 
@@ -317,6 +326,12 @@ object VoiceCommandRecognizer {
         }
         VoiceCommandParser.parseBetterPhrasingCommand(text)?.let { enabled ->
             if (enabled != s.betterPhrasingEnabled && lenient) return VoiceCommand.SetBetterPhrasing(enabled)
+        }
+        VoiceCommandParser.parseWeeklyDigestCommand(text)?.let { enabled ->
+            if (enabled != s.weeklyDigestEnabled && lenient) return VoiceCommand.SetWeeklyDigest(enabled)
+        }
+        if (VoiceCommandParser.parseGetWeeklyDigestCommand(text)) {
+            return VoiceCommand.GetWeeklyDigest
         }
         return null
     }

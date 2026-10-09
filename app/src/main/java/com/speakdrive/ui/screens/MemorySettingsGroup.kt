@@ -64,6 +64,7 @@ fun MemorySettingsGroup(
         onSetReminderTime = viewModel::setReminderTime,
         onSetStreakFreeze = viewModel::setStreakFreeze,
         onSetOfflinePractice = viewModel::setOfflinePractice,
+        onSetWeeklyDigest = viewModel::setWeeklyDigestEnabled,
         onNotificationStateChanged = viewModel::refreshNotificationState
     )
 }
@@ -78,6 +79,7 @@ fun MemorySettingsContent(
     onSetReminderTime: (Int) -> Unit,
     onSetStreakFreeze: (Boolean) -> Unit,
     onSetOfflinePractice: (Boolean) -> Unit = {},
+    onSetWeeklyDigest: (Boolean) -> Unit = {},
     onNotificationStateChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -180,6 +182,15 @@ fun MemorySettingsContent(
             headlineContent = { Text(stringResource(R.string.settings_offline_practice)) },
             supportingContent = { Text(stringResource(R.string.settings_offline_practice_desc)) },
             trailingContent = { Switch(checked = state.offlinePracticeEnabled, onCheckedChange = onSetOfflinePractice) },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.settings_weekly_digest)) },
+            supportingContent = { Text(stringResource(R.string.settings_weekly_digest_desc)) },
+            trailingContent = { Switch(checked = state.weeklyDigestEnabled, onCheckedChange = onSetWeeklyDigest) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
         Text(

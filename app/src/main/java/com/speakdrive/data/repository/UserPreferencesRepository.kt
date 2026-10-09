@@ -100,7 +100,8 @@ class UserPreferencesRepository @Inject constructor(
                 offlinePracticeEnabled = prefs[OFFLINE_PRACTICE_ENABLED] ?: true,
                 autoStartOnCarConnect = prefs[AUTO_START_ON_CAR_CONNECT] ?: true,
                 dailyGoalMinutes = clampGoal(prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL),
-                screenAwakeMode = ScreenAwakeMode.fromStored(prefs[SCREEN_AWAKE_MODE])
+                screenAwakeMode = ScreenAwakeMode.fromStored(prefs[SCREEN_AWAKE_MODE]),
+                weeklyDigestEnabled = prefs[WEEKLY_DIGEST_ENABLED] ?: true
             ),
             dailyGoalMinutes = clampGoal(prefs[DAILY_GOAL_MINUTES] ?: UserPreferences.DEFAULT_DAILY_GOAL),
             onboardingCompleted = prefs[ONBOARDING_COMPLETED] ?: false,
@@ -259,6 +260,10 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[BETTER_PHRASING_ENABLED] = enabled }
     }
 
+    override suspend fun setWeeklyDigestEnabled(enabled: Boolean) {
+        dataStore.edit { it[WEEKLY_DIGEST_ENABLED] = enabled }
+    }
+
     private fun clampGoal(minutes: Int): Int =
         minutes.coerceIn(LearnerSettings.MIN_DAILY_GOAL_MINUTES, LearnerSettings.MAX_DAILY_GOAL_MINUTES)
 
@@ -303,6 +308,7 @@ class UserPreferencesRepository @Inject constructor(
         val PRACTICE_REMINDER_MINUTE = intPreferencesKey("practice_reminder_minute")
         val STREAK_FREEZE_ENABLED = booleanPreferencesKey("streak_freeze_enabled")
         val OFFLINE_PRACTICE_ENABLED = booleanPreferencesKey("offline_practice_enabled")
+        val WEEKLY_DIGEST_ENABLED = booleanPreferencesKey("weekly_digest_enabled")
         const val MINUTES_PER_DAY = 24 * 60
     }
 }

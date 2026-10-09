@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
@@ -43,6 +45,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.text.style.TextOverflow
+import com.speakdrive.ai.model.CustomScenario
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -94,7 +98,15 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    HomeContent(state, onStartLesson, onOpenCurrentLesson, onOpenSettings, onOpenProgress)
+    HomeContent(
+        state = state,
+        onStartLesson = onStartLesson,
+        onOpenCurrentLesson = onOpenCurrentLesson,
+        onOpenSettings = onOpenSettings,
+        onOpenProgress = onOpenProgress,
+        onStartCustomScenario = viewModel::startCustomScenario,
+        onDeleteCustomScenario = viewModel::deleteCustomScenario
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -104,7 +116,9 @@ fun HomeContent(
     onStartLesson: (mediaId: String) -> Unit,
     onOpenCurrentLesson: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenProgress: () -> Unit
+    onOpenProgress: () -> Unit,
+    onStartCustomScenario: (CustomScenario) -> Unit = {},
+    onDeleteCustomScenario: (String) -> Unit = {}
 ) {
     var sheetTopic by remember { mutableStateOf<Topic?>(null) }
     var showStorySheet by remember { mutableStateOf(false) }
@@ -248,6 +262,39 @@ fun HomeContent(
                     completedLessons = item.completedLessons,
                     onClick = { sheetTopic = item.topic }
                 )
+            }
+
+            // Custom Scenarios Section
+            if (state.customScenarios.isNotEmpty()) {
+                fullWidth {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp, bottom = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.home_custom_scenarios_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "${state.customScenarios.size}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                items(state.customScenarios, key = { it.id }) { scenario ->
+                    CustomScenarioCard(
+                        scenario = scenario,
+                        isVi = isVi,
+                        onPlay = { onStartCustomScenario(scenario) },
+                        onDelete = { onDeleteCustomScenario(scenario.id) }
+                    )
+                }
             }
 
             // Hands-free tip footer
@@ -1188,6 +1235,57 @@ private fun StorySheet(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CustomScenarioCard(
+    scenario: CustomScenario,
+    isVi: Boolean,
+    onPlay: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onPlay)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(14.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("🎯", fontSize = 24.sp)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isVi) scenario.titleVi else scenario.titleEn,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "AI: ${scenario.aiRole} • You: ${scenario.learnerRole}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.memory_delete),
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                )
             }
         }
     }

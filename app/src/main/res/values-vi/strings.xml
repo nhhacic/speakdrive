@@ -486,4 +486,7 @@
     <string name="settings_anki_success">Đã xuất %1$d từ sang file Anki</string>
     <string name="settings_backup_error">Sao lưu thất bại: %1$s</string>
     <string name="settings_restore_error">Khôi phục thất bại: %1$s</string>
+    <string name="settings_weekly_digest">Báo cáo tuần bằng giọng nói</string>
+    <string name="settings_weekly_digest_desc">Tự động phát lời chào và tóm tắt tiến độ tuần qua (thời gian nói, tốc độ trung bình, từ mới) vào buổi học đầu tuần.</string>
+    <string name="home_custom_scenarios_title">Tình huống tự tạo của bạn</string>
 </resources>

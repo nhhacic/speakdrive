@@ -722,7 +722,7 @@ open class ConversationEngine @Inject constructor(
         }
     }
 
-    private fun dispatchToolCall(call: LiveToolCall): Map<String, Any> = when (call.name) {
+    private suspend fun dispatchToolCall(call: LiveToolCall): Map<String, Any> = when (call.name) {
         VoiceSettingsTools.SET_DIFFICULTY_LEVEL_FUNCTION -> handleSetDifficultyLevel(call)
         VoiceSettingsTools.SET_VIETNAMESE_HELP_FUNCTION -> handleSetVietnameseHelp(call)
         VoiceSettingsTools.SET_APP_LANGUAGE_FUNCTION -> handleSetAppLanguage(call)
@@ -758,6 +758,9 @@ open class ConversationEngine @Inject constructor(
         VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION -> VoiceSettingsTools.parseScreenAwakeMode(call.args["mode"] as? String)
             ?.let(::applyScreenAwakeChange) ?: argumentError("mode", call.args["mode"], ScreenAwakeMode.entries.joinToString { it.name })
         VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION -> handleSetBetterPhrasing(call)
+        VoiceSettingsTools.GET_WEEKLY_DIGEST_FUNCTION -> handleGetWeeklyDigest()
+        VoiceSettingsTools.SET_WEEKLY_DIGEST_FUNCTION -> handleSetWeeklyDigest(call)
+        VoiceSettingsTools.CREATE_CUSTOM_SCENARIO_FUNCTION -> handleCreateCustomScenario(call)
         VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION -> handleSwitchSessionMode(call)
         else -> mapOf("status" to "unknown function")
     }
@@ -1211,6 +1214,83 @@ open class ConversationEngine @Inject constructor(
             "status" to "success",
             "better_phrasing" to enabled,
             "instruction" to "Natural phrasing upgrades were turned ${if (enabled) "on" else "off"}. Confirm warmly in one short sentence and continue."
+        )
+    }
+
+    private suspend fun handleGetWeeklyDigest(): Map<String, Any> {
+        val digest = suspendRunCatching { sessionStore.weeklyDigest() }.getOrNull()
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val response = digest ?: if (isVi) {
+            "Bạn chưa có buổi học nào trong tuần qua. Hãy bắt đầu một buổi luyện tập hôm nay nhé!"
+        } else {
+            "You haven't had any practice sessions in the past week. Let's start practicing today!"
+        }
+        announcer.announce(response)
+        return mapOf(
+            "status" to "success",
+            "digest" to response,
+            "instruction" to "Spoken weekly progress digest was read to the learner. Continue the lesson warmly."
+        )
+    }
+
+    private fun handleSetWeeklyDigest(call: LiveToolCall): Map<String, Any> {
+        val enabledArg = call.args["enabled"]
+        val enabled = VoiceSettingsTools.parseWeeklyDigest(enabledArg)
+            ?: return argumentError("enabled", enabledArg, "true, false")
+        return applyWeeklyDigestChange(enabled)
+    }
+
+    internal fun applyWeeklyDigestChange(enabled: Boolean): Map<String, Any> {
+        learnerSettings = learnerSettings.copy(weeklyDigestEnabled = enabled)
+        persist("weekly digest") { settings.setWeeklyDigestEnabled(enabled) }
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val confirmation = if (isVi) {
+            if (enabled) "Đã bật báo cáo tuần bằng giọng nói." else "Đã tắt báo cáo tuần bằng giọng nói."
+        } else {
+            if (enabled) "Weekly spoken digest is on." else "Weekly spoken digest is off."
+        }
+        announcer.announce(confirmation)
+        return mapOf(
+            "status" to "success",
+            "weekly_digest" to enabled,
+            "instruction" to "Weekly progress digest was turned ${if (enabled) "on" else "off"}. Confirm warmly in one short sentence and continue."
+        )
+    }
+
+    private suspend fun handleCreateCustomScenario(call: LiveToolCall): Map<String, Any> {
+        val titleVi = (call.args["title_vi"] as? String)?.trim().orEmpty()
+        val titleEn = (call.args["title_en"] as? String)?.trim().orEmpty().ifBlank { titleVi }
+        val aiRole = (call.args["ai_role"] as? String)?.trim().orEmpty().ifBlank { "Partner" }
+        val learnerRole = (call.args["learner_role"] as? String)?.trim().orEmpty().ifBlank { "Learner" }
+        val context = (call.args["custom_context"] as? String)?.trim().orEmpty()
+        val objective = (call.args["mission_objective"] as? String)?.trim()
+
+        if (titleVi.isBlank() && titleEn.isBlank()) {
+            return argumentError("title_vi", null, "A scenario title is required")
+        }
+
+        val scenario = suspendRunCatching {
+            sessionStore.saveCustomScenario(
+                titleVi = titleVi.ifBlank { titleEn },
+                titleEn = titleEn,
+                aiRole = aiRole,
+                learnerRole = learnerRole,
+                customContext = context,
+                missionObjective = objective
+            )
+        }.getOrNull()
+
+        val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
+        val feedback = if (isVi) {
+            "Đã lưu tình huống \"${titleVi.ifBlank { titleEn }}\" vào danh sách luyện tập của bạn."
+        } else {
+            "Saved scenario \"$titleEn\" to your practice list."
+        }
+        announcer.announce(feedback)
+        return mapOf(
+            "status" to "success",
+            "scenario_id" to (scenario?.id ?: "saved"),
+            "instruction" to "The custom scenario was saved to the learner's practice list. Warmly acknowledge it to the learner and ask if they'd like to practice it now or continue."
         )
     }
 
@@ -2642,6 +2722,18 @@ open class ConversationEngine @Inject constructor(
                 applyBetterPhrasingChange(enabled)
                 notifyModel(
                     "System: The learner turned natural phrasing upgrades ${if (enabled) "on" else "off"}. " +
+                        "Confirm warmly in one short sentence and continue.",
+                    aiAnswering
+                )
+            }
+            VoiceCommand.GetWeeklyDigest -> {
+                scope.launch { handleGetWeeklyDigest() }
+            }
+            is VoiceCommand.SetWeeklyDigest -> {
+                val enabled = command.enabled
+                applyWeeklyDigestChange(enabled)
+                notifyModel(
+                    "System: The learner turned weekly progress digest ${if (enabled) "on" else "off"}. " +
                         "Confirm warmly in one short sentence and continue.",
                     aiAnswering
                 )

@@ -1255,4 +1255,23 @@ class VoiceCommandParserTest {
         assertThat(VoiceCommandParser.parseBetterPhrasingCommand("stop natural suggestions")).isFalse()
         assertThat(VoiceCommandParser.parseBetterPhrasingCommand("hôm nay thời tiết rất đẹp")).isNull()
     }
+
+    @Test
+    fun `weekly digest requests are recognised in Vietnamese and English`() {
+        assertThat(VoiceCommandParser.parseGetWeeklyDigestCommand("báo cáo tuần")).isTrue()
+        assertThat(VoiceCommandParser.parseGetWeeklyDigestCommand("bao cao tuan")).isTrue()
+        assertThat(VoiceCommandParser.parseGetWeeklyDigestCommand("tóm tắt tuần qua")).isTrue()
+        assertThat(VoiceCommandParser.parseGetWeeklyDigestCommand("weekly digest")).isTrue()
+        assertThat(VoiceCommandParser.parseGetWeeklyDigestCommand("weekly report")).isTrue()
+        assertThat(VoiceCommandParser.parseGetWeeklyDigestCommand("how did i do last week")).isTrue()
+        assertThat(VoiceCommandParser.parseGetWeeklyDigestCommand("tôi thích học tiếng Anh")).isFalse()
+
+        assertThat(VoiceCommandParser.parseWeeklyDigestCommand("bật báo cáo tuần")).isTrue()
+        assertThat(VoiceCommandParser.parseWeeklyDigestCommand("bat bao cao tuan")).isTrue()
+        assertThat(VoiceCommandParser.parseWeeklyDigestCommand("turn on weekly digest")).isTrue()
+        assertThat(VoiceCommandParser.parseWeeklyDigestCommand("tắt báo cáo tuần")).isFalse()
+        assertThat(VoiceCommandParser.parseWeeklyDigestCommand("tat bao cao tuan")).isFalse()
+        assertThat(VoiceCommandParser.parseWeeklyDigestCommand("turn off weekly digest")).isFalse()
+        assertThat(VoiceCommandParser.parseWeeklyDigestCommand("tôi đang lái xe")).isNull()
+    }
 }

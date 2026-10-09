@@ -178,4 +178,13 @@ class VoiceCommandRecognizerTest {
         // Statements, not requests.
         assertThat(recognize("hôm nay tôi học 20 phút trên đường đi làm")).isNull()
     }
+
+    @Test
+    fun `weekly digest requests are recognised as commands`() {
+        assertThat(recognize("báo cáo tuần")).isEqualTo(VoiceCommand.GetWeeklyDigest)
+        assertThat(recognize("tóm tắt tuần qua")).isEqualTo(VoiceCommand.GetWeeklyDigest)
+        assertThat(recognize("weekly digest")).isEqualTo(VoiceCommand.GetWeeklyDigest)
+        assertThat(recognize("tắt báo cáo tuần")).isEqualTo(VoiceCommand.SetWeeklyDigest(false))
+        assertThat(recognize("turn off weekly digest")).isEqualTo(VoiceCommand.SetWeeklyDigest(false))
+    }
 }

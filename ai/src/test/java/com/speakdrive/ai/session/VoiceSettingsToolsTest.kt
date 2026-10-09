@@ -49,6 +49,9 @@ class VoiceSettingsToolsTest {
             VoiceSettingsTools.SET_AZURE_SCORING_FUNCTION,
             VoiceSettingsTools.SET_SCREEN_AWAKE_FUNCTION,
             VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION,
+            VoiceSettingsTools.GET_WEEKLY_DIGEST_FUNCTION,
+            VoiceSettingsTools.SET_WEEKLY_DIGEST_FUNCTION,
+            VoiceSettingsTools.CREATE_CUSTOM_SCENARIO_FUNCTION,
             VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION
         )
     }
@@ -589,5 +592,24 @@ class VoiceSettingsToolsTest {
         val names = VoiceSettingsTools.allTools.map { it.name }
         assertThat(names).contains(VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION)
         assertThat(VoiceSettingsTools.setBetterPhrasingTool.description).contains("turn on better phrasing")
+    }
+
+    @Test
+    fun `weekly digest and custom scenario tools are declared and parseWeeklyDigest works`() {
+        val names = VoiceSettingsTools.allTools.map { it.name }
+        assertThat(names).contains(VoiceSettingsTools.GET_WEEKLY_DIGEST_FUNCTION)
+        assertThat(names).contains(VoiceSettingsTools.SET_WEEKLY_DIGEST_FUNCTION)
+        assertThat(names).contains(VoiceSettingsTools.CREATE_CUSTOM_SCENARIO_FUNCTION)
+
+        assertThat(VoiceSettingsTools.parseWeeklyDigest(true)).isTrue()
+        assertThat(VoiceSettingsTools.parseWeeklyDigest(false)).isFalse()
+        assertThat(VoiceSettingsTools.parseWeeklyDigest("bật")).isTrue()
+        assertThat(VoiceSettingsTools.parseWeeklyDigest("on")).isTrue()
+        assertThat(VoiceSettingsTools.parseWeeklyDigest("tắt")).isFalse()
+        assertThat(VoiceSettingsTools.parseWeeklyDigest("off")).isFalse()
+        assertThat(VoiceSettingsTools.parseWeeklyDigest("maybe")).isNull()
+
+        assertThat(VoiceSettingsTools.createCustomScenarioTool.parameters.map { it.name })
+            .containsExactly("title_vi", "title_en", "ai_role", "learner_role", "custom_context", "mission_objective")
     }
 }

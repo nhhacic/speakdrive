@@ -486,4 +486,7 @@
     <string name="settings_anki_success">Exported %1$d words to Anki file</string>
     <string name="settings_backup_error">Backup failed: %1$s</string>
     <string name="settings_restore_error">Restore failed: %1$s</string>
+    <string name="settings_weekly_digest">Weekly spoken progress digest</string>
+    <string name="settings_weekly_digest_desc">Automatically play an audio progress summary (time spoken, average speed, new vocabulary) at the start of each week.</string>
+    <string name="home_custom_scenarios_title">Your Custom Scenarios</string>
 </resources>

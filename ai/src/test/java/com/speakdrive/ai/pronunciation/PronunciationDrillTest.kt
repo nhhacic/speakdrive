@@ -121,6 +121,12 @@ class PronunciationDrillTest {
             .isEqualTo("He's still trying to solve that mystery from last week.")
         assertThat(PronunciationDrill.extractTarget("Đọc lại cả câu: He's still trying to solve that mystery from last week."))
             .isEqualTo("He's still trying to solve that mystery from last week.")
+
+        // Conversational intro like "let's practice pronunciation" should not contaminate the target sentence
+        assertThat(PronunciationDrill.extractTarget("Today let's practice pronunciation. Repeat after me: Let's start with this."))
+            .isEqualTo("Let's start with this.")
+        assertThat(PronunciationDrill.extractTarget("Welcome! Today let's practice pronunciation. Repeat after me: Let's"))
+            .isNull()
     }
 
     @Test

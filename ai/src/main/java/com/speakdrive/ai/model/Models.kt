@@ -674,7 +674,9 @@ data class LearnerSettings(
     /** Minutes of practice the learner aims for each day (5–60). */
     val dailyGoalMinutes: Int = DEFAULT_DAILY_GOAL_MINUTES,
     /** How long the phone screen stays on during a lesson outside Android Auto. */
-    val screenAwakeMode: ScreenAwakeMode = ScreenAwakeMode.ALWAYS_ON
+    val screenAwakeMode: ScreenAwakeMode = ScreenAwakeMode.ALWAYS_ON,
+    /** Spoken weekly progress digest at the start of each week. Default is true. */
+    val weeklyDigestEnabled: Boolean = true
 ) {
     companion object {
         const val REMINDER_AUTO = -1

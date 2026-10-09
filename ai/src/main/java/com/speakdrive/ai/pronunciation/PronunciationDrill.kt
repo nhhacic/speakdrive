@@ -184,6 +184,10 @@ object PronunciationDrill {
         val result = if (sentences.isNotEmpty()) sentences.joinToString(" ") else text
         val cleaned = result.trim().trim('"', '“', '”').trim()
         if (cleaned.endsWith(":") || cleaned.replace(Regex("[\\s\"“”']+$"), "").endsWith(":")) return null
+        // If the candidate still contains a drill prefix like "repeat after me" or "next sentence",
+        // it means an earlier conversational clause (e.g. "let's practice pronunciation") captured it.
+        // A clean target sentence should never contain a drill prefix inside it!
+        if (PREFIX_KEYWORD_REGEX.containsMatchIn(cleaned)) return null
         val words = cleaned.split(Regex("\\s+")).filter { it.isNotBlank() }
         return cleaned.takeIf { words.size in 2..35 }
     }
@@ -222,7 +226,8 @@ object PronunciationDrill {
             "next up(?: is)?|" +
             "another sentence(?: is)?|" +
             "another one(?: is)?|" +
-            "let's (?:try|do|practice)(?: the next sentence| this sentence| this phrase| another one| the whole sentence(?: again)?| the full sentence(?: again)?)?|" +
+            "let's (?:try|do)(?: the next sentence| this sentence| this phrase| another one| the whole sentence(?: again)?| the full sentence(?: again)?)?|" +
+            "let's practice (?:the next sentence|this sentence|this phrase|another one|the whole sentence(?: again)?|the full sentence(?: again)?|saying|repeating)|" +
             "(?:now )?try (?:this sentence|this phrase|this one|this|saying|repeating|the whole sentence(?: again)?|the full sentence(?: again)?)|" +
             "(?:now )?(?:it'?s )?your turn(?: to say)?|" +
             "(?:now )?(?:the )?(?:whole|full) sentence(?: again)?|" +

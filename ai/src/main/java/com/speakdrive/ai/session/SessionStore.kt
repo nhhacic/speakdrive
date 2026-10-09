@@ -55,6 +55,25 @@ interface SessionStore {
 
     /** What the AI should remember about the learner at the start of a lesson. */
     suspend fun learnerMemory(): LearnerMemory = LearnerMemory.EMPTY
+
+    /** Spoken progress digest summarizing the previous 7 days of practice. */
+    suspend fun weeklyDigest(now: Long = System.currentTimeMillis()): String? = null
+
+    /** Save a personalized custom scenario created dynamically during conversation. */
+    suspend fun saveCustomScenario(
+        titleVi: String,
+        titleEn: String,
+        aiRole: String,
+        learnerRole: String,
+        customContext: String,
+        missionObjective: String? = null
+    ): com.speakdrive.ai.model.CustomScenario? = null
+
+    /** All custom scenarios created by or for the learner. */
+    suspend fun customScenarios(): List<com.speakdrive.ai.model.CustomScenario> = emptyList()
+
+    /** Delete a custom scenario by ID. */
+    suspend fun deleteCustomScenario(id: String) {}
 }
 
 interface LearningSettings {
@@ -87,5 +106,6 @@ interface LearningSettings {
     suspend fun setStreakFreeze(enabled: Boolean) {}
     suspend fun setOfflinePractice(enabled: Boolean) {}
     suspend fun setBetterPhrasing(enabled: Boolean) {}
+    suspend fun setWeeklyDigestEnabled(enabled: Boolean) {}
 }
 

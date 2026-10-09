@@ -1027,6 +1027,37 @@ object VoiceCommandParser {
         "better phrasing off", "stop suggesting better phrasing", "stop natural suggestions"
     ).map { TopicManager.normalize(it) }
 
+    fun parseGetWeeklyDigestCommand(text: String): Boolean {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return false
+        if (parseWeeklyDigestCommand(text) != null) return false
+        return containsAny(q, GET_WEEKLY_DIGEST_PHRASES)
+    }
+
+    private val GET_WEEKLY_DIGEST_PHRASES = listOf(
+        "bao cao tuan", "tong ket tuan", "tom tat tuan", "tien do tuan qua", "tuan qua hoc the nao",
+        "tuan qua toi noi the nao", "tuan truoc the nao", "xem bao cao tuan",
+        "weekly digest", "weekly report", "summarize last week", "how did i do last week", "last week report"
+    ).map { TopicManager.normalize(it) }
+
+    fun parseWeeklyDigestCommand(text: String): Boolean? {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return null
+        if (containsAny(q, OFF_WEEKLY_DIGEST_PHRASES)) return false
+        if (containsAny(q, ON_WEEKLY_DIGEST_PHRASES)) return true
+        return null
+    }
+
+    private val ON_WEEKLY_DIGEST_PHRASES = listOf(
+        "bat bao cao tuan", "bat tong ket tuan", "bat tu dong bao cao tuan", "tu dong bao cao tuan",
+        "turn on weekly digest", "enable weekly digest", "weekly digest on"
+    ).map { TopicManager.normalize(it) }
+
+    private val OFF_WEEKLY_DIGEST_PHRASES = listOf(
+        "tat bao cao tuan", "tat tong ket tuan", "dung bao cao tuan", "tat tu dong bao cao tuan",
+        "turn off weekly digest", "disable weekly digest", "weekly digest off"
+    ).map { TopicManager.normalize(it) }
+
     fun parseSessionModeCommand(text: String): SessionMode? {
         val q = TopicManager.normalize(text)
         if (q.isBlank()) return null

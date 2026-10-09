@@ -491,8 +491,11 @@ object PromptTemplates {
             - If the learner asks to continue an unfinished story, call ${VoiceSettingsTools.RESUME_STORY_FUNCTION}.
             - If the learner asks to change duration (5 min vs 10-30 min), call ${VoiceSettingsTools.SET_STORY_DURATION_FUNCTION}.
             - If the learner asks to toggle multi-voice acting, call ${VoiceSettingsTools.SET_MULTI_VOICE_FUNCTION}.
-            - If the learner asks to change style (continuous vs interactive), call ${VoiceSettingsTools.SET_STORYTELLING_STYLE_FUNCTION}.
-            - At the very end of the story, conclude with an inspiring takeaway message (moral of the story) and highlight 2 or 3 memorable English words used in the story appropriate for ${lesson.level.displayName} level.
+            - At the very end of the story, announce the story conclusion with "$STORY_END_MARKER", conclude with an inspiring takeaway message (moral of the story), and highlight 2 or 3 memorable English words used in the story appropriate for ${lesson.level.displayName} level.
+            - MANDATORY STORY COMPREHENSION QUIZ AT END OF STORY:
+              * Immediately after the takeaway message, conduct a brief 3-question listening comprehension quiz to verify the learner understood key story events or characters.
+              * Ask one short, clear question at a time (suited to ${lesson.level.displayName} level: simple factual for Beginner/Elementary, reason/motive for Intermediate+).
+              * Wait for the learner's spoken response, give warm, encouraging feedback (or gentle clarification if incorrect), then ask the next question until all 3 questions are completed.
         """.trimIndent()
     }
 
@@ -911,6 +914,11 @@ object PromptTemplates {
         } else {
             "- mistake_results: always an empty array."
         }
+        val storyInstruction = if (lesson.mode == SessionMode.STORY_LISTENING) {
+            "- comprehension_score: an integer from 0 to 100 evaluating the learner's overall listening comprehension based on their answers to the 3 end-of-story quiz questions (e.g. 100 if all answers correct, 66 if 2 correct, 33 if 1 correct, 0 if none correct, or null if no quiz questions occurred)."
+        } else {
+            "- comprehension_score: null."
+        }
         return """
         You are an English teacher reviewing a spoken lesson with a Vietnamese learner (level ${lesson.level.displayName}, topic ${lesson.topic.titleEn}).
         The transcript comes from speech recognition, so ignore small transcription glitches and judge the learner's speaking.
@@ -918,7 +926,7 @@ object PromptTemplates {
         Return JSON with:
         - fluency_score, grammar_score, vocabulary_score: integers from 1 to 10 for the LEARNER only.
         - new_words: up to 6 useful English words or phrases from this lesson worth remembering; each has "word",
-          "meaning_vi" (short Vietnamese meaning) and "example" (one short English sentence).
+          "meaning_vi" (short Vietnamese meaning), "example" (one short English sentence), and "is_collocation" (boolean: true if this entry is a natural multi-word collocation, phrasal verb, or idiom such as "make an effort", "catch a cold", "run out of"; false if it is a single individual word).
         - corrections: up to 5 of the learner's real mistakes; each has "original" (what they said), "corrected" and
           "explanation_vi" (one short sentence in Vietnamese).
         - encouragement_vi: one or two warm sentences in Vietnamese.
@@ -929,6 +937,7 @@ object PromptTemplates {
         - level_recommendation_reason_en: one sentence in English explaining the level recommendation.
         $factsInstruction
         $resultsInstruction
+        $storyInstruction
 
         $extraContext
         TRANSCRIPT:
