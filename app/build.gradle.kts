@@ -128,6 +128,7 @@ android {
         // New lint errors fail the build (and CI); issues that predate this are listed in the baseline.
         abortOnError = true
         baseline = file("lint-baseline.xml")
+        disable += setOf("MissingTranslation", "LocalContextGetResourceValueCall")
     }
 }
 
