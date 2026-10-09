@@ -4,7 +4,6 @@
 $adbPath = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 $dhuDir = "$env:LOCALAPPDATA\Android\Sdk\extras\google\auto"
 $dhuExe = "$dhuDir\desktop-head-unit.exe"
-$configFile = "$dhuDir\config\default_720p.ini"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "   SpeakDrive - Trình Giả Lập Màn Hình Xe Hơi Android Auto" -ForegroundColor Green
@@ -12,9 +11,7 @@ Write-Host "==========================================================" -Foregro
 
 # 1. Kiem tra file DHU
 if (-not (Test-Path $dhuExe)) {
-    Write-Host "[LỖI] Không tìm thấy file desktop-head-unit.exe tại:" -ForegroundColor Red
-    Write-Host "  $dhuExe" -ForegroundColor Yellow
-    Write-Host "Vui lòng cài đặt lại DHU hoặc chạy script cài đặt." -ForegroundColor Yellow
+    Write-Host "[LỖI] Không tìm thấy file desktop-head-unit.exe tại: $dhuExe" -ForegroundColor Red
     Read-Host "Nhấn Enter để thoát..."
     exit 1
 }
@@ -68,16 +65,26 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "[CẢNH BÁO] Không thể forward cổng 5277. Đang thử tiếp..." -ForegroundColor Yellow
 }
 
-# 5. Khoi chay DHU
+# 5. Huong dan truoc khi khoi chay
 Write-Host ""
+Write-Host "----------------------------------------------------------" -ForegroundColor Yellow
+Write-Host " [QUAN TRỌNG KHI KẾT NỐI]:" -ForegroundColor Yellow
+Write-Host " 1. Hãy kiểm tra màn hình ĐIỆN THOẠI." -ForegroundColor White
+Write-Host "    Nếu điện thoại hiện màn hình chào mừng/thiết lập Android Auto," -ForegroundColor White
+Write-Host "    hãy bấm 'Tiếp tục' / 'Đồng ý' và cấp đủ quyền trên điện thoại." -ForegroundColor White
+Write-Host " 2. Khi điện thoại chấp nhận, cửa sổ ô tô sẽ hiển thị giao diện chính." -ForegroundColor White
+Write-Host "----------------------------------------------------------" -ForegroundColor Yellow
+Write-Host ""
+
 Write-Host "-> Đang khởi chạy Android Auto Desktop Head Unit (Độ phân giải 720p)..." -ForegroundColor Green
 Write-Host "   (Bạn có thể đóng cửa sổ giả lập xe hơi để kết thúc)" -ForegroundColor Gray
 Write-Host ""
 
-if (Test-Path $configFile) {
-    & $dhuExe --config="$configFile"
-} else {
-    & $dhuExe
+Push-Location $dhuDir
+try {
+    .\desktop-head-unit.exe --config=config/default_720p.ini
+} finally {
+    Pop-Location
 }
 
 # 6. Don dep sau khi dong DHU
