@@ -352,6 +352,12 @@
     <string name="about_copyright">Copyright © 2026 nhhacic. Veröffentlicht unter der MIT-Lizenz.</string>
     <string name="about_key_features_title">Wichtigste Funktionen &amp; Technik</string>
     <string name="about_tech_info_title">Technische Informationen</string>
+    <string name="about_diagnostics_title">Diagnoseprotokoll</string>
+    <string name="about_diagnostics_desc">Wenn die KI verstummt, die Verbindung verliert oder sich seltsam verhält, speichere sofort das Protokoll und schicke die Datei an den Entwickler. Die App speichert es nur auf diesem Telefon und sendet nichts. Es enthält die letzten Gesprächsverläufe. Während einer Lektion kannst du auch \"save the log\" sagen.</string>
+    <string name="about_diagnostics_save">Protokoll in Downloads speichern</string>
+    <string name="about_diagnostics_saving">Wird gespeichert…</string>
+    <string name="about_diagnostics_saved">Gespeichert: %1$s</string>
+    <string name="about_diagnostics_failed">Protokoll konnte nicht gespeichert werden</string>
     <string name="about_platform_label">Plattform</string>
     <string name="about_architecture_label">Architektur</string>
     <string name="about_feat_gemini_title">KI-Tutor mit Gemini Live</string>

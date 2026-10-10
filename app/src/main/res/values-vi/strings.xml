@@ -409,6 +409,12 @@
     <string name="about_copyright">Bản quyền © 2026 nhhacic. Phát hành theo giấy phép MIT.</string>
     <string name="about_key_features_title">Tính năng &amp; Công nghệ chính</string>
     <string name="about_tech_info_title">Thông tin kỹ thuật</string>
+    <string name="about_diagnostics_title">Nhật ký chẩn đoán</string>
+    <string name="about_diagnostics_desc">Khi AI im lặng, mất kết nối hoặc hoạt động lạ, hãy lưu nhật ký ngay rồi gửi file cho nhà phát triển. App chỉ lưu file trên máy này, không tự gửi đi đâu. Nhật ký có lời thoại gần đây của buổi học. Trong buổi học cũng có thể nói \"lưu nhật ký\".</string>
+    <string name="about_diagnostics_save">Lưu nhật ký vào thư mục Tải về</string>
+    <string name="about_diagnostics_saving">Đang lưu…</string>
+    <string name="about_diagnostics_saved">Đã lưu: %1$s</string>
+    <string name="about_diagnostics_failed">Không lưu được nhật ký</string>
     <string name="about_platform_label">Nền tảng</string>
     <string name="about_architecture_label">Kiến trúc</string>
     <string name="about_feat_gemini_title">Gia sư AI Gemini Live</string>

@@ -23,4 +23,25 @@ class LiveLogTest {
 
         assertThat(line).isEqualTo("10-10 14:05:27.055 I/ConversationEngine [main] Lesson state: ACTIVE\n")
     }
+
+    @Test
+    fun `a report has the header, then the lesson log from the oldest file to the newest`() {
+        val dir = java.nio.file.Files.createTempDirectory("livelog").toFile()
+        try {
+            java.io.File(dir, "live.2.log").writeText("oldest\n")
+            java.io.File(dir, "live.1.log").writeText("older\n")
+            java.io.File(dir, "live.log").writeText("newest\n")
+            val out = java.io.StringWriter()
+
+            LiveLog.writeReport(dir, out, "SpeakDrive 1.7.9")
+
+            val text = out.toString()
+            assertThat(text).startsWith("SpeakDrive 1.7.9")
+            assertThat(text.indexOf("oldest")).isLessThan(text.indexOf("older"))
+            assertThat(text.indexOf("older")).isLessThan(text.indexOf("newest"))
+            assertThat(text).contains("===== logcat")
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 }

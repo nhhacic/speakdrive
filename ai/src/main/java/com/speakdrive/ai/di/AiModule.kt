@@ -1,6 +1,8 @@
 package com.speakdrive.ai.di
 
 import com.speakdrive.ai.GeminiLiveManager
+import com.speakdrive.ai.diagnostics.AndroidDiagnosticsLogSaver
+import com.speakdrive.ai.diagnostics.DiagnosticsLogSaver
 import com.speakdrive.ai.live.LiveConversationClient
 import com.speakdrive.ai.network.AndroidConnectivityObserver
 import com.speakdrive.ai.network.ConnectivityObserver
@@ -41,6 +43,9 @@ abstract class AiModule {
 
     @Binds
     abstract fun bindPronunciationAssessor(impl: AzurePronunciationAssessor): PronunciationAssessor
+
+    @Binds
+    abstract fun bindDiagnosticsLogSaver(impl: AndroidDiagnosticsLogSaver): DiagnosticsLogSaver
 
     companion object {
         @Provides

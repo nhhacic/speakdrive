@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Email
@@ -67,6 +68,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.speakdrive.AppCheckInstaller
 import com.speakdrive.BuildConfig
+import com.speakdrive.ai.diagnostics.DiagnosticsLogExport
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
@@ -123,6 +127,9 @@ fun AboutScreen(
 
             // Thông tin kỹ thuật & Model AI
             TechInfoCard()
+
+            // Nhật ký chẩn đoán: chỉ lưu vào thư mục Tải về trên máy để tester tự gửi cho nhà phát triển
+            DiagnosticsCard()
 
             // Bản debug: mã App Check riêng của máy này để đăng ký trên Firebase Console
             if (BuildConfig.DEBUG) {
@@ -409,6 +416,65 @@ private fun TechInfoCard() {
             InfoItem(label = "Gemini Text Model", value = com.speakdrive.ai.BuildConfig.TEXT_MODEL)
             InfoItem(label = stringResource(R.string.about_platform_label), value = "Android 8.0+ & Android Auto (Jetpack Compose)")
             InfoItem(label = stringResource(R.string.about_architecture_label), value = "Clean Architecture, Media3 Service, Hilt, Room")
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticsCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var saving by remember { mutableStateOf(false) }
+    // Null until saved; then "" when saving failed, otherwise where the file went.
+    var savedTo by remember { mutableStateOf<String?>(null) }
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(20.dp)
+            )
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Filled.BugReport, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    text = stringResource(R.string.about_diagnostics_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Text(
+                text = stringResource(R.string.about_diagnostics_desc),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(
+                onClick = {
+                    saving = true
+                    scope.launch {
+                        savedTo = withContext(Dispatchers.IO) { DiagnosticsLogExport.saveToDownloads(context) }.orEmpty()
+                        saving = false
+                    }
+                },
+                enabled = !saving,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(if (saving) R.string.about_diagnostics_saving else R.string.about_diagnostics_save))
+            }
+            savedTo?.let { place ->
+                Text(
+                    text = if (place.isEmpty()) stringResource(R.string.about_diagnostics_failed)
+                    else stringResource(R.string.about_diagnostics_saved, place),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }

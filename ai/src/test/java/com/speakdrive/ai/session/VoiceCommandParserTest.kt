@@ -1274,4 +1274,15 @@ class VoiceCommandParserTest {
         assertThat(VoiceCommandParser.parseWeeklyDigestCommand("turn off weekly digest")).isFalse()
         assertThat(VoiceCommandParser.parseWeeklyDigestCommand("tôi đang lái xe")).isNull()
     }
+
+    @Test
+    fun `save the diagnostics log is understood in Vietnamese and English`() {
+        listOf(
+            "lưu nhật ký", "Lưu nhật ký lỗi giúp tôi", "luu nhat ky", "lưu log", "xuất log", "ghi nhật ký lỗi",
+            "save the log", "Please save the diagnostics log", "export the log"
+        ).forEach { assertThat(VoiceCommandParser.parseSaveDiagnosticsLogCommand(it)).isTrue() }
+        listOf(
+            "Tôi thích viết nhật ký mỗi tối", "I want to save money for a trip", "the log is on the table", ""
+        ).forEach { assertThat(VoiceCommandParser.parseSaveDiagnosticsLogCommand(it)).isFalse() }
+    }
 }

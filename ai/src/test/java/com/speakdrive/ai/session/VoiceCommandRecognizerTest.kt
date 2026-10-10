@@ -187,4 +187,17 @@ class VoiceCommandRecognizerTest {
         assertThat(recognize("tắt báo cáo tuần")).isEqualTo(VoiceCommand.SetWeeklyDigest(false))
         assertThat(recognize("turn off weekly digest")).isEqualTo(VoiceCommand.SetWeeklyDigest(false))
     }
+
+    @Test
+    fun `saving the diagnostics log is a short request in any lesson`() {
+        assertThat(recognize("lưu nhật ký")).isEqualTo(VoiceCommand.SaveDiagnosticsLog)
+        assertThat(recognize("bạn lưu nhật ký lỗi lại giúp tôi nhé")).isEqualTo(VoiceCommand.SaveDiagnosticsLog)
+        assertThat(recognize("save the log", context(mode = SessionMode.REPEAT_AFTER_ME))).isEqualTo(VoiceCommand.SaveDiagnosticsLog)
+        assertThat(recognize("save the log", context(mode = SessionMode.STORY_LISTENING))).isEqualTo(VoiceCommand.SaveDiagnosticsLog)
+        // A drill sentence that happens to say it is practice, not a command.
+        assertThat(recognize("Please save the log file", context(mode = SessionMode.REPEAT_AFTER_ME, drillTarget = "Please save the log file.")))
+            .isNull()
+        // Talking about a diary is not a request.
+        assertThat(recognize("hôm qua tôi đã quên lưu nhật ký học tập của mình ở trường đại học")).isNull()
+    }
 }

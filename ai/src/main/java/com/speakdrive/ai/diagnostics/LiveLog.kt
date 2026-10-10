@@ -3,6 +3,7 @@ package com.speakdrive.ai.diagnostics
 import android.util.Log
 import java.io.File
 import java.io.FileWriter
+import java.io.Writer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -16,6 +17,8 @@ import java.util.concurrent.TimeUnit
  * read them over ADB:
  *
  *     adb pull /sdcard/Android/data/com.speakdrive.ai/files/logs
+ *
+ * On a tester's phone without ADB, [DiagnosticsLogExport] copies them into the Download folder.
  */
 object LiveLog {
     private const val FILE = "live.log"
@@ -25,6 +28,12 @@ object LiveLog {
 
     /** The current file rolls over at this size, so about 6 MB of history are kept. */
     const val MAX_FILE_BYTES = 2_000_000L
+
+    /** Lines of the app's own logcat added to a report. */
+    private const val LOGCAT_LINES = 6_000
+
+    /** Logcat chatter from the UI toolkit that says nothing about a lesson. */
+    private val LOGCAT_NOISE = listOf("setRequestedFrameRate", "VRI[", "Kumiho", "InsetsController", "ImeTracker", "BLASTBuffer")
 
     @Volatile
     private var dir: File? = null
@@ -63,6 +72,36 @@ object LiveLog {
     /** Waits until every line logged so far is on disk. */
     fun flush() {
         runCatching { writer.submit {}.get(3, TimeUnit.SECONDS) }
+    }
+
+    /**
+     * Writes one report for the developer to [out]: [header], the lesson log (oldest file first) and
+     * the app's own recent logcat (audio routing, Firebase SDK messages). False before [init].
+     */
+    fun writeReport(out: Writer, header: String): Boolean {
+        val source = dir ?: return false
+        flush()
+        writeReport(source, out, header)
+        return true
+    }
+
+    internal fun writeReport(source: File, out: Writer, header: String) {
+        out.appendLine(header)
+        out.appendLine()
+        out.appendLine("===== Lesson log =====")
+        val files = (KEPT_OLD_FILES downTo 1).map { File(source, "live.$it.log") } + File(source, FILE)
+        files.filter { it.exists() }.forEach { file -> file.bufferedReader().use { it.copyTo(out) } }
+        out.appendLine()
+        out.appendLine("===== logcat (this app, last $LOGCAT_LINES lines) =====")
+        runCatching {
+            val process = ProcessBuilder("logcat", "-d", "-v", "threadtime", "-t", LOGCAT_LINES.toString())
+                .redirectErrorStream(true)
+                .start()
+            process.inputStream.bufferedReader().useLines { lines ->
+                lines.filter { line -> LOGCAT_NOISE.none { it in line } }.forEach { out.appendLine(it) }
+            }
+            process.waitFor(5, TimeUnit.SECONDS)
+        }.onFailure { out.appendLine("(logcat unavailable: ${it.message})") }
     }
 
     private fun append(level: Char, tag: String, message: String, error: Throwable?) {

@@ -352,6 +352,12 @@
     <string name="about_copyright">Copyright © 2026 nhhacic。以 MIT 许可证发布。</string>
     <string name="about_key_features_title">主要功能与技术</string>
     <string name="about_tech_info_title">技术信息</string>
+    <string name="about_diagnostics_title">诊断日志</string>
+    <string name="about_diagnostics_desc">如果 AI 没有回应、断开连接或表现异常，请立即保存日志并把文件发给开发者。应用只把日志保存在这台手机上，不会发送到任何地方。日志包含最近课程的对话内容。上课时也可以说“save the log”。</string>
+    <string name="about_diagnostics_save">将日志保存到“下载”</string>
+    <string name="about_diagnostics_saving">正在保存…</string>
+    <string name="about_diagnostics_saved">已保存：%1$s</string>
+    <string name="about_diagnostics_failed">无法保存日志</string>
     <string name="about_platform_label">平台</string>
     <string name="about_architecture_label">架构</string>
     <string name="about_feat_gemini_title">Gemini Live AI 老师</string>

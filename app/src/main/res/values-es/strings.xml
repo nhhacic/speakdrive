@@ -352,6 +352,12 @@
     <string name="about_copyright">Copyright © 2026 nhhacic. Publicado bajo la licencia MIT.</string>
     <string name="about_key_features_title">Funciones principales y tecnología</string>
     <string name="about_tech_info_title">Información técnica</string>
+    <string name="about_diagnostics_title">Registro de diagnóstico</string>
+    <string name="about_diagnostics_desc">Si la IA se queda en silencio, se desconecta o falla, guarda el registro enseguida y envía el archivo al desarrollador. La app solo lo guarda en este teléfono y nunca lo envía. Incluye las transcripciones recientes. Durante una lección también puedes decir \"save the log\".</string>
+    <string name="about_diagnostics_save">Guardar registro en Descargas</string>
+    <string name="about_diagnostics_saving">Guardando…</string>
+    <string name="about_diagnostics_saved">Guardado: %1$s</string>
+    <string name="about_diagnostics_failed">No se pudo guardar el registro</string>
     <string name="about_platform_label">Plataforma</string>
     <string name="about_architecture_label">Arquitectura</string>
     <string name="about_feat_gemini_title">Tutor IA con Gemini Live</string>

@@ -352,6 +352,12 @@
     <string name="about_copyright">Copyright © 2026 nhhacic. MIT ライセンスで公開しています。</string>
     <string name="about_key_features_title">主な機能と技術</string>
     <string name="about_tech_info_title">技術情報</string>
+    <string name="about_diagnostics_title">診断ログ</string>
+    <string name="about_diagnostics_desc">AIが黙る、接続が切れる、動作がおかしいときは、すぐにログを保存してファイルを開発者に送ってください。アプリはこの端末に保存するだけで、どこにも送信しません。最近のレッスンの会話内容が含まれます。レッスン中に「save the log」と言っても保存できます。</string>
+    <string name="about_diagnostics_save">ログをダウンロードに保存</string>
+    <string name="about_diagnostics_saving">保存しています…</string>
+    <string name="about_diagnostics_saved">保存しました: %1$s</string>
+    <string name="about_diagnostics_failed">ログを保存できませんでした</string>
     <string name="about_platform_label">プラットフォーム</string>
     <string name="about_architecture_label">アーキテクチャ</string>
     <string name="about_feat_gemini_title">Gemini Live の AI 講師</string>

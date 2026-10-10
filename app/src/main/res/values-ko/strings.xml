@@ -352,6 +352,12 @@
     <string name="about_copyright">Copyright © 2026 nhhacic. MIT 라이선스로 배포됩니다.</string>
     <string name="about_key_features_title">주요 기능과 기술</string>
     <string name="about_tech_info_title">기술 정보</string>
+    <string name="about_diagnostics_title">진단 로그</string>
+    <string name="about_diagnostics_desc">AI가 말을 멈추거나 연결이 끊기거나 이상하게 동작하면 바로 로그를 저장하고 파일을 개발자에게 보내 주세요. 앱은 이 휴대폰에만 저장하며 어디로도 보내지 않습니다. 최근 수업 대화 내용이 포함됩니다. 수업 중에 \"save the log\"라고 말해도 됩니다.</string>
+    <string name="about_diagnostics_save">로그를 다운로드에 저장</string>
+    <string name="about_diagnostics_saving">저장하는 중…</string>
+    <string name="about_diagnostics_saved">저장됨: %1$s</string>
+    <string name="about_diagnostics_failed">로그를 저장할 수 없습니다</string>
     <string name="about_platform_label">플랫폼</string>
     <string name="about_architecture_label">아키텍처</string>
     <string name="about_feat_gemini_title">Gemini Live AI 튜터</string>

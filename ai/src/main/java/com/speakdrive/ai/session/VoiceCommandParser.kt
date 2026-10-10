@@ -1027,6 +1027,23 @@ object VoiceCommandParser {
         "better phrasing off", "stop suggesting better phrasing", "stop natural suggestions"
     ).map { TopicManager.normalize(it) }
 
+    /**
+     * "Lưu nhật ký" / "save the log": the learner wants the lesson log copied to the Download folder
+     * for the developer, typically right after the AI misbehaved.
+     */
+    fun parseSaveDiagnosticsLogCommand(text: String): Boolean {
+        val q = TopicManager.normalize(text)
+        if (q.isBlank()) return false
+        return containsAny(q, SAVE_DIAGNOSTICS_LOG_PHRASES)
+    }
+
+    private val SAVE_DIAGNOSTICS_LOG_PHRASES = listOf(
+        "lưu nhật ký", "lưu lại nhật ký", "lưu nhật ký lỗi", "lưu nhật ký chẩn đoán", "lưu log", "lưu lại log",
+        "lưu file log", "xuất nhật ký", "xuất log", "ghi nhật ký lỗi",
+        "save the log", "save log", "save the diagnostics", "save diagnostics", "save the diagnostic log",
+        "export the log", "export log"
+    ).map { TopicManager.normalize(it) }
+
     fun parseGetWeeklyDigestCommand(text: String): Boolean {
         val q = TopicManager.normalize(text)
         if (q.isBlank()) return false

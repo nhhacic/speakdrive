@@ -352,6 +352,12 @@
     <string name="about_copyright">Copyright © 2026 nhhacic. Publié sous licence MIT.</string>
     <string name="about_key_features_title">Fonctions clés et technologie</string>
     <string name="about_tech_info_title">Informations techniques</string>
+    <string name="about_diagnostics_title">Journal de diagnostic</string>
+    <string name="about_diagnostics_desc">Si l’IA se tait, se déconnecte ou se comporte mal, enregistrez tout de suite le journal et envoyez le fichier au développeur. L’app l’enregistre seulement sur ce téléphone et ne l’envoie jamais. Il contient les transcriptions récentes. Pendant une leçon, vous pouvez aussi dire \"save the log\".</string>
+    <string name="about_diagnostics_save">Enregistrer le journal dans Téléchargements</string>
+    <string name="about_diagnostics_saving">Enregistrement…</string>
+    <string name="about_diagnostics_saved">Enregistré : %1$s</string>
+    <string name="about_diagnostics_failed">Impossible d’enregistrer le journal</string>
     <string name="about_platform_label">Plateforme</string>
     <string name="about_architecture_label">Architecture</string>
     <string name="about_feat_gemini_title">Tuteur IA Gemini Live</string>

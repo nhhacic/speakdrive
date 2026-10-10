@@ -52,3 +52,4 @@ Mỗi khi build xong file APK (`:app:assembleDebug`), AI agent **BẮT BUỘC KI
 - Sự kiện của buổi học (kết nối, model, tool call, lời học viên/AI, thời gian AI trả lời, kết nối lại, tự phục hồi khi AI im lặng) ghi qua `com.speakdrive.ai.diagnostics.LiveLog` thay vì `android.util.Log`, để vừa ra logcat vừa lưu trên điện thoại.
 - File nằm trên máy, không gửi đi đâu: `/sdcard/Android/data/com.speakdrive.ai/files/logs/live.log` (cùng `live.1.log`, `live.2.log` cũ hơn, mỗi file ~2 MB). Đọc bằng:
   `adb pull /sdcard/Android/data/com.speakdrive.ai/files/logs`
+- Máy của tester không có ADB: nút "Lưu nhật ký vào thư mục Tải về" (màn Giới thiệu) hoặc nói "lưu nhật ký" / "save the log" (trong buổi học, hoặc qua nút Nói lệnh ở màn hình chính) sẽ chép nhật ký kèm logcat của app vào `Download/SpeakDrive/` (`DiagnosticsLogExport`). App không bao giờ tự gửi nhật ký đi đâu; tester tự gửi file nếu muốn.

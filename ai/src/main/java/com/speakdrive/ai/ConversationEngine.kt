@@ -1,6 +1,7 @@
 package com.speakdrive.ai
 
 import com.speakdrive.ai.di.EngineDispatcher
+import com.speakdrive.ai.diagnostics.DiagnosticsLogSaver
 import com.speakdrive.ai.diagnostics.LiveLog
 import com.speakdrive.ai.live.LiveModels
 import com.speakdrive.ai.live.LiveConversationClient
@@ -114,6 +115,7 @@ open class ConversationEngine @Inject constructor(
     private val drillSentenceManager: DrillSentenceManager,
     private val sentenceTranslator: com.speakdrive.ai.translation.SentenceTranslator,
     private val offlineSpeech: OfflineSpeech,
+    private val diagnosticsSaver: DiagnosticsLogSaver,
     @EngineDispatcher dispatcher: CoroutineDispatcher
 ) {
     /** Secondary constructor for tests without optional managers. */
@@ -129,7 +131,8 @@ open class ConversationEngine @Inject constructor(
         micPermission: MicPermissionChecker,
         pronunciationAssessor: PronunciationAssessor,
         dispatcher: CoroutineDispatcher,
-        offlineSpeech: OfflineSpeech = NoOfflineSpeech
+        offlineSpeech: OfflineSpeech = NoOfflineSpeech,
+        diagnosticsSaver: DiagnosticsLogSaver = DiagnosticsLogSaver { null }
     ) : this(
         liveClient = liveClient,
         summaryGenerator = summaryGenerator,
@@ -145,6 +148,7 @@ open class ConversationEngine @Inject constructor(
         drillSentenceManager = DrillSentenceManager(),
         sentenceTranslator = com.speakdrive.ai.translation.SentenceTranslator(DrillSentenceManager()),
         offlineSpeech = offlineSpeech,
+        diagnosticsSaver = diagnosticsSaver,
         dispatcher = dispatcher
     )
 
@@ -2938,6 +2942,31 @@ open class ConversationEngine @Inject constructor(
                     aiAnswering
                 )
             }
+            VoiceCommand.SaveDiagnosticsLog -> saveDiagnosticsLog(aiAnswering)
+        }
+    }
+
+    /**
+     * The learner asked to save the lesson log for the developer, usually right after something went
+     * wrong. The file goes to the phone's Download folder; one voice confirms it (the AI if it can
+     * speak, otherwise the device).
+     */
+    private fun saveDiagnosticsLog(aiAnswering: Boolean) {
+        scope.launch {
+            LiveLog.i(TAG, "The learner asked to save the diagnostics log")
+            val place = suspendRunCatching { diagnosticsSaver.save() }.getOrNull()
+            val spoken = if (place != null) ANNOUNCE_LOG_SAVED else ANNOUNCE_LOG_FAILED
+            if (aiCanSpeak()) {
+                val note = if (place != null) {
+                    "System: The app saved a diagnostics log for the developer in the phone's Download folder. " +
+                        "Say in a few words that the log was saved, then continue exactly where you were."
+                } else {
+                    "System: The app could not save the diagnostics log. Say so in a few words, then continue."
+                }
+                notifyModel(note, aiAnswering, fallback = spoken)
+            } else {
+                confirmOutLoud(spoken)
+            }
         }
     }
 
@@ -3090,5 +3119,7 @@ open class ConversationEngine @Inject constructor(
         const val ANNOUNCE_OFFLINE_AT_START = "There is no internet connection right now. Please try again later."
         const val ANNOUNCE_GIVE_UP = "Sorry, I could not reconnect. Your lesson has been saved."
         const val ANNOUNCE_AUTO_PAUSE = "I will pause the lesson for now. Press play when you are ready."
+        const val ANNOUNCE_LOG_SAVED = "The diagnostics log is saved in the Download folder."
+        const val ANNOUNCE_LOG_FAILED = "Sorry, I could not save the diagnostics log."
     }
 }

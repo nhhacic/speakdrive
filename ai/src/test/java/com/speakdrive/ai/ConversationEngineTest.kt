@@ -5,6 +5,7 @@ import com.speakdrive.audio.ListenResult
 import com.speakdrive.ai.offline.OfflineDrillCoach
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.live.LiveEvent
+import com.speakdrive.ai.diagnostics.DiagnosticsLogSaver
 import com.speakdrive.ai.live.LiveModels
 import com.speakdrive.ai.live.LiveToolCall
 import com.speakdrive.ai.model.AiVoice
@@ -60,6 +61,8 @@ class ConversationEngineTest {
     private val assessor = FakeAssessor()
     private val offline = FakeOfflineSpeech()
     private var micGranted = true
+    private var savedLogs = 0
+    private var saveLogResult: String? = "Download/SpeakDrive/SpeakDrive-log.txt"
     private var engine: ConversationEngine? = null
     private val uncaughtErrors = mutableListOf<Throwable>()
 
@@ -76,7 +79,8 @@ class ConversationEngineTest {
             micPermission = MicPermissionChecker { micGranted },
             pronunciationAssessor = assessor,
             dispatcher = StandardTestDispatcher(testScheduler),
-            offlineSpeech = offline
+            offlineSpeech = offline,
+            diagnosticsSaver = DiagnosticsLogSaver { savedLogs++; saveLogResult }
         )
         created.clock = { testScheduler.currentTime }
         created.onUncaughtError = { uncaughtErrors += it }
@@ -651,6 +655,27 @@ class ConversationEngineTest {
         advanceTimeBy(TOOL_GRACE_MS)
         runCurrent()
         assertThat(settings.settings.aiVolume).isLessThan(volumeBefore)
+    }
+
+    @Test
+    fun `saying save the log saves it and the AI confirms in its own voice`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        say(Speaker.AI, "Hello! Where would you like to travel?")
+        advanceTimeBy(3_000)
+
+        sayCommand("lưu nhật ký")
+
+        assertThat(savedLogs).isEqualTo(1)
+        assertThat(live.sentTexts.last()).contains("saved a diagnostics log")
+        assertThat(announcer.announcements).isEmpty()
+
+        // While the AI cannot speak (its connection just dropped), the device voice says it.
+        live.isConnected = false
+        saveLogResult = null
+        sayCommand("save the log")
+        assertThat(savedLogs).isEqualTo(2)
+        assertThat(announcer.announcements.last()).contains("could not save")
     }
 
     @Test

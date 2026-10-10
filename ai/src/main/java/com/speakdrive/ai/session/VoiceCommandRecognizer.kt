@@ -21,7 +21,7 @@ enum class CommandCategory {
     VOICE, STORY_DURATION, MULTI_VOICE, STORY_NAVIGATION, DRILL_NAVIGATION, DRILL_LENGTH, DRILL_CATEGORY,
     LEVEL_RECOMMENDATION, ADAPTIVE_LEVEL, VOLUME, AUTO_PAUSE, SUBTITLES, LEARNER_MEMORY,
     PRACTICE_REMINDER, STREAK_FREEZE, OFFLINE_PRACTICE, AUTO_START_IN_CAR, DAILY_GOAL, AZURE_SCORING, SCREEN_AWAKE,
-    BETTER_PHRASING, WEEKLY_DIGEST, CUSTOM_SCENARIO;
+    BETTER_PHRASING, WEEKLY_DIGEST, CUSTOM_SCENARIO, DIAGNOSTICS_LOG;
 
     companion object {
         /** The category a Gemini Live tool works on, so the fallback never applies the same change twice. */
@@ -172,6 +172,11 @@ sealed interface VoiceCommand {
     }
     object GetWeeklyDigest : VoiceCommand {
         override val category get() = CommandCategory.WEEKLY_DIGEST
+    }
+
+    /** Copy the lesson log to the Download folder for the developer. No tool: the app does it. */
+    data object SaveDiagnosticsLog : VoiceCommand {
+        override val category get() = CommandCategory.DIAGNOSTICS_LOG
     }
 }
 
@@ -333,6 +338,7 @@ object VoiceCommandRecognizer {
         if (VoiceCommandParser.parseGetWeeklyDigestCommand(text)) {
             return VoiceCommand.GetWeeklyDigest
         }
+        if (lenient && VoiceCommandParser.parseSaveDiagnosticsLogCommand(text)) return VoiceCommand.SaveDiagnosticsLog
         return null
     }
 
@@ -360,11 +366,11 @@ object VoiceCommandRecognizer {
     private val REQUEST_OPENERS = setOf(
         "bat", "tat", "mo", "doi", "chuyen", "chinh", "cai", "dat", "tang", "giam", "ha", "cho", "hay", "noi",
         "doc", "ke", "bo", "chon", "dung", "ngung", "luyen", "tap", "nghe", "quay", "hien", "an", "giu", "ap",
-        "de", "cham", "luon", "muc", "nhac",
+        "de", "cham", "luon", "muc", "nhac", "luu",
         "switch", "change", "set", "turn", "make", "enable", "disable", "use", "speak", "skip", "repeat", "play",
         "give", "stop", "start", "show", "hide", "keep", "can", "could", "would", "go", "next", "replay",
         "resume", "continue", "lower", "raise", "increase", "decrease", "apply", "accept", "tell", "read", "say",
-        "let", "lets", "remind"
+        "let", "lets", "remind", "save", "export"
     )
 
     private val REQUEST_OPENER_PAIRS = setOf(

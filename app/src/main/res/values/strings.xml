@@ -409,6 +409,12 @@
     <string name="about_copyright">Copyright © 2026 nhhacic. Released under MIT License.</string>
     <string name="about_key_features_title">Key Features &amp; Technology</string>
     <string name="about_tech_info_title">Technical Information</string>
+    <string name="about_diagnostics_title">Diagnostics log</string>
+    <string name="about_diagnostics_desc">If the AI goes silent, disconnects or misbehaves, save the log right away and send the file to the developer. The app only saves it on this phone; it never sends it anywhere. It includes recent lesson transcripts. You can also say \"save the log\" during a lesson.</string>
+    <string name="about_diagnostics_save">Save log to Downloads</string>
+    <string name="about_diagnostics_saving">Saving…</string>
+    <string name="about_diagnostics_saved">Saved: %1$s</string>
+    <string name="about_diagnostics_failed">Could not save the log</string>
     <string name="about_platform_label">Platform</string>
     <string name="about_architecture_label">Architecture</string>
     <string name="about_feat_gemini_title">Gemini Live AI Tutor</string>

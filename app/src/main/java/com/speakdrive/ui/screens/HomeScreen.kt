@@ -20,17 +20,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.speakdrive.R
+import android.widget.Toast
+import com.speakdrive.ai.diagnostics.DiagnosticsLogExport
 import com.speakdrive.ai.model.Topic
+import com.speakdrive.ai.session.VoiceCommandParser
 import com.speakdrive.auto.MediaIds
 import java.util.Calendar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Width from which the home screen shows the full topic list in a second pane (unfolded Fold, tablets). */
 private val TwoPaneMinWidth = 600.dp
@@ -44,7 +52,19 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val (voice, toggleVoice) = rememberHomeVoiceCommand { transcript ->
+        if (VoiceCommandParser.parseSaveDiagnosticsLogCommand(transcript)) {
+            // "Lưu nhật ký": same as the button on the About screen.
+            scope.launch {
+                val place = withContext(Dispatchers.IO) { DiagnosticsLogExport.saveToDownloads(context) }
+                val message = if (place != null) context.getString(R.string.about_diagnostics_saved, place)
+                else context.getString(R.string.about_diagnostics_failed)
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
+            return@rememberHomeVoiceCommand
+        }
         val mediaId = viewModel.resolveVoiceCommand(transcript)
         if (mediaId == MediaIds.RESUME && state.currentLesson != null) onOpenCurrentLesson() else onStartLesson(mediaId)
     }
