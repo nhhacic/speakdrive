@@ -20,11 +20,15 @@ import com.google.firebase.ai.type.InlineData
 import com.google.firebase.ai.type.InlineDataPart
 import com.google.firebase.ai.type.LiveServerContent
 import com.google.firebase.ai.type.LiveServerGoAway
+import com.google.firebase.ai.type.LiveServerSetupComplete
 import com.google.firebase.ai.type.LiveServerToolCall
+import com.google.firebase.ai.type.LiveServerToolCallCancellation
 import com.google.firebase.ai.type.LiveSession
+import com.google.firebase.ai.type.LiveSessionResumptionUpdate
 import com.google.firebase.ai.type.PublicPreviewAPI
 import com.google.firebase.ai.type.ResponseModality
 import com.google.firebase.ai.type.Schema
+import com.google.firebase.ai.type.SessionResumptionConfig
 import com.google.firebase.ai.type.SlidingWindow
 import com.google.firebase.ai.type.SpeechConfig
 import com.google.firebase.ai.type.Tool
@@ -32,6 +36,8 @@ import com.speakdrive.ai.pronunciation.PronunciationDrill
 import com.google.firebase.ai.type.Voice
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.liveGenerationConfig
+import com.speakdrive.ai.diagnostics.LiveLog
+import com.speakdrive.ai.live.LiveConnectPlanner
 import com.speakdrive.ai.live.LiveConversationClient
 import com.speakdrive.ai.live.LiveEvent
 import com.speakdrive.ai.live.LiveSessionConfig
@@ -66,6 +72,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -136,13 +143,46 @@ class GeminiLiveManager @Inject constructor(
     override val settingsToolsActive: Boolean
         get() = toolsActive
 
+    /** Latest server handle for continuing the lesson's conversation on a new connection. */
+    private class ResumeHandle(val key: String, val model: String, val handle: String, val receivedAt: Long)
+
+    @Volatile
+    private var resumeHandle: ResumeHandle? = null
+
+    /** Learned on the first connect of this app run: does the server accept session resumption? */
+    @Volatile
+    private var resumption = LiveConnectPlanner.ResumptionSupport.UNKNOWN
+
+    /** Models the server refused in this app run (with the reason); later connects skip them. */
+    private val refusedModels = ConcurrentHashMap<String, String>()
+
+    @Volatile
+    private var resumed = false
+
+    @Volatile
+    private var model: String? = null
+
+    override val lastConnectResumed: Boolean
+        get() = resumed
+
+    override val connectedModel: String?
+        get() = model
+
     override suspend fun connect(config: LiveSessionConfig) = lock.withLock {
         // A reconnect keeps the call route, so a Bluetooth headset is not hung up and dialled again.
         closeLocked(holdAudioRoute = true)
         this.config = config
         gate.reset()
         utterance.reset()
+        resetTurnLog()
+        val startedAt = System.currentTimeMillis()
 
+        val wanted = config.models.ifEmpty { listOf(BuildConfig.LIVE_MODEL) }
+        wanted.filter { refusedModels.containsKey(it) }.forEach {
+            LiveLog.i(TAG, "Skipping $it: refused earlier in this app run (${refusedModels[it]})")
+        }
+        // Never end up with nothing to try: the last model gets another chance.
+        val models = wanted.filterNot { refusedModels.containsKey(it) }.ifEmpty { listOf(wanted.last()) }
         // The Live API preview may refuse a session because of the tool declarations (and the reason it
         // gives is not always recognisable), so fall back to fewer tools on any failure that is not about
         // authentication, the network or a timeout: lessons still work, settings then go by voice parser.
@@ -151,46 +191,106 @@ class GeminiLiveManager @Inject constructor(
             config.tools.filter { it.name == PronunciationDrill.CHECK_ATTEMPT_FUNCTION },
             emptyList()
         ).distinct()
+        val handle = usableHandle(config)
+        LiveLog.i(
+            TAG,
+            "Connecting: models=$models tools=${config.tools.size} [${config.tools.joinToString(",") { it.name }}] " +
+                "resume=${config.resume} handle=${handle?.let { "yes, ${(startedAt - it.receivedAt) / 1000} s old" } ?: "no"} " +
+                "resumption=$resumption instruction=${config.systemInstruction.length} chars bargeIn=${config.enableInterruptions} " +
+                "voice=${config.voiceId}"
+        )
+
+        val planner = LiveConnectPlanner(
+            models = models,
+            toolSetCount = toolSets.size,
+            hasHandle = { handle != null && handle.model == it },
+            resumption = resumption
+        )
         var firstError: Exception? = null
-        var newSession: LiveSession? = null
-        var usedDeclarations = 0
-        for ((index, tools) in toolSets.withIndex()) {
-            val declarations = listOf(endLessonDeclaration) + tools.map(::toDeclaration)
+        var connected: Pair<LiveSession, LiveConnectPlanner.Attempt>? = null
+        while (connected == null) {
+            val attempt = planner.next() ?: break
+            val declarations = listOf(endLessonDeclaration) + toolSets[attempt.toolSet].map(::toDeclaration)
+            val resumeConfig = when (attempt.resume) {
+                LiveConnectPlanner.Resume.HANDLE -> handle?.let { SessionResumptionConfig(it.handle) }
+                LiveConnectPlanner.Resume.FRESH -> SessionResumptionConfig()
+                LiveConnectPlanner.Resume.OFF -> null
+            }
+            val attemptStartedAt = System.currentTimeMillis()
+            val described = "${attempt.model} with ${declarations.size} tools, resume=${attempt.resume}"
             try {
-                newSession = connectWithTimeout(config, declarations)
-                usedDeclarations = declarations.size
-                toolsActive = index == 0
-                if (index > 0) Log.w(TAG, "Connected with ${declarations.size} tools only; settings tools are off")
-                break
+                connected = connectWithTimeout(config, attempt.model, declarations, resumeConfig) to attempt
+                LiveLog.i(TAG, "Connect attempt ok: $described in ${System.currentTimeMillis() - attemptStartedAt} ms")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Live connection with ${declarations.size} tools failed: ${e.message}", e)
+                val failure = LiveConnectPlanner.classify(e, lastModel = attempt.model == models.last())
+                LiveLog.w(
+                    TAG,
+                    "Connect attempt failed ($failure): $described after ${System.currentTimeMillis() - attemptStartedAt} ms",
+                    e
+                )
+                if (failure == LiveConnectPlanner.Failure.MODEL_REFUSED) {
+                    refusedModels[attempt.model] = (e.message ?: e::class.java.simpleName).take(200)
+                    LiveLog.w(TAG, "Model ${attempt.model} is not available to this app; using the next model until restart")
+                }
+                planner.failed(attempt, failure)
                 firstError?.addSuppressed(e) ?: run { firstError = e }
-                if (!canRetryWithFewerTools(e)) break
             }
         }
-        if (newSession == null) throw firstError ?: IllegalStateException("Live connection failed")
+        val (newSession, attempt) = connected ?: run {
+            LiveLog.e(TAG, "Live connection failed after ${System.currentTimeMillis() - startedAt} ms", firstError)
+            throw firstError ?: IllegalStateException("Live connection failed")
+        }
+        val learned = planner.resumptionAfter(attempt)
+        if (learned != resumption) LiveLog.i(TAG, "Session resumption on this server: $learned")
+        resumption = learned
+        resumed = attempt.resume == LiveConnectPlanner.Resume.HANDLE
+        // A new server-side session makes the old handle useless; this one sends its own.
+        if (!resumed) resumeHandle = null
+        toolsActive = attempt.toolSet == 0
+        model = attempt.model
         session = newSession
         resetAiTurn()
         startPipeline(newSession)
         startWatchdog(newSession)
-        // The caller sends a kick-off / resume message next and the AI answers out loud.
-        expectAiResponse()
-        Log.i(TAG, "Connected to ${BuildConfig.LIVE_MODEL} with $usedDeclarations tools (half-duplex MicGate active)")
+        LiveLog.i(
+            TAG,
+            "Connected to ${attempt.model} with ${toolSets[attempt.toolSet].size + 1} tools, " +
+                "${if (resumed) "continuing the lesson's server-side conversation" else "new server-side conversation"}, " +
+                "in ${System.currentTimeMillis() - startedAt} ms (half-duplex MicGate active); audio: " +
+                "echoCancelled=${audio.isEchoCancelled()} headset=${audio.isHeadsetConnected()} " +
+                "carAudio=${audio.isCarAudioConnected()} androidAuto=${audio.isCarConnected()}"
+        )
+        if (!toolsActive) LiveLog.w(TAG, "Settings tools are off for this connection; settings go by the voice parser")
         Unit
     }
 
+    private fun usableHandle(config: LiveSessionConfig): ResumeHandle? {
+        val current = resumeHandle ?: return null
+        if (!config.resume || config.resumeKey == null || current.key != config.resumeKey) return null
+        if (System.currentTimeMillis() - current.receivedAt > RESUME_HANDLE_MAX_AGE_MS) return null
+        return current
+    }
+
     /** One connection attempt that cannot hang forever on a dead network. */
-    private suspend fun connectWithTimeout(config: LiveSessionConfig, declarations: List<FunctionDeclaration>): LiveSession =
-        withTimeoutOrNull(CONNECT_ATTEMPT_TIMEOUT_MS) { createLiveModel(config, declarations).connect() }
-            ?: throw IllegalStateException("Live connection timed out after ${CONNECT_ATTEMPT_TIMEOUT_MS / 1000} s")
+    private suspend fun connectWithTimeout(
+        config: LiveSessionConfig,
+        modelName: String,
+        declarations: List<FunctionDeclaration>,
+        resumeConfig: SessionResumptionConfig?
+    ): LiveSession =
+        withTimeoutOrNull(CONNECT_ATTEMPT_TIMEOUT_MS) {
+            val liveModel = createLiveModel(config, modelName, declarations)
+            if (resumeConfig != null) liveModel.connect(resumeConfig) else liveModel.connect()
+        } ?: throw IllegalStateException("Live connection timed out after ${CONNECT_ATTEMPT_TIMEOUT_MS / 1000} s")
 
     private fun createLiveModel(
         config: LiveSessionConfig,
+        modelName: String,
         declarations: List<FunctionDeclaration>
     ) = Firebase.ai(backend = GenerativeBackend.googleAI()).liveModel(
-        modelName = BuildConfig.LIVE_MODEL,
+        modelName = modelName,
         generationConfig = liveGenerationConfig {
             responseModality = ResponseModality.AUDIO
             speechConfig = SpeechConfig(voice = Voice(config.voiceId))
@@ -204,14 +304,20 @@ class GeminiLiveManager @Inject constructor(
     )
 
     override suspend fun sendText(text: String) {
-        val current = session ?: return
+        val current = session ?: run {
+            LiveLog.w(TAG, "Request dropped, no connection: ${text.take(LOG_TEXT_CHARS)}")
+            return
+        }
         // Keep the mic shut until the AI has answered, so noise or the learner's chatter cannot
         // start a second, competing turn (the "greets twice" problem).
         expectAiResponse()
+        lastRequestAt = System.currentTimeMillis()
+        LiveLog.i(TAG, "To model (new turn): ${text.take(LOG_TEXT_CHARS)}")
         try {
             current.send(content(role = "user") { text(text) }, turnComplete = true)
         } catch (e: Exception) {
             awaitingAiSince = 0L
+            LiveLog.w(TAG, "Sending the request failed", e)
             throw e
         }
     }
@@ -220,6 +326,7 @@ class GeminiLiveManager @Inject constructor(
         val current = session ?: return
         // A note while the AI is already answering: no new turn, so it does not answer twice and the
         // learner's microphone stays open.
+        LiveLog.i(TAG, "To model (note): ${text.take(LOG_TEXT_CHARS)}")
         current.send(content(role = "user") { text(text) }, turnComplete = false)
     }
 
@@ -253,7 +360,7 @@ class GeminiLiveManager @Inject constructor(
         // Takes effect on the very next mic chunk; drop anything held back for the old mode.
         gate.reset()
         clearPreRoll()
-        Log.i(TAG, "Interruptions (barge-in) ${if (enabled) "enabled" else "disabled"}")
+        LiveLog.i(TAG, "Interruptions (barge-in) ${if (enabled) "enabled" else "disabled"}")
     }
 
     override fun setVolume(volumeFraction: Float) {
@@ -276,7 +383,9 @@ class GeminiLiveManager @Inject constructor(
                     target.sendAudioRealtime(InlineData(chunk, INPUT_AUDIO_MIME))
                 }.onFailure {
                     if (it is CancellationException) throw it
-                    Log.w(TAG, "sendAudioRealtime failed", it)
+                    sendFailures++
+                    // Once per burst is enough to see it in the log; every chunk would flood it.
+                    if (sendFailures == 1 || sendFailures % 50 == 0) LiveLog.w(TAG, "sendAudioRealtime failed ($sendFailures)", it)
                 }
             }
         }
@@ -287,20 +396,27 @@ class GeminiLiveManager @Inject constructor(
                         is LiveServerContent -> onContent(message)
                         is LiveServerToolCall -> {
                             AudioDiagnostics.onServerMessage()
-                            Log.i(TAG, "Tool call from the model: ${message.functionCalls.joinToString { it.name }}")
+                            noteAiTurnStarted("tool call")
                             message.functionCalls.forEach { call -> answerToolCall(target, call) }
                         }
+                        is LiveServerToolCallCancellation -> {
+                            AudioDiagnostics.onServerMessage()
+                            LiveLog.w(TAG, "Model cancelled tool call(s) ${message.functionIds}")
+                        }
+                        is LiveSessionResumptionUpdate -> onResumptionUpdate(target, message)
                         is LiveServerGoAway -> {
-                            Log.i(TAG, "Server announced it will close the connection soon")
+                            LiveLog.i(TAG, "Server will close this connection in ${message.timeLeft}")
                             _events.tryEmit(LiveEvent.GoAway)
                         }
-                        else -> Log.d(TAG, "Unhandled server message ${message::class.simpleName}")
+                        is LiveServerSetupComplete -> LiveLog.d(TAG, "Server setup complete")
+                        else -> LiveLog.d(TAG, "Unhandled server message ${message::class.simpleName}")
                     }
                 }
+                if (session === target) LiveLog.w(TAG, "Server stream ended (connection closed by the server)")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "Receive loop ended", e)
+                LiveLog.w(TAG, "Receive loop ended", e)
                 if (session === target) _events.tryEmit(LiveEvent.Disconnected(e))
             }
         }
@@ -310,14 +426,70 @@ class GeminiLiveManager @Inject constructor(
     /** A microphone that dies mid-lesson is handled like a dropped connection: the engine reconnects. */
     private fun startCaptureFor(target: LiveSession?) {
         audio.startCapture(::onMicChunk) { error ->
+            LiveLog.w(TAG, "Microphone stopped", error)
             if (target != null && session === target) _events.tryEmit(LiveEvent.Disconnected(error))
         }
     }
+
+    private fun onResumptionUpdate(target: LiveSession, update: LiveSessionResumptionUpdate) {
+        val handle = update.newHandle
+        val key = config?.resumeKey
+        val current = model
+        if (update.resumable == true && !handle.isNullOrEmpty() && key != null && current != null && session === target) {
+            val first = resumeHandle == null
+            resumeHandle = ResumeHandle(key, current, handle, System.currentTimeMillis())
+            if (first) LiveLog.i(TAG, "Session resumption handle received: a reconnect can continue this conversation")
+        } else {
+            LiveLog.d(TAG, "Session resumption update: resumable=${update.resumable} handle=${!handle.isNullOrEmpty()}")
+        }
+    }
+
+    // region Turn log: what the AI said and how long it took, one line per turn.
+
+    @Volatile
+    private var lastRequestAt = 0L
+    @Volatile
+    private var lastLearnerWordsAt = 0L
+    private var turnStarted = false
+    private val turnText = StringBuilder()
+    @Volatile
+    private var sendFailures = 0
+
+    private fun resetTurnLog() {
+        turnStarted = false
+        turnText.setLength(0)
+        lastRequestAt = 0L
+        lastLearnerWordsAt = 0L
+        sendFailures = 0
+    }
+
+    /** First sign of an AI answer (audio, words or a tool call): log how long the learner waited. */
+    private fun noteAiTurnStarted(what: String) {
+        if (turnStarted) return
+        turnStarted = true
+        val now = System.currentTimeMillis()
+        val afterLearner = lastLearnerWordsAt.takeIf { it > 0 }?.let { "${now - it} ms after the learner's last words" }
+        val afterRequest = lastRequestAt.takeIf { it > 0 }?.let { "${now - it} ms after our request" }
+        LiveLog.i(TAG, "AI answering ($what): " + (listOfNotNull(afterLearner, afterRequest).joinToString(", ").ifEmpty { "unprompted" }))
+    }
+
+    private fun endTurnLog(how: String) {
+        if (turnStarted || turnText.isNotEmpty()) {
+            LiveLog.i(TAG, "AI turn $how: \"${turnText.toString().trim().take(LOG_TEXT_CHARS)}\"")
+        }
+        turnStarted = false
+        turnText.setLength(0)
+        lastRequestAt = 0L
+        lastLearnerWordsAt = 0L
+    }
+
+    // endregion
 
     private fun onContent(message: LiveServerContent) {
         AudioDiagnostics.onServerMessage()
         if (message.interrupted) {
             synchronized(transcriptLock) { pendingAiTranscript.clear() }
+            endTurnLog("interrupted")
             // The AI's turn ended early either way. Only cut the speaker when the learner allowed
             // interruptions; otherwise this is the server reacting to leaked echo/noise and the
             // learner never asked to be talked over.
@@ -326,12 +498,14 @@ class GeminiLiveManager @Inject constructor(
                 audio.flushPlayback()
                 _events.tryEmit(LiveEvent.Interrupted)
             } else {
-                Log.d(TAG, "Ignoring server interruption: barge-in is off")
+                LiveLog.d(TAG, "Ignoring server interruption: barge-in is off")
             }
         }
 
         val aiTextChunk = message.outputTranscription?.text?.takeIf { it.isNotEmpty() }
         if (aiTextChunk != null) {
+            noteAiTurnStarted("words")
+            turnText.append(aiTextChunk)
             synchronized(transcriptLock) {
                 pendingAiTranscript.append(aiTextChunk)
             }
@@ -341,6 +515,7 @@ class GeminiLiveManager @Inject constructor(
             val audioParts = message.content?.parts?.filterIsInstance<InlineDataPart>()
                 ?.filter { it.mimeType.startsWith("audio") } ?: emptyList()
             if (audioParts.isNotEmpty()) {
+                noteAiTurnStarted("audio")
                 audioParts.forEachIndexed { index, part ->
                     val textToEmit = if (index == 0) {
                         synchronized(transcriptLock) {
@@ -372,7 +547,7 @@ class GeminiLiveManager @Inject constructor(
                     t
                 }
                 if (text.isNotEmpty()) {
-                    Log.d(TAG, "AI speech (text-only): $text")
+                    LiveLog.d(TAG, "AI speech (text-only): $text")
                     _events.tryEmit(LiveEvent.AiTranscript(text))
                 }
             }
@@ -385,17 +560,20 @@ class GeminiLiveManager @Inject constructor(
                 t
             }
             if (remaining.isNotEmpty()) {
-                Log.d(TAG, "AI speech (turnComplete flush): $remaining")
+                LiveLog.d(TAG, "AI speech (turnComplete flush): $remaining")
                 _events.tryEmit(LiveEvent.AiTranscript(remaining))
             }
-            Log.d(TAG, "AI turn complete")
+            endTurnLog(if (message.generationComplete) "complete" else "complete (generation not complete)")
             endAiTurn()
+        } else if (message.generationComplete) {
+            LiveLog.d(TAG, "AI generation complete; audio still playing")
         }
 
         message.inputTranscription?.text?.takeIf { it.isNotEmpty() }?.let {
             utterance.appendText(it)
             AudioDiagnostics.onUserTranscript()
-            Log.d(TAG, "User speech recognized: $it")
+            lastLearnerWordsAt = System.currentTimeMillis()
+            LiveLog.i(TAG, "Learner: $it")
             _events.tryEmit(LiveEvent.UserTranscript(it))
         }
     }
@@ -453,7 +631,7 @@ class GeminiLiveManager @Inject constructor(
         val sinceAiAudio = if (lastAiAudioAt == 0L) Long.MAX_VALUE else now - lastAiAudioAt
         val stuck = if (speakerPlaying) sinceAiAudio > SPEAKER_STUCK_MS else sinceAiAudio > TURN_STUCK_MS
         if (!stuck) return false
-        Log.w(TAG, "Mic muted for ${mutedFor}ms (speakerPlaying=$speakerPlaying, sinceAiAudio=${sinceAiAudio}ms); forcing it open")
+        LiveLog.w(TAG, "Mic muted for ${mutedFor}ms (speakerPlaying=$speakerPlaying, sinceAiAudio=${sinceAiAudio}ms); forcing it open")
         if (speakerPlaying) audio.flushPlayback()
         resetAiTurn()
         gate.reset()
@@ -523,29 +701,19 @@ class GeminiLiveManager @Inject constructor(
         }
     }
 
-    /**
-     * False when fewer tools cannot help: App Check / API key refusals, no network, or a timeout (which
-     * would only make the learner wait twice as long).
-     */
-    private fun canRetryWithFewerTools(e: Exception): Boolean {
-        if (e is java.net.UnknownHostException || e is java.net.ConnectException || e is java.net.NoRouteToHostException) return false
-        val text = (e.message.orEmpty() + " " + e.cause?.message.orEmpty()).lowercase()
-        return listOf(
-            "timed out", "app check", "appcheck", "attestation", "too many attempts", "unauthenticated",
-            "permission", "api key", "api_key", "service_blocked", "service_disabled", "403"
-        ).none { it in text }
-    }
-
     private fun answerToolCall(target: LiveSession, call: FunctionCallPart) {
+        LiveLog.i(TAG, "Tool call ${call.name} (id=${call.id}) args=${call.args.toString().take(LOG_TEXT_CHARS)}")
         scope.launch {
             val startedAt = System.currentTimeMillis()
             val response = handleFunctionCall(call)
+            val took = System.currentTimeMillis() - startedAt
             runCatching { target.sendFunctionResponse(listOf(response)) }
                 .onSuccess {
-                    Log.i(TAG, "Tool ${call.name} answered after ${System.currentTimeMillis() - startedAt} ms")
+                    LiveLog.i(TAG, "Tool ${call.name} answered after $took ms: ${response.response.toString().take(LOG_TEXT_CHARS)}")
+                    lastRequestAt = System.currentTimeMillis()
                     expectAiResponse() // The model now speaks its confirmation / feedback.
                 }
-                .onFailure { Log.w(TAG, "Could not send tool response", it) }
+                .onFailure { LiveLog.w(TAG, "Could not send the ${call.name} tool response after $took ms", it) }
         }
     }
 
@@ -566,17 +734,17 @@ class GeminiLiveManager @Inject constructor(
                 try {
                     // The model waits for this answer; never leave it waiting forever.
                     val answer = withTimeoutOrNull(TOOL_TIMEOUT_MS) { handler?.handle(toolCall) }
-                    if (answer == null) Log.w(TAG, "Tool ${call.name} gave no result")
+                    if (answer == null) LiveLog.w(TAG, "Tool ${call.name} gave no result within $TOOL_TIMEOUT_MS ms")
                     answer
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.e(TAG, "Tool ${call.name} failed", e)
+                    LiveLog.e(TAG, "Tool ${call.name} failed", e)
                     null
                 } ?: mapOf("status" to "error")
             }
             else -> {
-                Log.w(TAG, "Unknown function call: ${call.name}")
+                LiveLog.w(TAG, "Unknown function call: ${call.name}")
                 mapOf("status" to "unknown function")
             }
         }
@@ -596,17 +764,24 @@ class GeminiLiveManager @Inject constructor(
         optionalParameters = tool.parameters.filter { it.optional }.map { it.name }
     )
 
-    /** The SDK has no "closed" callback, so poll for a connection that dropped on its own. */
+    /**
+     * The SDK has no "closed" callback, so poll for a connection that dropped on its own. Also writes
+     * the microphone counters to the lesson log now and then (sent / muted / server messages).
+     */
     private fun startWatchdog(target: LiveSession) {
         watchdog?.cancel()
         watchdog = scope.launch {
+            var ticks = 0
             while (isActive) {
                 delay(WATCHDOG_INTERVAL_MS)
                 if (session !== target) return@launch
                 if (target.isClosed()) {
-                    Log.w(TAG, "Live session closed unexpectedly")
+                    LiveLog.w(TAG, "Live session closed unexpectedly")
                     _events.tryEmit(LiveEvent.Disconnected(null))
                     return@launch
+                }
+                if (++ticks % DIAG_LOG_EVERY_TICKS == 0) {
+                    LiveLog.d(TAG, "diag ${AudioDiagnostics.state.value.summary()} paused=$audioPaused")
                 }
             }
         }
@@ -614,6 +789,7 @@ class GeminiLiveManager @Inject constructor(
 
     private suspend fun closeLocked(holdAudioRoute: Boolean) {
         val current = session
+        if (current != null) LiveLog.i(TAG, "Closing the connection to $model")
         session = null
         watchdog?.cancel()
         watchdog = null
@@ -628,7 +804,7 @@ class GeminiLiveManager @Inject constructor(
         sendJob = null
         if (current != null) {
             runCatching { current.stopReceiving() }
-            runCatching { current.close() }.onFailure { Log.w(TAG, "Error while closing session", it) }
+            runCatching { current.close() }.onFailure { LiveLog.w(TAG, "Error while closing session", it) }
         }
     }
 
@@ -639,6 +815,15 @@ class GeminiLiveManager @Inject constructor(
         const val TAG = "GeminiLiveManager"
         const val WATCHDOG_INTERVAL_MS = 1_500L
         const val CONNECT_ATTEMPT_TIMEOUT_MS = 15_000L
+
+        /** Microphone counters go to the lesson log every 7 watchdog ticks (about 10 s). */
+        const val DIAG_LOG_EVERY_TICKS = 7
+
+        /** Resumption handles live 2 hours after a connection ends; stay well inside that. */
+        const val RESUME_HANDLE_MAX_AGE_MS = 100 * 60_000L
+
+        /** Requests, tool payloads and AI turns are cut to this length in the log. */
+        const val LOG_TEXT_CHARS = 400
 
         /** Azure pronunciation grading can take two 10 s HTTP timeouts. */
         const val TOOL_TIMEOUT_MS = 25_000L

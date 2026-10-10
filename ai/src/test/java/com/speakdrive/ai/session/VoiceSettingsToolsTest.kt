@@ -612,4 +612,49 @@ class VoiceSettingsToolsTest {
         assertThat(VoiceSettingsTools.createCustomScenarioTool.parameters.map { it.name })
             .containsExactly("title_vi", "title_en", "ai_role", "learner_role", "custom_context", "mission_objective")
     }
+
+    @Test
+    fun `each kind of lesson declares the settings it changes and nothing else`() {
+        val all = VoiceSettingsTools.allTools.map { it.name }
+        val core = listOf(
+            VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION,
+            VoiceSettingsTools.SET_DIFFICULTY_LEVEL_FUNCTION,
+            VoiceSettingsTools.SET_VIETNAMESE_HELP_FUNCTION,
+            VoiceSettingsTools.SET_AI_VOLUME_FUNCTION,
+            VoiceSettingsTools.SET_VOICE_FUNCTION,
+            VoiceSettingsTools.SET_BARGE_IN_FUNCTION,
+            VoiceSettingsTools.APPLY_LEVEL_RECOMMENDATION_FUNCTION
+        )
+        SessionMode.entries.forEach { mode ->
+            val names = VoiceSettingsTools.toolsFor(mode).map { it.name }
+            assertThat(all).containsAtLeastElementsIn(names)
+            assertThat(names).containsNoDuplicates()
+            assertThat(names).containsAtLeastElementsIn(core)
+            assertThat(names.size).isLessThan(all.size / 2)
+        }
+        val drill = VoiceSettingsTools.toolsFor(SessionMode.REPEAT_AFTER_ME).map { it.name }
+        assertThat(drill).containsAtLeast(
+            VoiceSettingsTools.SKIP_DRILL_SENTENCE_FUNCTION,
+            VoiceSettingsTools.REPEAT_DRILL_SENTENCE_FUNCTION,
+            VoiceSettingsTools.SET_PRONUNCIATION_STRICTNESS_FUNCTION
+        )
+        assertThat(drill).doesNotContain(VoiceSettingsTools.NEXT_STORY_FUNCTION)
+        val story = VoiceSettingsTools.toolsFor(SessionMode.STORY_LISTENING).map { it.name }
+        assertThat(story).containsAtLeast(VoiceSettingsTools.NEXT_STORY_FUNCTION, VoiceSettingsTools.SET_STORYTELLING_STYLE_FUNCTION)
+        assertThat(story).doesNotContain(VoiceSettingsTools.SKIP_DRILL_SENTENCE_FUNCTION)
+        assertThat(VoiceSettingsTools.toolsFor(SessionMode.ROLEPLAY).map { it.name })
+            .contains(VoiceSettingsTools.CREATE_CUSTOM_SCENARIO_FUNCTION)
+    }
+
+    @Test
+    fun `every setting left out of a lesson can still be changed by the voice parser`() {
+        SessionMode.entries.forEach { mode ->
+            val declared = VoiceSettingsTools.toolsFor(mode).map { it.name }.toSet()
+            VoiceSettingsTools.allTools.filter { it.name !in declared }.forEach { tool ->
+                // Custom scenarios need the model to fill in the scenario; they are offered where it makes sense.
+                if (tool.name == VoiceSettingsTools.CREATE_CUSTOM_SCENARIO_FUNCTION) return@forEach
+                assertThat(CommandCategory.forTool(tool.name)).isNotNull()
+            }
+        }
+    }
 }

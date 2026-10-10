@@ -46,6 +46,11 @@ class FakeLiveClient : LiveConversationClient {
     /** When set, connect() suspends until it is completed (a connection that hangs). */
     var connectGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
+    /** When true, the next connects that ask to resume continue the server-side conversation. */
+    var resumeWorks = false
+    override var lastConnectResumed = false
+    override var connectedModel: String? = null
+
     override suspend fun connect(config: LiveSessionConfig) {
         connectGate?.await()
         if (failNextConnects > 0) {
@@ -55,6 +60,8 @@ class FakeLiveClient : LiveConversationClient {
         connects += config
         isConnected = true
         audioPaused = false
+        lastConnectResumed = resumeWorks && config.resume
+        connectedModel = config.models.firstOrNull()
     }
 
     var sendTextFailsWith: Throwable? = null

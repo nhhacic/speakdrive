@@ -5,6 +5,7 @@ import com.speakdrive.audio.ListenResult
 import com.speakdrive.ai.offline.OfflineDrillCoach
 import com.google.common.truth.Truth.assertThat
 import com.speakdrive.ai.live.LiveEvent
+import com.speakdrive.ai.live.LiveModels
 import com.speakdrive.ai.live.LiveToolCall
 import com.speakdrive.ai.model.AiVoice
 import com.speakdrive.ai.model.Correction
@@ -570,6 +571,86 @@ class ConversationEngineTest {
         assertThat(live.connects).hasSize(2)
         assertThat(live.connects.last().systemInstruction).contains("Tell me more")
         assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `each lesson asks for its models, its own tools and a session it can resume`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        val talk = live.connects.single()
+        assertThat(talk.models).isEqualTo(LiveModels.forMode(SessionMode.FREE_TALK))
+        assertThat(talk.resumeKey).isEqualTo(engine.lesson.value!!.sessionId)
+        assertThat(talk.resume).isFalse()
+        assertThat(talk.tools.map { it.name })
+            .containsExactlyElementsIn(VoiceSettingsTools.toolsFor(SessionMode.FREE_TALK).map { it.name })
+        // Rare settings have no tool and are not described to the model; the app handles them.
+        assertThat(talk.systemInstruction).doesNotContain(VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION)
+        assertThat(talk.systemInstruction).contains("the app applies it itself")
+
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+        val drill = live.connects.last()
+        assertThat(drill.models).containsExactly(com.speakdrive.ai.BuildConfig.LIVE_MODEL)
+        assertThat(drill.tools.map { it.name })
+            .containsAtLeast(PronunciationDrill.CHECK_ATTEMPT_FUNCTION, VoiceSettingsTools.SKIP_DRILL_SENTENCE_FUNCTION)
+        assertThat(drill.tools.map { it.name }).doesNotContain(VoiceSettingsTools.NEXT_STORY_FUNCTION)
+    }
+
+    @Test
+    fun `a planned switch that keeps the conversation needs no prompt`(): TestResult = engineTest {
+        live.resumeWorks = true
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        say(Speaker.AI, "What did you do at the weekend?")
+        advanceTimeBy(2_000)
+        val sentBefore = live.sentTexts.size
+
+        live.emit(LiveEvent.GoAway)
+        runCurrent()
+
+        assertThat(live.connects).hasSize(2)
+        assertThat(live.connects.last().resume).isTrue()
+        // The server still has the question; the learner simply answers it.
+        assertThat(live.sentTexts).hasSize(sentBefore)
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+        assertThat(engine.isAiThinking.value).isFalse()
+    }
+
+    @Test
+    fun `a dropped connection that keeps the conversation just continues`(): TestResult = engineTest {
+        live.resumeWorks = true
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        say(Speaker.AI, "So yesterday I went to")
+
+        live.isConnected = false
+        live.emit(LiveEvent.Disconnected(null))
+        runCurrent()
+
+        assertThat(live.connects).hasSize(2)
+        assertThat(live.sentTexts.last()).isEqualTo(PromptTemplates.RESUMED_CONTINUE_MESSAGE)
+        assertThat(engine.isAiThinking.value).isTrue()
+    }
+
+    @Test
+    fun `a setting the model has no tool for is applied without waiting for the model`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+        say(Speaker.AI, "Hello!")
+        val volumeBefore = settings.settings.aiVolume
+
+        say(Speaker.USER, "đặt mục tiêu 30 phút mỗi ngày")
+        advanceTimeBy(SPEAKER_IDLE_MS + 1)
+        runCurrent()
+        assertThat(settings.settings.dailyGoalMinutes).isEqualTo(30)
+
+        // The volume has a tool in this lesson: the model gets its moment to call it first.
+        say(Speaker.USER, "nói nhỏ lại")
+        advanceTimeBy(SPEAKER_IDLE_MS + 1)
+        runCurrent()
+        assertThat(settings.settings.aiVolume).isEqualTo(volumeBefore)
+        advanceTimeBy(TOOL_GRACE_MS)
+        runCurrent()
+        assertThat(settings.settings.aiVolume).isLessThan(volumeBefore)
     }
 
     @Test

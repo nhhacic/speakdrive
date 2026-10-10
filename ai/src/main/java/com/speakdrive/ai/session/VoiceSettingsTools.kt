@@ -596,6 +596,52 @@ object VoiceSettingsTools {
         switchSessionModeTool
     )
 
+    /** Changed in every kind of lesson. */
+    private val coreTools = listOf(
+        switchSessionModeTool,
+        setDifficultyLevelTool,
+        setVietnameseHelpTool,
+        setAiVolumeTool,
+        setVoiceTool,
+        setBargeInTool,
+        applyLevelRecommendationTool
+    )
+
+    private val drillTools = listOf(
+        skipDrillSentenceTool,
+        repeatDrillSentenceTool,
+        setDrillSentenceLengthTool,
+        setDrillCategoryTool,
+        setPronunciationStrictnessTool,
+        setAzureScoringTool,
+        setTranslationSubtitlesTool
+    )
+
+    private val storyTools = listOf(
+        setStorytellingStyleTool,
+        setStoryDurationTool,
+        setMultiVoiceTool,
+        nextStoryTool,
+        replayStoryTool,
+        resumeStoryTool
+    )
+
+    private val conversationTools = listOf(setBetterPhrasingTool, setAdaptiveLevelTool)
+
+    /**
+     * The tools declared to the Live session of a [mode] lesson: what a learner changes during that
+     * kind of lesson. Fewer declarations keep the session light (setup size, time to answer). Every
+     * other setting in [allTools] (reminders, daily goal, app language, screen, memory...) is still
+     * changed by voice: [VoiceCommandRecognizer] recognises it in the transcript and the engine applies
+     * it straight away, because the model has no tool for it.
+     */
+    fun toolsFor(mode: SessionMode): List<LiveTool> = coreTools + when (mode) {
+        SessionMode.REPEAT_AFTER_ME -> drillTools
+        SessionMode.STORY_LISTENING -> storyTools
+        SessionMode.FREE_TALK, SessionMode.ROLEPLAY -> conversationTools + createCustomScenarioTool
+        SessionMode.IELTS_SPEAKING, SessionMode.VOCAB_REVIEW, SessionMode.MISTAKE_REVIEW -> conversationTools
+    }
+
     /**
      * Resolves a daily goal argument: a number of minutes, or "more"/"less" (5 minutes) from [current].
      * The result is kept within 5–60 minutes.

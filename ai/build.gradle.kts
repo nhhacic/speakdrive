@@ -8,6 +8,8 @@ plugins {
 // Model names can be overridden in gradle.properties without touching code,
 // e.g. speakdrive.liveModel=gemini-2.5-flash-native-audio-preview-12-2025
 val liveModel = providers.gradleProperty("speakdrive.liveModel").getOrElse("gemini-3.1-flash-live-preview")
+// Conversation lessons try this newer model first and fall back to liveModel if it is refused.
+val liveModelConversation = providers.gradleProperty("speakdrive.liveModelConversation").getOrElse("gemini-3.8-live")
 val textModel = providers.gradleProperty("speakdrive.textModel").getOrElse("gemini-3.8-flash")
 
 android {
@@ -17,6 +19,7 @@ android {
     defaultConfig {
         minSdk = 26
         buildConfigField("String", "LIVE_MODEL", "\"$liveModel\"")
+        buildConfigField("String", "LIVE_MODEL_CONVERSATION", "\"$liveModelConversation\"")
         buildConfigField("String", "TEXT_MODEL", "\"$textModel\"")
     }
     buildFeatures {

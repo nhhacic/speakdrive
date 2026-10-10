@@ -1,7 +1,8 @@
 package com.speakdrive.ai
 
-import android.util.Log
 import com.speakdrive.ai.di.EngineDispatcher
+import com.speakdrive.ai.diagnostics.LiveLog
+import com.speakdrive.ai.live.LiveModels
 import com.speakdrive.ai.live.LiveConversationClient
 import com.speakdrive.ai.live.LiveEvent
 import com.speakdrive.ai.live.LiveSessionConfig
@@ -156,7 +157,7 @@ open class ConversationEngine @Inject constructor(
      * Last resort for exceptions nobody caught in the engine's background work: log them instead of
      * crashing the app in the middle of a drive. Tests replace it to fail on unexpected errors.
      */
-    internal var onUncaughtError: (Throwable) -> Unit = { Log.e(TAG, "Unexpected error in the lesson engine", it) }
+    internal var onUncaughtError: (Throwable) -> Unit = { LiveLog.e(TAG, "Unexpected error in the lesson engine", it) }
 
     private val scope = CoroutineScope(
         SupervisorJob() + dispatcher + CoroutineExceptionHandler { _, e -> onUncaughtError(e) }
@@ -215,22 +216,22 @@ open class ConversationEngine @Inject constructor(
         delay(REPLY_RETRY_AFTER_MS)
         mutex.withLock {
             if (!replyMissing(sessionId)) return
-            Log.w(TAG, "The AI has not answered for $REPLY_RETRY_AFTER_MS ms; asking again")
+            LiveLog.w(TAG, "The AI has not answered for $REPLY_RETRY_AFTER_MS ms; asking again")
             suspendRunCatching { liveClient.sendText(retry()) }
-                .onFailure { Log.w(TAG, "Could not ask the AI again", it) }
+                .onFailure { LiveLog.w(TAG, "Could not ask the AI again", it) }
         }
         delay(REPLY_RECONNECT_AFTER_MS)
         mutex.withLock {
             if (!replyMissing(sessionId)) return
             replyWatchJob = null
             if (stallReconnects >= MAX_STALL_RECONNECTS) {
-                Log.w(TAG, "The AI still does not answer after $stallReconnects fresh connections; giving up")
+                LiveLog.w(TAG, "The AI still does not answer after $stallReconnects fresh connections; giving up")
                 _isAiThinking.value = false
                 return
             }
             stallReconnects++
-            Log.w(TAG, "The AI ignored the request again; opening a fresh connection ($stallReconnects)")
-            requestReconnectLocked()
+            LiveLog.w(TAG, "The AI ignored the request again; opening a fresh connection ($stallReconnects)")
+            requestReconnectLocked(ReconnectReason.STALLED)
         }
     }
 
@@ -297,7 +298,7 @@ open class ConversationEngine @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to translate drill target '$target': ${e.message}")
+                LiveLog.w(TAG, "Failed to translate drill target '$target': ${e.message}")
             }
         }
     }
@@ -318,7 +319,7 @@ open class ConversationEngine @Inject constructor(
 
     open fun setAppFocused(focused: Boolean) {
         if (_isAppFocused.value != focused) {
-            Log.i(TAG, "App focus changed: $focused")
+            LiveLog.i(TAG, "App focus changed: $focused")
             _isAppFocused.value = focused
             if (!focused) {
                 checkAutoPause()
@@ -330,7 +331,7 @@ open class ConversationEngine @Inject constructor(
 
     open fun setScreenOn(screenOn: Boolean) {
         if (_isScreenOn.value != screenOn) {
-            Log.i(TAG, "Screen on state changed: $screenOn")
+            LiveLog.i(TAG, "Screen on state changed: $screenOn")
             _isScreenOn.value = screenOn
             if (!screenOn) {
                 checkAutoPause()
@@ -345,12 +346,12 @@ open class ConversationEngine @Inject constructor(
         if (_isCarConnected.value) return
         if (_state.value != ConversationState.ACTIVE) return
         if (isWithinStartupGrace()) {
-            Log.d(TAG, "Ignoring auto-pause during startup grace period (${clock() - lessonStartedAt}ms)")
+            LiveLog.d(TAG, "Ignoring auto-pause during startup grace period (${clock() - lessonStartedAt}ms)")
             return
         }
 
         if (!_isAppFocused.value || !_isScreenOn.value) {
-            Log.i(TAG, "Auto-pausing lesson: appFocused=${_isAppFocused.value}, screenOn=${_isScreenOn.value}, carConnected=${_isCarConnected.value}")
+            LiveLog.i(TAG, "Auto-pausing lesson: appFocused=${_isAppFocused.value}, screenOn=${_isScreenOn.value}, carConnected=${_isCarConnected.value}")
             pauseByUnfocusedAsync()
         }
     }
@@ -371,7 +372,7 @@ open class ConversationEngine @Inject constructor(
                 pauseReasons -= PauseReason.APP_UNFOCUSED
                 // Still paused for another reason (a phone call, the learner's own pause...)? Then stay paused.
                 if (_state.value == ConversationState.PAUSED && pauseReasons.isEmpty()) {
-                    Log.i(TAG, "App regained focus and screen is on; auto-resuming lesson")
+                    LiveLog.i(TAG, "App regained focus and screen is on; auto-resuming lesson")
                     resumeLocked()
                 }
             }
@@ -380,7 +381,7 @@ open class ConversationEngine @Inject constructor(
 
     open fun setCarConnected(connected: Boolean) {
         if (_isCarConnected.value != connected) {
-            Log.i(TAG, "Car connection status changed: $connected")
+            LiveLog.i(TAG, "Car connection status changed: $connected")
             _isCarConnected.value = connected
             liveClient.setCarConnected(connected)
             if (!connected) {
@@ -395,7 +396,7 @@ open class ConversationEngine @Inject constructor(
                                 length = learnerSettings.drillSentenceLength
                             )
                         )
-                    }.onFailure { Log.w(TAG, "Could not send car connection switch update to Live client", it) }
+                    }.onFailure { LiveLog.w(TAG, "Could not send car connection switch update to Live client", it) }
                 }
             }
         }
@@ -438,6 +439,14 @@ open class ConversationEngine @Inject constructor(
 
     /** Incremented on every successful connection, so late events of an old connection are ignored. */
     private var connectionGeneration = 0
+
+    /** Why the connection is being replaced; decides what the AI is asked to say on the new one. */
+    private enum class ReconnectReason { GO_AWAY, DROPPED, STALLED, NETWORK_BACK }
+
+    private var reconnectReason = ReconnectReason.DROPPED
+
+    /** Voice command categories the model has a tool for on this connection; the rest go by the parser at once. */
+    private var toolCategories = emptySet<CommandCategory>()
     private var reconnectJob: Job? = null
     private var goAwayJob: Job? = null
     private var endRequestJob: Job? = null
@@ -468,6 +477,7 @@ open class ConversationEngine @Inject constructor(
     private var draftJob: Job? = null
 
     init {
+        scope.launch { _state.collect { LiveLog.i(TAG, "Lesson state: $it") } }
         scope.launch { liveClient.events.collect(::onLiveEvent) }
         scope.launch { audioFocus.state.collect(::onAudioFocusChanged) }
         scope.launch { connectivity.isOnline.collect(::onConnectivityChanged) }
@@ -484,33 +494,33 @@ open class ConversationEngine @Inject constructor(
                 // Voice/tool changes update learnerSettings first, so this only fires for changes made
                 // elsewhere (e.g. the Settings screen) while a session is active.
                 if (updated.storytellingStyle != previousStyle && isStoryLessonActive()) {
-                    Log.i(TAG, "Storytelling style changed outside the session: ${updated.storytellingStyle}")
+                    LiveLog.i(TAG, "Storytelling style changed outside the session: ${updated.storytellingStyle}")
                     onStorytellingStyleChanged()
                     suspendRunCatching {
                         liveClient.sendText(PromptTemplates.storytellingStyleSwitchMessage(updated.storytellingStyle))
-                    }.onFailure { Log.w(TAG, "Could not send storytelling style update to Live client", it) }
+                    }.onFailure { LiveLog.w(TAG, "Could not send storytelling style update to Live client", it) }
                 }
                 if (updated.drillSentenceLength != previousDrillLength && _state.value == ConversationState.ACTIVE && drill) {
-                    Log.i(TAG, "Drill sentence length changed outside session: ${updated.drillSentenceLength}")
+                    LiveLog.i(TAG, "Drill sentence length changed outside session: ${updated.drillSentenceLength}")
                     suspendRunCatching {
                         liveClient.sendText(PromptTemplates.drillSentenceLengthSwitchMessage(updated.drillSentenceLength, _isCarConnected.value))
-                    }.onFailure { Log.w(TAG, "Could not send drill sentence length update to Live client", it) }
+                    }.onFailure { LiveLog.w(TAG, "Could not send drill sentence length update to Live client", it) }
                 }
                 if (updated.level != previousLevel && _state.value == ConversationState.ACTIVE) {
                     val currentLesson = _lesson.value
                     if (currentLesson != null && currentLesson.level != updated.level) {
-                        Log.i(TAG, "Difficulty level changed outside session: ${updated.level.displayName} (${updated.level.cefr})")
+                        LiveLog.i(TAG, "Difficulty level changed outside session: ${updated.level.displayName} (${updated.level.cefr})")
                         _lesson.value = currentLesson.copy(level = updated.level)
                         suspendRunCatching {
                             liveClient.sendText(PromptTemplates.difficultyLevelSwitchMessage(updated.level, currentLesson.mode))
-                        }.onFailure { Log.w(TAG, "Could not send difficulty level update to Live client", it) }
+                        }.onFailure { LiveLog.w(TAG, "Could not send difficulty level update to Live client", it) }
                     }
                 }
                 if (updated.allowVietnameseHelp != previousVietnameseHelp && _state.value == ConversationState.ACTIVE) {
-                    Log.i(TAG, "Vietnamese help changed outside session: ${updated.allowVietnameseHelp}")
+                    LiveLog.i(TAG, "Vietnamese help changed outside session: ${updated.allowVietnameseHelp}")
                     suspendRunCatching {
                         liveClient.sendText(PromptTemplates.vietnameseHelpSwitchMessage(updated.allowVietnameseHelp))
-                    }.onFailure { Log.w(TAG, "Could not send Vietnamese help update to Live client", it) }
+                    }.onFailure { LiveLog.w(TAG, "Could not send Vietnamese help update to Live client", it) }
                 }
             }
         }
@@ -606,7 +616,7 @@ open class ConversationEngine @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Could not start the lesson", e)
+            LiveLog.e(TAG, "Could not start the lesson", e)
             audioFocus.abandon()
             suspendRunCatching { liveClient.disconnect() }
             _lesson.value = null
@@ -616,7 +626,7 @@ open class ConversationEngine @Inject constructor(
         suspendRunCatching {
             settings.setLastTopicId(lesson.topic.id)
             settings.setLastSession(lesson.topic.id, lesson.mode, lesson.scenario?.id)
-        }.onFailure { Log.w(TAG, "Could not remember the last lesson", it) }
+        }.onFailure { LiveLog.w(TAG, "Could not remember the last lesson", it) }
         markActive()
         startDraftSaver()
         return true
@@ -735,15 +745,24 @@ open class ConversationEngine @Inject constructor(
                 limit = 10
             ).map { it.text }
         } else emptyList()
+        // Only the settings this kind of lesson changes; the voice parser covers the others.
+        val tools = VoiceSettingsTools.toolsFor(lesson.mode) + if (drill) listOf(PronunciationDrill.checkAttemptTool) else emptyList()
         val instruction = PromptTemplates.buildSystemInstruction(
             lesson = lesson,
             settings = learnerSettings,
             recap = if (recap) accumulator.snapshot() else emptyList(),
             isCarConnected = _isCarConnected.value,
-            sampleDrillSentences = sampleDrillSentences
+            sampleDrillSentences = sampleDrillSentences,
+            toolNames = tools.map { it.name }.toSet()
         )
-        val tools = VoiceSettingsTools.allTools + if (drill) listOf(PronunciationDrill.checkAttemptTool) else emptyList()
         val sessionId = lesson.sessionId
+        val models = LiveModels.forMode(lesson.mode)
+        LiveLog.i(
+            TAG,
+            "Connecting lesson ${sessionId.take(8)}: mode=${lesson.mode} topic=${lesson.topic.id} " +
+                "scenario=${lesson.scenario?.id} level=${lesson.level} recap=$recap (${if (recap) accumulator.snapshot().size else 0} turns) " +
+                "models=$models tools=${tools.size}"
+        )
         liveClient.connect(
             LiveSessionConfig(
                 systemInstruction = instruction,
@@ -751,10 +770,20 @@ open class ConversationEngine @Inject constructor(
                 // The learner never needs to talk over the AI in a drill.
                 enableInterruptions = learnerSettings.allowBargeIn && !drill,
                 tools = tools,
-                toolHandler = LiveToolHandler { call -> handleLiveToolCall(sessionId, call) }
+                toolHandler = LiveToolHandler { call -> handleLiveToolCall(sessionId, call) },
+                models = models,
+                resumeKey = sessionId,
+                // Any later connection of this lesson tries to continue the server-side conversation.
+                resume = recap
             )
         )
+        toolCategories = if (liveClient.settingsToolsActive) tools.mapNotNull { CommandCategory.forTool(it.name) }.toSet() else emptySet()
         connectionGeneration++
+        LiveLog.i(
+            TAG,
+            "Lesson ${sessionId.take(8)} connected to ${liveClient.connectedModel}" +
+                (if (liveClient.lastConnectResumed) ", conversation resumed on the server" else "")
+        )
     }
 
     /**
@@ -785,7 +814,7 @@ open class ConversationEngine @Inject constructor(
                 // The model handled it: the client-side safety net must not apply the same change again.
                 val appliedAt = lastFallbackAppliedAt[category]
                 if (appliedAt != null && clock() - appliedAt < FALLBACK_DEDUP_MS) {
-                    Log.i(TAG, "Tool ${call.name} ignored: the same change was just applied from the transcript")
+                    LiveLog.i(TAG, "Tool ${call.name} ignored: the same change was just applied from the transcript")
                     return@withContext mapOf(
                         "status" to "success",
                         "already_applied" to true,
@@ -852,7 +881,7 @@ open class ConversationEngine @Inject constructor(
     }
 
     private fun argumentError(name: String, value: Any?, allowed: String): Map<String, Any> {
-        Log.w(TAG, "Unusable tool argument $name=$value")
+        LiveLog.w(TAG, "Unusable tool argument $name=$value")
         return mapOf("status" to "error", "message" to "Unknown $name: $value. Allowed: $allowed. Nothing was changed.")
     }
 
@@ -1134,7 +1163,7 @@ open class ConversationEngine @Inject constructor(
     internal fun applyTranslationSubtitlesChange(enabled: Boolean): Map<String, Any> {
         learnerSettings = learnerSettings.copy(showTranslationSubtitle = enabled)
         persist("translation subtitles") { settings.setShowTranslationSubtitle(enabled) }
-        Log.i(TAG, "Switched showTranslationSubtitle to $enabled")
+        LiveLog.i(TAG, "Switched showTranslationSubtitle to $enabled")
 
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
         val confirmation = if (isVi) {
@@ -1177,7 +1206,7 @@ open class ConversationEngine @Inject constructor(
     internal fun applyLearnerMemoryChange(enabled: Boolean): Map<String, Any> {
         learnerSettings = learnerSettings.copy(rememberLearner = enabled)
         persist("learner memory") { settings.setRememberLearner(enabled) }
-        Log.i(TAG, "Switched rememberLearner to $enabled")
+        LiveLog.i(TAG, "Switched rememberLearner to $enabled")
         _lesson.value?.let { current ->
             _lesson.value = current.copy(learnerMemory = if (enabled) current.learnerMemory ?: LearnerMemory.EMPTY else null)
         }
@@ -1223,7 +1252,7 @@ open class ConversationEngine @Inject constructor(
             practiceReminderMinute = minuteOfDay ?: learnerSettings.practiceReminderMinute
         )
         persist("practice reminder") { settings.setPracticeReminder(enabled, minuteOfDay) }
-        Log.i(TAG, "Practice reminder enabled=$enabled minute=$minuteOfDay")
+        LiveLog.i(TAG, "Practice reminder enabled=$enabled minute=$minuteOfDay")
 
         val isVi = learnerSettings.appLanguage != AppLanguage.ENGLISH
         val time = learnerSettings.practiceReminderMinute
@@ -1472,7 +1501,7 @@ open class ConversationEngine @Inject constructor(
         val langArg = call.args["language"] as? String
         val parsed = VoiceSettingsTools.parseAppLanguage(langArg)
         if (parsed == null) {
-            Log.w(TAG, "Could not parse app language from arg: $langArg")
+            LiveLog.w(TAG, "Could not parse app language from arg: $langArg")
             return mapOf("status" to "error", "message" to "Unknown language: $langArg")
         }
         applyAppLanguageChange(parsed)
@@ -1487,7 +1516,7 @@ open class ConversationEngine @Inject constructor(
         val levelArg = call.args["level"] as? String
         val parsedLevel = VoiceSettingsTools.parseLevel(levelArg, _lesson.value?.level ?: learnerSettings.level)
         if (parsedLevel == null) {
-            Log.w(TAG, "Could not parse difficulty level from arg: $levelArg")
+            LiveLog.w(TAG, "Could not parse difficulty level from arg: $levelArg")
             return mapOf("status" to "error", "message" to "Unknown level: $levelArg")
         }
         applyDifficultyChange(parsedLevel)
@@ -1523,7 +1552,7 @@ open class ConversationEngine @Inject constructor(
         val strictnessArg = call.args["strictness"] as? String
         val parsed = VoiceSettingsTools.parseStrictness(strictnessArg)
         if (parsed == null) {
-            Log.w(TAG, "Could not parse pronunciation strictness from arg: $strictnessArg")
+            LiveLog.w(TAG, "Could not parse pronunciation strictness from arg: $strictnessArg")
             return mapOf("status" to "error", "message" to "Unknown strictness: $strictnessArg")
         }
         applyPronunciationStrictnessChange(parsed)
@@ -1563,7 +1592,7 @@ open class ConversationEngine @Inject constructor(
         }
         val parsed = VoiceSettingsTools.parseVoice(voiceArg)
         if (parsed == null) {
-            Log.w(TAG, "Could not parse voice from arg: $voiceArg")
+            LiveLog.w(TAG, "Could not parse voice from arg: $voiceArg")
             return mapOf("status" to "error", "message" to "Unknown voice: $voiceArg")
         }
         applyVoiceChange(parsed)
@@ -1593,7 +1622,7 @@ open class ConversationEngine @Inject constructor(
         val styleArg = call.args["style"] as? String
         val parsedStyle = VoiceSettingsTools.parseStorytellingStyle(styleArg)
         if (parsedStyle == null) {
-            Log.w(TAG, "Could not parse storytelling style from arg: $styleArg")
+            LiveLog.w(TAG, "Could not parse storytelling style from arg: $styleArg")
             return mapOf("status" to "error", "message" to "Unknown style: $styleArg")
         }
         applyStorytellingStyleChange(parsedStyle)
@@ -1608,7 +1637,7 @@ open class ConversationEngine @Inject constructor(
 
     private fun handleNextStoryTool(call: LiveToolCall): Map<String, Any> {
         val reason = call.args["reason"] as? String ?: "skipped"
-        Log.i(TAG, "Learner requested next story tool (reason: $reason)")
+        LiveLog.i(TAG, "Learner requested next story tool (reason: $reason)")
         val switched = performNextStory()
         return if (switched != null) {
             mapOf(
@@ -1636,7 +1665,7 @@ open class ConversationEngine @Inject constructor(
         val durationArg = call.args["duration"] as? String
         val parsedDuration = VoiceSettingsTools.parseStoryDuration(durationArg)
         if (parsedDuration == null) {
-            Log.w(TAG, "Could not parse story duration from arg: $durationArg")
+            LiveLog.w(TAG, "Could not parse story duration from arg: $durationArg")
             return mapOf("status" to "error", "message" to "Unknown story duration: $durationArg")
         }
         applyStoryDurationChange(parsedDuration)
@@ -1668,7 +1697,7 @@ open class ConversationEngine @Inject constructor(
     }
 
     private fun handleResumeStoryTool(call: LiveToolCall): Map<String, Any> {
-        Log.i(TAG, "Learner requested resume story tool")
+        LiveLog.i(TAG, "Learner requested resume story tool")
         resumeStory()
         return mapOf(
             "status" to "success",
@@ -1679,7 +1708,7 @@ open class ConversationEngine @Inject constructor(
     /** Saves a setting in the background; a failed write is logged, never fatal. */
     private fun persist(what: String, write: suspend () -> Unit) {
         scope.launch {
-            suspendRunCatching { write() }.onFailure { Log.w(TAG, "Could not save $what", it) }
+            suspendRunCatching { write() }.onFailure { LiveLog.w(TAG, "Could not save $what", it) }
         }
     }
 
@@ -1689,21 +1718,21 @@ open class ConversationEngine @Inject constructor(
         _lesson.value = currentLesson.copy(level = newLevel)
         learnerSettings = learnerSettings.copy(level = newLevel)
         persist("level") { settings.setLevel(newLevel) }
-        Log.i(TAG, "Switched difficulty level to ${newLevel.displayName} (${newLevel.cefr})")
+        LiveLog.i(TAG, "Switched difficulty level to ${newLevel.displayName} (${newLevel.cefr})")
     }
 
     private fun applyVietnameseHelpChange(enabled: Boolean) {
         if (learnerSettings.allowVietnameseHelp == enabled) return
         learnerSettings = learnerSettings.copy(allowVietnameseHelp = enabled)
         persist("Vietnamese help") { settings.setAllowVietnameseHelp(enabled) }
-        Log.i(TAG, "Switched allowVietnameseHelp to $enabled")
+        LiveLog.i(TAG, "Switched allowVietnameseHelp to $enabled")
     }
 
     private fun applyAppLanguageChange(newLanguage: AppLanguage) {
         if (learnerSettings.appLanguage == newLanguage) return
         learnerSettings = learnerSettings.copy(appLanguage = newLanguage)
         persist("app language") { settings.setAppLanguage(newLanguage) }
-        Log.i(TAG, "Switched appLanguage to ${newLanguage.name} (${newLanguage.code})")
+        LiveLog.i(TAG, "Switched appLanguage to ${newLanguage.name} (${newLanguage.code})")
         if (learnerSettings.showTranslationSubtitle) {
             _drillTarget.value?.let { currentTarget ->
                 setDrillTarget(currentTarget)
@@ -1715,21 +1744,21 @@ open class ConversationEngine @Inject constructor(
         if (learnerSettings.storytellingStyle == newStyle) return
         learnerSettings = learnerSettings.copy(storytellingStyle = newStyle)
         persist("storytelling style") { settings.setStorytellingStyle(newStyle) }
-        Log.i(TAG, "Switched storytellingStyle to ${newStyle.displayName}")
+        LiveLog.i(TAG, "Switched storytellingStyle to ${newStyle.displayName}")
     }
 
     private fun applyPronunciationStrictnessChange(newStrictness: PronunciationStrictness) {
         if (learnerSettings.pronunciationStrictness == newStrictness) return
         learnerSettings = learnerSettings.copy(pronunciationStrictness = newStrictness)
         persist("pronunciation strictness") { settings.setPronunciationStrictness(newStrictness) }
-        Log.i(TAG, "Switched pronunciationStrictness to ${newStrictness.displayName}")
+        LiveLog.i(TAG, "Switched pronunciationStrictness to ${newStrictness.displayName}")
     }
 
     private fun applyBargeInChange(enabled: Boolean) {
         if (learnerSettings.allowBargeIn == enabled) return
         learnerSettings = learnerSettings.copy(allowBargeIn = enabled)
         persist("barge-in") { settings.setAllowBargeIn(enabled) }
-        Log.i(TAG, "Switched allowBargeIn to $enabled")
+        LiveLog.i(TAG, "Switched allowBargeIn to $enabled")
     }
 
     private fun applyVoiceChange(voice: AiVoice) {
@@ -1739,28 +1768,28 @@ open class ConversationEngine @Inject constructor(
             settings.setRandomVoice(false)
             settings.setVoice(voice)
         }
-        Log.i(TAG, "Switched preferred voice to ${voice.name} (${voice.id})")
+        LiveLog.i(TAG, "Switched preferred voice to ${voice.name} (${voice.id})")
     }
 
     private fun applyRandomVoiceChange(enabled: Boolean) {
         if (learnerSettings.randomVoice == enabled) return
         learnerSettings = learnerSettings.copy(randomVoice = enabled)
         persist("random voice") { settings.setRandomVoice(enabled) }
-        Log.i(TAG, "Switched randomVoice to $enabled")
+        LiveLog.i(TAG, "Switched randomVoice to $enabled")
     }
 
     private fun applyStoryDurationChange(newDuration: StoryDuration) {
         if (learnerSettings.storyDuration == newDuration) return
         learnerSettings = learnerSettings.copy(storyDuration = newDuration)
         persist("story duration") { settings.setStoryDuration(newDuration) }
-        Log.i(TAG, "Switched storyDuration to ${newDuration.displayName}")
+        LiveLog.i(TAG, "Switched storyDuration to ${newDuration.displayName}")
     }
 
     private fun applyMultiVoiceChange(enabled: Boolean) {
         if (learnerSettings.multiVoiceStorytelling == enabled) return
         learnerSettings = learnerSettings.copy(multiVoiceStorytelling = enabled)
         persist("multi-voice storytelling") { settings.setMultiVoiceStorytelling(enabled) }
-        Log.i(TAG, "Switched multiVoiceStorytelling to $enabled")
+        LiveLog.i(TAG, "Switched multiVoiceStorytelling to $enabled")
     }
 
     /**
@@ -1778,7 +1807,7 @@ open class ConversationEngine @Inject constructor(
                     "System: The learner skipped the previous story. Switch immediately to the new story: \"${result.second.titleEn}\" (Topic: ${result.first.titleEn}). " +
                         "Introduce it enthusiastically in one short sentence and begin the opening scene!"
                 )
-            }.onFailure { Log.w(TAG, "Could not send next story command to Live client", it) }
+            }.onFailure { LiveLog.w(TAG, "Could not send next story command to Live client", it) }
         }
         return true
     }
@@ -1812,7 +1841,7 @@ open class ConversationEngine @Inject constructor(
                     "System: The learner requested to replay the story from the beginning. " +
                         "Re-introduce \"$title\" in one short sentence and start narrating Chapter 1 again."
                 )
-            }.onFailure { Log.w(TAG, "Could not send replay story command to Live client", it) }
+            }.onFailure { LiveLog.w(TAG, "Could not send replay story command to Live client", it) }
         }
         return true
     }
@@ -1855,7 +1884,7 @@ open class ConversationEngine @Inject constructor(
 
     private fun handleSkipDrillSentence(call: LiveToolCall): Map<String, Any> {
         val reason = call.args["reason"] as? String ?: "skipped"
-        Log.i(TAG, "Live tool skip_drill_sentence invoked (reason=$reason)")
+        LiveLog.i(TAG, "Live tool skip_drill_sentence invoked (reason=$reason)")
         skipDrillSentence()
         val topic = _lesson.value?.topic?.titleEn ?: "daily situations"
         return mapOf(
@@ -1865,7 +1894,7 @@ open class ConversationEngine @Inject constructor(
     }
 
     private fun handleRepeatDrillSentence(call: LiveToolCall): Map<String, Any> {
-        Log.i(TAG, "Live tool repeat_drill_sentence invoked")
+        LiveLog.i(TAG, "Live tool repeat_drill_sentence invoked")
         val target = _drillTarget.value
         val instruction = if (target.isNullOrBlank()) {
             "The learner requested to hear the sentence again. Please repeat the sentence clearly and slowly. " +
@@ -1900,7 +1929,7 @@ open class ConversationEngine @Inject constructor(
                                 "Confirm in one short phrase, then give a fresh, brand new sentence related to $topic that has not been used yet in this session. " +
                                 "Never repeat previous sentences. You MUST ALWAYS start the new sentence with: \"Repeat after me: <sentence>\"."
                         )
-                    }.onFailure { Log.w(TAG, "Could not send skip drill sentence to Live client", it) }
+                    }.onFailure { LiveLog.w(TAG, "Could not send skip drill sentence to Live client", it) }
                 }
                 true
             }
@@ -1910,7 +1939,7 @@ open class ConversationEngine @Inject constructor(
                         liveClient.sendText(
                             "System: The learner clicked 'Next'. Wrap up this thought and move on to the next question or topic."
                         )
-                    }.onFailure { Log.w(TAG, "Could not send next command to Live client", it) }
+                    }.onFailure { LiveLog.w(TAG, "Could not send next command to Live client", it) }
                 }
                 true
             }
@@ -1942,7 +1971,7 @@ open class ConversationEngine @Inject constructor(
                                 "System: The learner wants to hear the sentence again. Say clearly: \"Repeat after me: $target\"."
                             )
                         }
-                    }.onFailure { Log.w(TAG, "Could not send repeat command to Live client", it) }
+                    }.onFailure { LiveLog.w(TAG, "Could not send repeat command to Live client", it) }
                 }
                 true
             }
@@ -1952,7 +1981,7 @@ open class ConversationEngine @Inject constructor(
                         liveClient.sendText(
                             "System: The learner asked you to repeat what you just said. Please repeat your last sentence clearly."
                         )
-                    }.onFailure { Log.w(TAG, "Could not send repeat command to Live client", it) }
+                    }.onFailure { LiveLog.w(TAG, "Could not send repeat command to Live client", it) }
                 }
                 true
             }
@@ -2016,7 +2045,7 @@ open class ConversationEngine @Inject constructor(
             if (shown.isNullOrBlank() || PronunciationDrill.key(shown) == PronunciationDrill.key(input.target)) {
                 setDrillTarget(input.target)
             }
-            Log.d(
+            LiveLog.d(
                 TAG,
                 "Attempt ${input.attemptNumber} at '${input.target}': passed=${attempt.passed} " +
                     "strictness=${input.settings.pronunciationStrictness} accuracy=${attempt.accuracyPercent}% " +
@@ -2046,7 +2075,7 @@ open class ConversationEngine @Inject constructor(
             .fold(
                 onSuccess = { it to null },
                 onFailure = {
-                    Log.w(TAG, "Azure assessment failed", it)
+                    LiveLog.w(TAG, "Azure assessment failed", it)
                     null to "Azure không phản hồi: ${it.message ?: it::class.simpleName}"
                 }
             )
@@ -2078,6 +2107,7 @@ open class ConversationEngine @Inject constructor(
     private suspend fun pauseLocked(reason: PauseReason) {
         val state = _state.value
         if (!state.isInLesson) return
+        LiveLog.i(TAG, "Pause requested ($reason) in state $state")
         pauseReasons += reason
         stopOfflineDrillLocked()
         // Keep the focus request after a transient loss so the system tells us when we may resume.
@@ -2090,7 +2120,7 @@ open class ConversationEngine @Inject constructor(
         suspendRunCatching {
             // A prompt is over in seconds: a Bluetooth headset or car stays on the call meanwhile.
             if (reason == PauseReason.FOCUS_TRANSIENT) liveClient.pauseAudioBriefly() else liveClient.pauseAudio()
-        }.onFailure { Log.w(TAG, "Could not pause audio", it) }
+        }.onFailure { LiveLog.w(TAG, "Could not pause audio", it) }
         enterPausedLocked()
     }
 
@@ -2112,6 +2142,7 @@ open class ConversationEngine @Inject constructor(
     }
 
     private suspend fun resumeLocked(): Boolean {
+        LiveLog.i(TAG, "Resume requested in state ${_state.value} (paused for $pauseReasons)")
         if (_state.value == ConversationState.WAITING_FOR_NETWORK) {
             if (!audioFocus.request()) {
                 _error.value = EngineError.AudioFocusDenied
@@ -2150,7 +2181,7 @@ open class ConversationEngine @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Could not resume", e)
+            LiveLog.e(TAG, "Could not resume", e)
             _error.value = mapError(e)
             false
         }
@@ -2161,10 +2192,12 @@ open class ConversationEngine @Inject constructor(
      * outside the engine lock so Pause, Stop and a new lesson are never stuck behind them.
      * Call with the mutex held.
      */
-    private fun requestReconnectLocked() {
+    private fun requestReconnectLocked(reason: ReconnectReason) {
         if (reconnectJob?.isActive == true) return
         val lesson = _lesson.value ?: return
         if (_state.value != ConversationState.ACTIVE && _state.value != ConversationState.WAITING_FOR_NETWORK) return
+        LiveLog.i(TAG, "Reconnecting ($reason) from ${liveClient.connectedModel}")
+        reconnectReason = reason
         stopActiveClock()
         _state.value = ConversationState.RECONNECTING
         _activeSpeaker.value = null
@@ -2185,11 +2218,12 @@ open class ConversationEngine @Inject constructor(
                 _lesson.value ?: return
             }
             val connected = try {
-                withTimeoutOrNull(CONNECT_TIMEOUT_MS) { connectLive(lesson, recap = true) } != null
+                (withTimeoutOrNull(CONNECT_TIMEOUT_MS) { connectLive(lesson, recap = true) } != null)
+                    .also { if (!it) LiveLog.w(TAG, "Reconnect attempt ${attempt + 1} timed out after $CONNECT_TIMEOUT_MS ms") }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "Reconnect attempt ${attempt + 1} failed", e)
+                LiveLog.w(TAG, "Reconnect attempt ${attempt + 1} failed", e)
                 false
             }
             mutex.withLock {
@@ -2208,6 +2242,7 @@ open class ConversationEngine @Inject constructor(
         mutex.withLock {
             if (_lesson.value?.sessionId != sessionId || _state.value != ConversationState.RECONNECTING) return
             reconnectJob = null
+            LiveLog.e(TAG, "Giving up after $MAX_RECONNECT_ATTEMPTS reconnect attempts")
             _error.value = EngineError.ConnectionFailed(null)
             announcer.announce(ANNOUNCE_GIVE_UP)
             endLocked()
@@ -2217,31 +2252,41 @@ open class ConversationEngine @Inject constructor(
     private suspend fun onReconnectedLocked(lesson: ActiveLesson) {
         if (pauseReasons.isNotEmpty()) {
             // Paused while offline (a phone call, the learner's pause...): stay quiet until resumed.
-            Log.i(TAG, "Reconnected while paused for $pauseReasons; staying paused")
+            LiveLog.i(TAG, "Reconnected while paused for $pauseReasons; staying paused")
             suspendRunCatching { liveClient.pauseAudio() }
             resumeNeedsKickoff = true
             enterPausedLocked()
             return
         }
-        val prompt = reconnectPrompt(lesson)
-        suspendRunCatching { liveClient.sendText(prompt) }
-            .onFailure { Log.w(TAG, "Could not send the resume message after reconnecting", it) }
+        val resumed = liveClient.lastConnectResumed
+        val prompt = reconnectPrompt(lesson, resumed, reconnectReason)
+        LiveLog.i(TAG, "Reconnected after $reconnectReason (${if (resumed) "conversation resumed" else "new conversation with recap"}); " +
+            (if (prompt == null) "the learner speaks next" else "asking the AI to continue"))
+        if (prompt != null) {
+            suspendRunCatching { liveClient.sendText(prompt) }
+                .onFailure { LiveLog.w(TAG, "Could not send the resume message after reconnecting", it) }
+        }
         markActive()
-        awaitAiReply { prompt }
+        if (prompt != null) awaitAiReply { prompt }
     }
 
     /**
-     * What the AI is asked to say on a fresh connection: the opening if it never spoke, an answer to
-     * the learner if they were left unanswered (a drill re-reads its sentence instead, because the
-     * attempt's audio is gone with the old connection), otherwise "where were we?".
+     * What the AI is asked to say on a new connection, or null when the learner simply speaks next.
+     * Always: the opening if the AI never spoke; an answer if the learner was left unanswered (a
+     * drill re-reads its sentence instead, the attempt's audio is gone with the old connection).
+     * When the server kept the conversation (resumed), a planned switch after the AI finished
+     * needs nothing at all and anything else just "continue"; otherwise "where were we?" with a recap.
      */
-    private fun reconnectPrompt(lesson: ActiveLesson): String {
+    private fun reconnectPrompt(lesson: ActiveLesson, resumed: Boolean, reason: ReconnectReason): String? {
         if (_transcript.value.none { it.speaker == Speaker.AI }) return PromptTemplates.kickoffMessage(lesson)
         val unanswered = unansweredLearnerText()
-        return if (unanswered != null && lesson.mode != SessionMode.REPEAT_AFTER_ME && lesson.mode != SessionMode.STORY_LISTENING) {
-            PromptTemplates.unansweredTurnMessage(lesson.mode, unanswered)
-        } else {
-            PromptTemplates.resumeMessage(lesson, _drillTarget.value)
+        val drillOrStory = lesson.mode == SessionMode.REPEAT_AFTER_ME || lesson.mode == SessionMode.STORY_LISTENING
+        return when {
+            unanswered != null && !drillOrStory -> PromptTemplates.unansweredTurnMessage(lesson.mode, unanswered)
+            lesson.mode == SessionMode.REPEAT_AFTER_ME && unanswered != null -> PromptTemplates.resumeMessage(lesson, _drillTarget.value)
+            resumed && reason == ReconnectReason.GO_AWAY && unanswered == null -> null
+            resumed -> PromptTemplates.RESUMED_CONTINUE_MESSAGE
+            else -> PromptTemplates.resumeMessage(lesson, _drillTarget.value)
         }
     }
 
@@ -2286,7 +2331,7 @@ open class ConversationEngine @Inject constructor(
         }
         offlineJob = job
         job.start()
-        Log.i(TAG, "Offline practice started with ${sentences.size} sentences")
+        LiveLog.i(TAG, "Offline practice started with ${sentences.size} sentences")
         return true
     }
 
@@ -2347,6 +2392,11 @@ open class ConversationEngine @Inject constructor(
             return null
         }
         stopActiveClock()
+        LiveLog.i(
+            TAG,
+            "Ending lesson ${lesson.sessionId.take(8)} (${lesson.mode}) after ${activeDurationMs() / 1000} s active, " +
+                "${_transcript.value.size} turns, last model ${liveClient.connectedModel}"
+        )
         stopOfflineDrillLocked()
         _state.value = ConversationState.ENDING
         _activeSpeaker.value = null
@@ -2360,7 +2410,7 @@ open class ConversationEngine @Inject constructor(
         cancelUnlessCurrent(reconnectJob)
         reconnectJob = null
         pauseReasons.clear()
-        suspendRunCatching { liveClient.disconnect() }.onFailure { Log.w(TAG, "Could not disconnect", it) }
+        suspendRunCatching { liveClient.disconnect() }.onFailure { LiveLog.w(TAG, "Could not disconnect", it) }
         audioFocus.abandon()
 
         val turns = accumulator.snapshot()
@@ -2382,7 +2432,7 @@ open class ConversationEngine @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Could not save session", e)
+            LiveLog.e(TAG, "Could not save session", e)
         }
         _summarizing.value = _summarizing.value + lesson.sessionId
         _state.value = ConversationState.ENDED
@@ -2398,7 +2448,7 @@ open class ConversationEngine @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "Summary generation failed", e)
+                LiveLog.w(TAG, "Summary generation failed", e)
                 SummaryParser.createLocalFallbackSummary(lesson, draft.transcript, draft.pronunciationAttempts)
             }
             val graded = if (lesson.mode == SessionMode.REPEAT_AFTER_ME) {
@@ -2429,7 +2479,7 @@ open class ConversationEngine @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Could not store the summary", e)
+            LiveLog.e(TAG, "Could not store the summary", e)
         } finally {
             _summarizing.value = _summarizing.value - lesson.sessionId
         }
@@ -2472,7 +2522,7 @@ open class ConversationEngine @Inject constructor(
                 if (shouldSave && changed) {
                     suspendRunCatching { sessionStore.saveSession(buildRecord(lesson, turns, null, completed = false)) }
                         .onSuccess { lastSavedTurns = turns.size }
-                        .onFailure { Log.w(TAG, "Draft save failed", it) }
+                        .onFailure { LiveLog.w(TAG, "Draft save failed", it) }
                 }
             }
         }
@@ -2500,7 +2550,7 @@ open class ConversationEngine @Inject constructor(
                     mutex.withLock {
                         // A Disconnected event may already have replaced this connection.
                         if (generation == connectionGeneration && _state.value == ConversationState.ACTIVE) {
-                            requestReconnectLocked()
+                            requestReconnectLocked(ReconnectReason.GO_AWAY)
                         }
                     }
                 }
@@ -2511,7 +2561,8 @@ open class ConversationEngine @Inject constructor(
                 scope.launch {
                     mutex.withLock {
                         if (generation != connectionGeneration || _state.value != ConversationState.ACTIVE) return@withLock
-                        if (connectivity.isOnlineNow()) requestReconnectLocked() else goOffline()
+                        LiveLog.w(TAG, "Connection lost: ${event.cause?.message ?: "closed"}")
+                        if (connectivity.isOnlineNow()) requestReconnectLocked(ReconnectReason.DROPPED) else goOffline()
                     }
                 }
             }
@@ -2530,7 +2581,7 @@ open class ConversationEngine @Inject constructor(
         if (lesson.mode == SessionMode.REPEAT_AFTER_ME && !target.isNullOrBlank() && heard.isNotBlank() &&
             PronunciationGrader.similarity(target, heard) >= DRILL_ECHO_SIMILARITY
         ) {
-            Log.i(TAG, "Ignoring end-lesson request: the learner was repeating the drill sentence")
+            LiveLog.i(TAG, "Ignoring end-lesson request: the learner was repeating the drill sentence")
             return
         }
         val sessionId = lesson.sessionId
@@ -2569,7 +2620,7 @@ open class ConversationEngine @Inject constructor(
                 if (!storyFinished && _lesson.value?.mode == SessionMode.STORY_LISTENING &&
                     turn.text.contains(STORY_END_DETECTION_PHRASE, ignoreCase = true)
                 ) {
-                    Log.i(TAG, "Story finished; podcast auto-continue stopped")
+                    LiveLog.i(TAG, "Story finished; podcast auto-continue stopped")
                     storyFinished = true
                 }
             }
@@ -2623,6 +2674,7 @@ open class ConversationEngine @Inject constructor(
         utteranceBuffer.setLength(0)
         utteranceStartedAt = 0L
         if (text.isEmpty()) return
+        LiveLog.d(TAG, "Learner finished speaking (${if (aiStarted) "AI already answering" else "waiting for the AI"}): $text")
         lastLearnerUtterance = text
         val lesson = _lesson.value ?: return
         val context = CommandContext(
@@ -2638,7 +2690,8 @@ open class ConversationEngine @Inject constructor(
         val category = command.category
         if ((lastToolCallAt[category] ?: Long.MIN_VALUE) >= startedAt) return // the model already handled it
         val grace = when {
-            !liveClient.settingsToolsActive -> 0L
+            // The model has no tool for it on this connection: nothing to wait for.
+            !liveClient.settingsToolsActive || category !in toolCategories -> 0L
             aiStarted -> TOOL_GRACE_AFTER_AI_MS
             else -> TOOL_GRACE_MS
         }
@@ -2648,7 +2701,7 @@ open class ConversationEngine @Inject constructor(
             delay(grace)
             if (_lesson.value?.sessionId != sessionId || _state.value != ConversationState.ACTIVE) return@launch
             if ((lastToolCallAt[category] ?: Long.MIN_VALUE) >= startedAt) return@launch
-            Log.i(TAG, "Voice command from the transcript: $command")
+            LiveLog.i(TAG, "Voice command from the transcript: $command")
             lastFallbackAppliedAt[category] = clock()
             // If the AI is already answering, add a note instead of asking for a second answer.
             val aiAnswering = lastAiTranscriptAt >= startedAt
@@ -2661,7 +2714,7 @@ open class ConversationEngine @Inject constructor(
         scope.launch {
             val sent = suspendRunCatching { if (aiAnswering) liveClient.sendContext(note) else liveClient.sendText(note) }
             if (sent.isFailure) {
-                Log.w(TAG, "Could not tell the model about a voice command", sent.exceptionOrNull())
+                LiveLog.w(TAG, "Could not tell the model about a voice command", sent.exceptionOrNull())
                 fallback?.let(announcer::announce)
             }
         }
@@ -2906,7 +2959,7 @@ open class ConversationEngine @Inject constructor(
                 goOffline()
             } else if (online && state == ConversationState.WAITING_FOR_NETWORK) {
                 stopOfflineDrillLocked()
-                requestReconnectLocked()
+                requestReconnectLocked(ReconnectReason.NETWORK_BACK)
             }
         }
     }

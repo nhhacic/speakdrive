@@ -8,7 +8,7 @@ Khi bất kỳ AI agent nào thêm hoặc cập nhật một mục cài đặt (
 
 1. **Gemini Live Function Calling Tool (`VoiceSettingsTools.kt`)**:
    - Khai báo tool tương ứng (tên hàm, mô tả rõ ràng bằng tiếng Anh & ví dụ tiếng Việt, tham số) trong `VoiceSettingsTools.kt`.
-   - Đăng ký tool vào danh sách công cụ gửi lên Gemini Live session.
+   - Đăng ký tool vào `VoiceSettingsTools.toolsFor(mode)` cho những chế độ học mà setting đó hay được đổi giữa buổi (mỗi phiên Live chỉ khai báo tool của chế độ đang học cho nhẹ); setting ít dùng chỉ cần nằm trong `allTools` và có parser dự phòng, engine áp dụng ngay vì model không có tool. Nếu thêm tool vào `toolsFor`, thêm cả dòng hướng dẫn tương ứng vào `TOOL_RULES` trong `PromptTemplates.kt`.
 
 2. **Parser dự phòng từ Speech Transcript (`VoiceCommandParser.kt`)**:
    - Bổ sung hàm parse và các tập từ khóa (cả tiếng Việt có dấu, không dấu, và tiếng Anh) để nhận diện yêu cầu điều chỉnh setting khi Gemini không chủ động kích hoạt tool.
@@ -48,4 +48,7 @@ Mỗi khi build xong file APK (`:app:assembleDebug`), AI agent **BẮT BUỘC KI
   `adb -s <device_id> install -r -d "app\build\outputs\apk\debug\app-debug.apk"`
 - Báo cáo rõ ràng kết quả cài đặt cho người dùng (tên thiết bị, trạng thái thành công).
 
-
+## 6. Log chẩn đoán buổi học (LiveLog)
+- Sự kiện của buổi học (kết nối, model, tool call, lời học viên/AI, thời gian AI trả lời, kết nối lại, tự phục hồi khi AI im lặng) ghi qua `com.speakdrive.ai.diagnostics.LiveLog` thay vì `android.util.Log`, để vừa ra logcat vừa lưu trên điện thoại.
+- File nằm trên máy, không gửi đi đâu: `/sdcard/Android/data/com.speakdrive.ai/files/logs/live.log` (cùng `live.1.log`, `live.2.log` cũ hơn, mỗi file ~2 MB). Đọc bằng:
+  `adb pull /sdcard/Android/data/com.speakdrive.ai/files/logs`

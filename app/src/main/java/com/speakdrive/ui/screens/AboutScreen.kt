@@ -404,7 +404,8 @@ private fun TechInfoCard() {
                     fontWeight = FontWeight.Bold
                 )
             }
-            InfoItem(label = "Gemini Live Model", value = com.speakdrive.ai.BuildConfig.LIVE_MODEL)
+            InfoItem(label = "Gemini Live Model", value = com.speakdrive.ai.BuildConfig.LIVE_MODEL_CONVERSATION)
+            InfoItem(label = "Gemini Live Model (drill)", value = com.speakdrive.ai.BuildConfig.LIVE_MODEL)
             InfoItem(label = "Gemini Text Model", value = com.speakdrive.ai.BuildConfig.TEXT_MODEL)
             InfoItem(label = stringResource(R.string.about_platform_label), value = "Android 8.0+ & Android Auto (Jetpack Compose)")
             InfoItem(label = stringResource(R.string.about_architecture_label), value = "Clean Architecture, Media3 Service, Hilt, Room")

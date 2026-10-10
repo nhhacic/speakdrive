@@ -29,6 +29,15 @@ interface LiveConversationClient {
      */
     val settingsToolsActive: Boolean get() = true
 
+    /**
+     * True when the last [connect] continued the server-side conversation (session resumption):
+     * the model still remembers everything, so it needs no recap and no "welcome back".
+     */
+    val lastConnectResumed: Boolean get() = false
+
+    /** Model of the open connection, for logs. */
+    val connectedModel: String? get() = null
+
     /** Stops the microphone and speaker but keeps the session open. */
     suspend fun pauseAudio()
 
@@ -60,7 +69,13 @@ data class LiveSessionConfig(
     /** Tools the model may call besides ending the lesson. */
     val tools: List<LiveTool> = emptyList(),
     /** Answers calls to [tools]. Called from a background coroutine; the handler picks its own thread. */
-    val toolHandler: LiveToolHandler? = null
+    val toolHandler: LiveToolHandler? = null,
+    /** Models to try, best first; the client moves down the list when one is refused. Empty: its default. */
+    val models: List<String> = emptyList(),
+    /** The lesson this connection belongs to; only a reconnect of the same lesson may resume. */
+    val resumeKey: String? = null,
+    /** Continue the server-side conversation of [resumeKey] if the server still has it. */
+    val resume: Boolean = false
 )
 
 data class LiveTool(

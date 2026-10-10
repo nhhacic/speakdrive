@@ -442,4 +442,23 @@ class PromptTemplatesTest {
         val disabledMsg = PromptTemplates.vietnameseHelpSwitchMessage(false)
         assertThat(disabledMsg).contains("English only mode has been enabled")
     }
+
+    @Test
+    fun `driving rules describe only the declared tools and hand the rest to the app`() {
+        val declared = setOf(
+            com.speakdrive.ai.session.VoiceSettingsTools.SET_AI_VOLUME_FUNCTION,
+            com.speakdrive.ai.session.VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION
+        )
+        val rules = PromptTemplates.drivingContextRules(declared)
+        assertThat(rules).contains("DRIVING SAFETY RULES")
+        assertThat(rules).contains(com.speakdrive.ai.session.VoiceSettingsTools.SET_AI_VOLUME_FUNCTION)
+        assertThat(rules).contains(com.speakdrive.ai.session.VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION)
+        assertThat(rules).doesNotContain(com.speakdrive.ai.session.VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION)
+        assertThat(rules).contains("the app applies it itself")
+        assertThat(rules).contains(PromptTemplates.END_LESSON_FUNCTION)
+
+        val everything = PromptTemplates.drivingContextRules()
+        assertThat(everything).contains(com.speakdrive.ai.session.VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION)
+        assertThat(everything).doesNotContain("the app applies it itself")
+    }
 }

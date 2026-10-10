@@ -69,7 +69,7 @@ object PromptTemplates {
     }
 
     /** Rules that keep the learner safe and focused on the road (plan step 4.2). */
-    val DRIVING_CONTEXT_RULES = """
+    private val DRIVING_RULES_HEAD = """
         DRIVING SAFETY RULES (most important):
         - Turn structure depends strictly on the current session mode:
           * In FREE TALK and ROLEPLAY: Keep every reply SHORT: one to three sentences, then hand the turn back with a natural question or in-character line.
@@ -83,31 +83,76 @@ object PromptTemplates {
         - If the learner says "wait", "hold on", "one second" or similar, just say "Sure, take your time" and wait.
         - If the learner says "repeat" or "say that again", repeat your last sentence more slowly and simply.
         - If the learner seems busy, stressed or distracted, keep it light and do not push.
-        - If the learner asks to switch learning mode (in Vietnamese or English, e.g. "chuyển sang luyện phát âm", "luyện shadowing", "chuyển sang hội thoại tự do", "chuyển sang kể chuyện", "chuyển sang nhập vai", "chuyển sang ôn từ vựng", "ôn lại lỗi sai", "switch to shadowing/pronunciation/free talk/story/roleplay/vocabulary", "review my mistakes"), call the ${VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION} tool immediately.
-        - If the learner asks to change the difficulty level (in Vietnamese or English, e.g. "chuyển sang cấp độ sơ cấp A2", "đổi sang tiền trung cấp", "mức trung cấp B1", "trung cấp trên B2", "mức cơ bản/nâng cao", "switch to elementary/pre-intermediate/intermediate/advanced", "make it easier/harder"), call the ${VoiceSettingsTools.SET_DIFFICULTY_LEVEL_FUNCTION} tool immediately.
-        - If the learner asks to turn Vietnamese help on or off (e.g. "bật tiếng Việt", "chỉ nói tiếng Anh thôi", "turn on/off Vietnamese help", "English only"), call the ${VoiceSettingsTools.SET_VIETNAMESE_HELP_FUNCTION} tool immediately.
-        - If the learner asks to change the app language or explanation language (e.g. "đổi ngôn ngữ sang tiếng Anh", "chuyển sang tiếng Việt", "đổi sang tiếng Nhật", "change language to English", "switch to Spanish"), call the ${VoiceSettingsTools.SET_APP_LANGUAGE_FUNCTION} tool immediately.
-        - If the learner asks to change storytelling style (e.g. "kể liền mạch", "chỉ kể chuyện thôi", "chế độ podcast", "đừng hỏi nữa, kể tiếp đi", "kể tương tác", "continuous storytelling", "podcast mode", "stop asking me questions", "interactive mode"), call the ${VoiceSettingsTools.SET_STORYTELLING_STYLE_FUNCTION} tool immediately.
-        - If the learner asks to adjust pronunciation strictness (e.g. "chấm phát âm dễ hơn", "chấm theo cấp độ", "chấm tự động", "chấm như A1/A2", "chấm chuẩn B1/B2/C1", "chấm khắt khe", "lenient pronunciation", "grade by level", "strict pronunciation"), call the ${VoiceSettingsTools.SET_PRONUNCIATION_STRICTNESS_FUNCTION} tool immediately.
-        - If the learner asks to enable or disable barge-in / interruption (e.g. "bật ngắt lời", "cho phép ngắt lời", "tắt ngắt lời", "enable barge-in", "disable interruption"), call the ${VoiceSettingsTools.SET_BARGE_IN_FUNCTION} tool immediately.
-        - If the learner asks to change AI voice (e.g. "đổi giọng nam", "đổi giọng nữ", "đổi sang giọng Puck/Charon/Kore/Aoede", "change AI voice"), call the ${VoiceSettingsTools.SET_VOICE_FUNCTION} tool immediately.
-        - If the learner asks to skip or change the story (e.g. "next", "đổi chuyện khác", "bỏ qua", "chuyện khác đi", "next story"), call the ${VoiceSettingsTools.NEXT_STORY_FUNCTION} tool immediately.
-        - If the learner asks to replay the story (e.g. "kể lại từ đầu", "nghe lại chuyện vừa rồi", "replay story"), call the ${VoiceSettingsTools.REPLAY_STORY_FUNCTION} tool immediately.
-        - If the learner asks to continue or resume their unfinished story (e.g. "tiếp tục nghe truyện", "kể tiếp câu chuyện hôm trước", "nghe tiếp truyện dở", "resume story", "continue listening"), call the ${VoiceSettingsTools.RESUME_STORY_FUNCTION} tool immediately.
-        - If the learner asks to change story duration (e.g. "chuyện ngắn 5 phút", "kể chuyện 5 phút thôi", "đổi sang chuyện dài 10-30 phút", "short 5-minute story", "long story"), call the ${VoiceSettingsTools.SET_STORY_DURATION_FUNCTION} tool immediately.
-        - If the learner asks to toggle multi-voice acting or audio drama mode (e.g. "kể nhiều giọng", "nhập vai các nhân vật", "bật kịch truyền thanh", "một giọng thôi", "multi-voice drama"), call the ${VoiceSettingsTools.SET_MULTI_VOICE_FUNCTION} tool immediately.
-        - If the learner asks to adjust repeat/drill sentence length (e.g. "câu ngắn khi lái xe", "rút ngắn câu lặp lại", "câu ngắn thôi", "câu dài hơn", "độ dài tiêu chuẩn", "short drill sentences", "shorter repetition sentences", "standard sentence length"), call the ${VoiceSettingsTools.SET_DRILL_SENTENCE_LENGTH_FUNCTION} tool immediately.
-        - If the learner asks to adjust repeat/drill category or focus area (e.g. "luyện lỗi âm người Việt", "luyện câu giao tiếp", "luyện câu lái xe", "luyện câu công sở", "luyện câu du lịch", "luyện tất cả", "focus on pronunciation pitfalls", "conversational reflex drill", "driving sentences drill", "business phrases drill"), call the ${VoiceSettingsTools.SET_DRILL_CATEGORY_FUNCTION} tool immediately.
-        - If the learner asks to adjust speech volume (in Vietnamese or English, e.g. "nói nhỏ lại", "cho nhỏ tiếng", "giảm âm lượng", "bé tiếng lại", "nói to lên", "tăng âm lượng", "âm lượng 50%", "lower volume", "speak softer", "turn down the volume", "quieter", "speak louder", "increase volume", "volume up", "set volume to 70%"), call the ${VoiceSettingsTools.SET_AI_VOLUME_FUNCTION} tool immediately.
-        - If the learner asks to enable or disable auto-pausing when the app loses focus or screen turns off (e.g. "bật tự động tạm dừng khi tắt màn hình", "tự động tạm dừng khi rời app", "tắt tạm dừng khi tắt màn hình", "đừng tạm dừng khi thoát app", "enable/disable auto pause", "pause on screen off", "pause when leaving app"), call the ${VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION} tool immediately.
-        - If the learner asks you to remember or forget them across lessons (e.g. "bật ghi nhớ", "nhớ về tôi nhé", "đừng ghi nhớ gì về tôi", "tắt trí nhớ AI", "remember me", "turn off memory", "don't remember anything about me"), call the ${VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION} tool immediately.
-        - If the learner asks to turn the daily practice reminder on or off or to change its time (e.g. "bật nhắc học", "tắt nhắc học", "nhắc tôi lúc 7 giờ sáng", "nhắc học tự động", "turn off reminders", "remind me at 6:30 pm"), call the ${VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION} tool immediately.
-        - If the learner asks to turn streak freezes on or off (e.g. "bật bảo toàn chuỗi", "tắt bảo toàn chuỗi", "turn off streak freeze"), call the ${VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION} tool immediately.
-        - If the learner asks to turn offline practice on or off (practising on the phone alone when the network is lost, e.g. "bật luyện offline", "tắt luyện offline", "turn off offline practice"), call the ${VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION} tool immediately.
-        - If the learner asks to enable or disable natural phrasing suggestions (e.g. "bật gợi ý nói hay hơn", "gợi ý diễn đạt tự nhiên", "tắt gợi ý diễn đạt", "đừng sửa cách nói", "turn on/off better phrasing", "suggest natural phrasing"), call the ${VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION} tool immediately.
+    """.trimIndent()
+
+    /** One line per settings tool, so the prompt only describes the tools a session declares. */
+    private val TOOL_RULES: List<Pair<String, String>> = listOf(
+        VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION to
+            "- If the learner asks to switch learning mode (in Vietnamese or English, e.g. \"chuyển sang luyện phát âm\", \"luyện shadowing\", \"chuyển sang hội thoại tự do\", \"chuyển sang kể chuyện\", \"chuyển sang nhập vai\", \"chuyển sang ôn từ vựng\", \"ôn lại lỗi sai\", \"switch to shadowing/pronunciation/free talk/story/roleplay/vocabulary\", \"review my mistakes\"), call the ${VoiceSettingsTools.SWITCH_SESSION_MODE_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_DIFFICULTY_LEVEL_FUNCTION to
+            "- If the learner asks to change the difficulty level (in Vietnamese or English, e.g. \"chuyển sang cấp độ sơ cấp A2\", \"đổi sang tiền trung cấp\", \"mức trung cấp B1\", \"trung cấp trên B2\", \"mức cơ bản/nâng cao\", \"switch to elementary/pre-intermediate/intermediate/advanced\", \"make it easier/harder\"), call the ${VoiceSettingsTools.SET_DIFFICULTY_LEVEL_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_VIETNAMESE_HELP_FUNCTION to
+            "- If the learner asks to turn Vietnamese help on or off (e.g. \"bật tiếng Việt\", \"chỉ nói tiếng Anh thôi\", \"turn on/off Vietnamese help\", \"English only\"), call the ${VoiceSettingsTools.SET_VIETNAMESE_HELP_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_APP_LANGUAGE_FUNCTION to
+            "- If the learner asks to change the app language or explanation language (e.g. \"đổi ngôn ngữ sang tiếng Anh\", \"chuyển sang tiếng Việt\", \"đổi sang tiếng Nhật\", \"change language to English\", \"switch to Spanish\"), call the ${VoiceSettingsTools.SET_APP_LANGUAGE_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_STORYTELLING_STYLE_FUNCTION to
+            "- If the learner asks to change storytelling style (e.g. \"kể liền mạch\", \"chỉ kể chuyện thôi\", \"chế độ podcast\", \"đừng hỏi nữa, kể tiếp đi\", \"kể tương tác\", \"continuous storytelling\", \"podcast mode\", \"stop asking me questions\", \"interactive mode\"), call the ${VoiceSettingsTools.SET_STORYTELLING_STYLE_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_PRONUNCIATION_STRICTNESS_FUNCTION to
+            "- If the learner asks to adjust pronunciation strictness (e.g. \"chấm phát âm dễ hơn\", \"chấm theo cấp độ\", \"chấm tự động\", \"chấm như A1/A2\", \"chấm chuẩn B1/B2/C1\", \"chấm khắt khe\", \"lenient pronunciation\", \"grade by level\", \"strict pronunciation\"), call the ${VoiceSettingsTools.SET_PRONUNCIATION_STRICTNESS_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_BARGE_IN_FUNCTION to
+            "- If the learner asks to enable or disable barge-in / interruption (e.g. \"bật ngắt lời\", \"cho phép ngắt lời\", \"tắt ngắt lời\", \"enable barge-in\", \"disable interruption\"), call the ${VoiceSettingsTools.SET_BARGE_IN_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_VOICE_FUNCTION to
+            "- If the learner asks to change AI voice (e.g. \"đổi giọng nam\", \"đổi giọng nữ\", \"đổi sang giọng Puck/Charon/Kore/Aoede\", \"change AI voice\"), call the ${VoiceSettingsTools.SET_VOICE_FUNCTION} tool immediately.",
+        VoiceSettingsTools.NEXT_STORY_FUNCTION to
+            "- If the learner asks to skip or change the story (e.g. \"next\", \"đổi chuyện khác\", \"bỏ qua\", \"chuyện khác đi\", \"next story\"), call the ${VoiceSettingsTools.NEXT_STORY_FUNCTION} tool immediately.",
+        VoiceSettingsTools.REPLAY_STORY_FUNCTION to
+            "- If the learner asks to replay the story (e.g. \"kể lại từ đầu\", \"nghe lại chuyện vừa rồi\", \"replay story\"), call the ${VoiceSettingsTools.REPLAY_STORY_FUNCTION} tool immediately.",
+        VoiceSettingsTools.RESUME_STORY_FUNCTION to
+            "- If the learner asks to continue or resume their unfinished story (e.g. \"tiếp tục nghe truyện\", \"kể tiếp câu chuyện hôm trước\", \"nghe tiếp truyện dở\", \"resume story\", \"continue listening\"), call the ${VoiceSettingsTools.RESUME_STORY_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_STORY_DURATION_FUNCTION to
+            "- If the learner asks to change story duration (e.g. \"chuyện ngắn 5 phút\", \"kể chuyện 5 phút thôi\", \"đổi sang chuyện dài 10-30 phút\", \"short 5-minute story\", \"long story\"), call the ${VoiceSettingsTools.SET_STORY_DURATION_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_MULTI_VOICE_FUNCTION to
+            "- If the learner asks to toggle multi-voice acting or audio drama mode (e.g. \"kể nhiều giọng\", \"nhập vai các nhân vật\", \"bật kịch truyền thanh\", \"một giọng thôi\", \"multi-voice drama\"), call the ${VoiceSettingsTools.SET_MULTI_VOICE_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_DRILL_SENTENCE_LENGTH_FUNCTION to
+            "- If the learner asks to adjust repeat/drill sentence length (e.g. \"câu ngắn khi lái xe\", \"rút ngắn câu lặp lại\", \"câu ngắn thôi\", \"câu dài hơn\", \"độ dài tiêu chuẩn\", \"short drill sentences\", \"shorter repetition sentences\", \"standard sentence length\"), call the ${VoiceSettingsTools.SET_DRILL_SENTENCE_LENGTH_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_DRILL_CATEGORY_FUNCTION to
+            "- If the learner asks to adjust repeat/drill category or focus area (e.g. \"luyện lỗi âm người Việt\", \"luyện câu giao tiếp\", \"luyện câu lái xe\", \"luyện câu công sở\", \"luyện câu du lịch\", \"luyện tất cả\", \"focus on pronunciation pitfalls\", \"conversational reflex drill\", \"driving sentences drill\", \"business phrases drill\"), call the ${VoiceSettingsTools.SET_DRILL_CATEGORY_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_AI_VOLUME_FUNCTION to
+            "- If the learner asks to adjust speech volume (in Vietnamese or English, e.g. \"nói nhỏ lại\", \"cho nhỏ tiếng\", \"giảm âm lượng\", \"bé tiếng lại\", \"nói to lên\", \"tăng âm lượng\", \"âm lượng 50%\", \"lower volume\", \"speak softer\", \"turn down the volume\", \"quieter\", \"speak louder\", \"increase volume\", \"volume up\", \"set volume to 70%\"), call the ${VoiceSettingsTools.SET_AI_VOLUME_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION to
+            "- If the learner asks to enable or disable auto-pausing when the app loses focus or screen turns off (e.g. \"bật tự động tạm dừng khi tắt màn hình\", \"tự động tạm dừng khi rời app\", \"tắt tạm dừng khi tắt màn hình\", \"đừng tạm dừng khi thoát app\", \"enable/disable auto pause\", \"pause on screen off\", \"pause when leaving app\"), call the ${VoiceSettingsTools.SET_AUTO_PAUSE_WHEN_UNFOCUSED_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION to
+            "- If the learner asks you to remember or forget them across lessons (e.g. \"bật ghi nhớ\", \"nhớ về tôi nhé\", \"đừng ghi nhớ gì về tôi\", \"tắt trí nhớ AI\", \"remember me\", \"turn off memory\", \"don't remember anything about me\"), call the ${VoiceSettingsTools.SET_LEARNER_MEMORY_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION to
+            "- If the learner asks to turn the daily practice reminder on or off or to change its time (e.g. \"bật nhắc học\", \"tắt nhắc học\", \"nhắc tôi lúc 7 giờ sáng\", \"nhắc học tự động\", \"turn off reminders\", \"remind me at 6:30 pm\"), call the ${VoiceSettingsTools.SET_PRACTICE_REMINDER_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION to
+            "- If the learner asks to turn streak freezes on or off (e.g. \"bật bảo toàn chuỗi\", \"tắt bảo toàn chuỗi\", \"turn off streak freeze\"), call the ${VoiceSettingsTools.SET_STREAK_FREEZE_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION to
+            "- If the learner asks to turn offline practice on or off (practising on the phone alone when the network is lost, e.g. \"bật luyện offline\", \"tắt luyện offline\", \"turn off offline practice\"), call the ${VoiceSettingsTools.SET_OFFLINE_PRACTICE_FUNCTION} tool immediately.",
+        VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION to
+            "- If the learner asks to enable or disable natural phrasing suggestions (e.g. \"bật gợi ý nói hay hơn\", \"gợi ý diễn đạt tự nhiên\", \"tắt gợi ý diễn đạt\", \"đừng sửa cách nói\", \"turn on/off better phrasing\", \"suggest natural phrasing\"), call the ${VoiceSettingsTools.SET_BETTER_PHRASING_FUNCTION} tool immediately."
+    )
+
+    private const val OTHER_SETTINGS_RULE =
+        "- If the learner asks to change any other app setting by voice (for example reminders, daily goal, app language, " +
+            "screen, offline practice or memory), the app applies it itself from what they said: never refuse or say you cannot. " +
+            "Answer with a few friendly words; the app then tells you exactly what changed."
+
+    private val DRIVING_RULES_TAIL = """
         - After calling ANY settings tool, ALWAYS confirm the change warmly in ONE short spoken sentence to the learner so they hear the update hands-free, and immediately continue the lesson with the updated setting.
         - If the learner asks to stop or end the lesson, say a short goodbye and call the $END_LESSON_FUNCTION tool.
     """.trimIndent()
+
+    /**
+     * Driving and settings rules. With [toolNames] (the tools this session declares) only those tools
+     * are described and the model is told the app handles every other setting; null describes all.
+     */
+    fun drivingContextRules(toolNames: Set<String>? = null): String = buildString {
+        appendLine(DRIVING_RULES_HEAD)
+        TOOL_RULES.filter { toolNames == null || it.first in toolNames }.forEach { appendLine(it.second) }
+        if (toolNames != null) appendLine(OTHER_SETTINGS_RULE)
+        append(DRIVING_RULES_TAIL)
+    }
 
     private val TEACHING_RULES = """
         TEACHING STYLE:
@@ -706,11 +751,12 @@ object PromptTemplates {
         settings: LearnerSettings,
         recap: List<TranscriptTurn> = emptyList(),
         isCarConnected: Boolean = false,
-        sampleDrillSentences: List<String> = emptyList()
+        sampleDrillSentences: List<String> = emptyList(),
+        toolNames: Set<String>? = null
     ): String = buildString {
         appendLine(persona(settings.appLanguage, lesson.mode))
         appendLine()
-        appendLine(DRIVING_CONTEXT_RULES)
+        appendLine(drivingContextRules(toolNames))
         appendLine()
         if (lesson.mode == SessionMode.FREE_TALK || lesson.mode == SessionMode.ROLEPLAY) {
             appendLine(TEACHING_RULES)
@@ -894,6 +940,15 @@ object PromptTemplates {
                 "Reply to them now, out loud, exactly as you would have. Do not mention any delay."
         }
     }
+
+    /**
+     * Sent on a new connection that continues the server-side conversation (session resumption):
+     * the model remembers everything, it only has to pick up again.
+     */
+    const val RESUMED_CONTINUE_MESSAGE =
+        "System: The connection dropped for a moment and is back; you still have the whole conversation. " +
+            "Continue exactly where you left off: if you were in the middle of a sentence, finish it briefly. " +
+            "Do not greet again and do not mention the interruption."
 
     /** Sent when the AI got a tool result (or a request without learner words) but never spoke. */
     const val UNANSWERED_PROMPT_MESSAGE =
