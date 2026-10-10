@@ -1,10 +1,14 @@
 package com.speakdrive.audio
 
+import android.Manifest
+import android.app.Application
 import android.content.Context
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import java.time.Duration
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -14,6 +18,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.AudioDeviceInfoBuilder
 import org.robolectric.shadows.ShadowAudioManager
+import org.robolectric.shadows.ShadowAudioRecord
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -34,8 +39,9 @@ class LiveAudioIOTest {
 
     @After
     fun tearDown() {
-        // Stops the speaker thread a test may have started.
+        // Stops the speaker and mic threads a test may have started.
         liveAudio.release()
+        ShadowAudioRecord.clearSource()
     }
 
     @Test
@@ -196,5 +202,81 @@ class LiveAudioIOTest {
         // Only Android Auto switches to the car route; the A2DP latency still lengthens the echo tail.
         assertThat(liveAudio.isCarConnected()).isFalse()
         assertThat(liveAudio.isCarAudioConnected()).isTrue()
+    }
+
+    @Test
+    fun stopCapture_withHold_keepsTheHeadsetCallUntilTheHoldRunsOut() {
+        val headset = connectBluetoothHeadset()
+        liveAudio.startCapture { }
+        assertThat(audioManager.mode).isEqualTo(AudioManager.MODE_IN_COMMUNICATION)
+        assertThat(audioManager.communicationDevice).isEqualTo(headset)
+
+        liveAudio.stopCapture(holdRoute = true)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LiveAudioIO.ROUTE_HOLD_MS - 100))
+        assertThat(audioManager.mode).isEqualTo(AudioManager.MODE_IN_COMMUNICATION)
+        assertThat(audioManager.communicationDevice).isEqualTo(headset)
+
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
+        assertThat(audioManager.mode).isEqualTo(AudioManager.MODE_NORMAL)
+        assertThat(audioManager.communicationDevice).isNull()
+    }
+
+    @Test
+    fun startCapture_duringHold_reusesTheCallAndStillRestoresTheModeFromBefore() {
+        val headset = connectBluetoothHeadset()
+        liveAudio.startCapture { }
+        liveAudio.stopCapture(holdRoute = true)
+
+        liveAudio.startCapture { }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LiveAudioIO.ROUTE_HOLD_MS * 2))
+        assertThat(audioManager.mode).isEqualTo(AudioManager.MODE_IN_COMMUNICATION)
+        assertThat(audioManager.communicationDevice).isEqualTo(headset)
+        assertThat(liveAudio.isEchoCancelled()).isTrue()
+
+        liveAudio.stopCapture()
+        assertThat(audioManager.mode).isEqualTo(AudioManager.MODE_NORMAL)
+        assertThat(audioManager.communicationDevice).isNull()
+    }
+
+    @Test
+    fun stopCapture_withoutHold_hangsUpAtOnce() {
+        connectBluetoothHeadset()
+        liveAudio.startCapture { }
+        liveAudio.stopCapture(holdRoute = true)
+
+        // Ending the lesson drops a held call too.
+        liveAudio.stopCapture()
+        assertThat(audioManager.mode).isEqualTo(AudioManager.MODE_NORMAL)
+        assertThat(audioManager.communicationDevice).isNull()
+    }
+
+    @Test
+    fun stopCapture_withHold_onTheMediaRouteHasNothingToKeep() {
+        connectBluetoothHeadset()
+        liveAudio.setCarConnected(true)
+        liveAudio.startCapture { }
+        assertThat(audioManager.mode).isEqualTo(AudioManager.MODE_NORMAL)
+
+        liveAudio.stopCapture(holdRoute = true)
+        assertThat(audioManager.communicationDevice).isNull()
+    }
+
+    /** A Bluetooth headset whose call mic delivers sound; returns its hands-free device. */
+    private fun connectBluetoothHeadset(): AudioDeviceInfo {
+        shadowOf(context as Application).grantPermissions(Manifest.permission.RECORD_AUDIO)
+        ShadowAudioRecord.setSource(object : ShadowAudioRecord.AudioRecordSource {
+            override fun readInByteArray(audioData: ByteArray, offsetInBytes: Int, sizeInBytes: Int, isBlocking: Boolean): Int {
+                audioData.fill(1, offsetInBytes, offsetInBytes + sizeInBytes)
+                Thread.sleep(5)
+                return sizeInBytes
+            }
+        })
+        val sco = AudioDeviceInfoBuilder.newBuilder().setType(AudioDeviceInfo.TYPE_BLUETOOTH_SCO).build()
+        val speaker = AudioDeviceInfoBuilder.newBuilder().setType(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER).build()
+        shadowAudioManager.setAvailableCommunicationDevices(listOf(sco, speaker))
+        shadowAudioManager.setOutputDevices(
+            listOf(AudioDeviceInfoBuilder.newBuilder().setType(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP).build(), sco)
+        )
+        return sco
     }
 }

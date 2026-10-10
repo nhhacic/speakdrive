@@ -486,6 +486,25 @@ class ConversationEngineTest {
     }
 
     @Test
+    fun `a navigation prompt keeps the headset call up but the learner's pause hangs it up`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest())
+
+        focus.state.value = AudioFocusState.LOSS_TRANSIENT_CAN_DUCK
+        runCurrent()
+        assertThat(live.audioPaused).isTrue()
+        assertThat(live.audioPausedBriefly).isTrue()
+
+        focus.state.value = AudioFocusState.GAIN
+        runCurrent()
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+
+        engine.pause()
+        assertThat(live.audioPaused).isTrue()
+        assertThat(live.audioPausedBriefly).isFalse()
+    }
+
+    @Test
     fun `resuming after a long pause reconnects with the conversation so far`(): TestResult = engineTest {
         val engine = createEngine()
         engine.start(LessonRequest(topicId = "work"))

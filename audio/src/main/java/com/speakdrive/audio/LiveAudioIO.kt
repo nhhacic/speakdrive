@@ -16,6 +16,8 @@ import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,6 +36,13 @@ interface LiveAudio {
     fun startCapture(onChunk: (ByteArray) -> Unit, onError: (Throwable) -> Unit)
     fun startCapture(onChunk: (ByteArray) -> Unit) = startCapture(onChunk) { }
     fun stopCapture()
+
+    /**
+     * Stops the microphone; with [holdRoute] the voice-call route stays up for a few seconds. A
+     * Bluetooth headset or car treats that route as a phone call, so a reconnect or a short
+     * interruption that starts the mic again in time does not hang it up and dial it again.
+     */
+    fun stopCapture(holdRoute: Boolean) = stopCapture()
 
     /** Queues 24 kHz mono PCM16 from the AI for playback. */
     fun play(pcm: ByteArray)
@@ -86,7 +95,8 @@ interface LiveAudio {
  * - phone alone: the loudspeaker (never the quiet earpiece), with the phone's echo canceller;
  * - wired/USB headset: the headset.
  * Because the echo is cancelled in hardware, the learner can talk over the AI without the AI
- * hearing itself.
+ * hearing itself. A Bluetooth headset or car sees this route as a phone call, so it is kept for a
+ * few seconds when the mic stops for a reconnect or a navigation prompt (see [stopCapture]).
  *
  * Fallback — if no call device can be selected or the call mic delivers only silence: the old
  * media route (`MODE_NORMAL`, `VOICE_RECOGNITION`, `USAGE_MEDIA`). Echo is then handled by
@@ -137,16 +147,44 @@ class LiveAudioIO @Inject constructor(
     @Volatile private var lastPlaybackHeadPosition = -1L
     @Volatile private var lastPositionChangeTimestampMs = 0L
 
+    /** Delayed routing work: releasing a held call route, re-routing once devices have settled. */
+    private val routeHandler = Handler(Looper.getMainLooper())
+
+    /** True while the call route is kept up after the mic stopped (see [stopCapture]). */
+    private var routeHeld = false
+
+    private val releaseHeldRoute = Runnable {
+        synchronized(lock) {
+            if (!routeHeld) return@synchronized
+            routeHeld = false
+            Log.i(TAG, "Mic did not restart; releasing the call route $routeName")
+            restoreAudioManager()
+        }
+    }
+
+    private val rerouteAfterDeviceChange = Runnable {
+        synchronized(lock) { if (capturing) applyAudioRouting() }
+    }
+
     private val audioDeviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
             Log.d(TAG, "Audio devices added: ${addedDevices?.joinToString { it.type.toString() }}")
-            synchronized(lock) { applyAudioRouting() }
+            scheduleReroute()
         }
 
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
             Log.d(TAG, "Audio devices removed: ${removedDevices?.joinToString { it.type.toString() }}")
-            synchronized(lock) { applyAudioRouting() }
+            scheduleReroute()
         }
+    }
+
+    /**
+     * Re-routes once the devices have settled. A Bluetooth headset that drops out often comes straight
+     * back; following every event moved the AI to the loudspeaker and back and dialled the headset again.
+     */
+    private fun scheduleReroute() {
+        routeHandler.removeCallbacks(rerouteAfterDeviceChange)
+        routeHandler.postDelayed(rerouteAfterDeviceChange, DEVICE_SETTLE_MS)
     }
 
     override fun startCapture(onChunk: (ByteArray) -> Unit, onError: (Throwable) -> Unit): Unit = synchronized(lock) {
@@ -159,15 +197,19 @@ class LiveAudioIO @Inject constructor(
         } catch (e: Exception) {
             // Leave nothing behind: a half-started capture would keep the mic or a changed audio mode.
             Log.w(TAG, "Could not start the microphone", e)
-            releaseCaptureLocked()
+            releaseCaptureLocked(holdRoute = false)
             throw e
         }
     }
 
     private fun startCaptureLocked(onChunk: (ByteArray) -> Unit, onError: (Throwable) -> Unit) {
-        previousAudioMode = audioManager.mode
-        @Suppress("DEPRECATION")
-        previousSpeakerphoneOn = audioManager.isSpeakerphoneOn
+        // A held route still remembers the mode and speaker state from before the lesson.
+        val heldRoute = takeHeldRoute()
+        if (!heldRoute) {
+            previousAudioMode = audioManager.mode
+            @Suppress("DEPRECATION")
+            previousSpeakerphoneOn = audioManager.isSpeakerphoneOn
+        }
 
         val minBuffer = AudioRecord.getMinBufferSize(IN_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val bufferSize = maxOf(minBuffer, CHUNK_BYTES * 4)
@@ -175,7 +217,12 @@ class LiveAudioIO @Inject constructor(
         var record: AudioRecord? = null
         val carConnected = isCarConnected()
         if (!carConnected) {
-            if (runCatching { enterCommunicationRoute() }.onFailure { Log.w(TAG, "Call route failed", it) }.getOrDefault(false)) {
+            val callRoute = if (heldRoute && communicationRoute) {
+                resumeCommunicationRoute()
+            } else {
+                runCatching { enterCommunicationRoute() }.onFailure { Log.w(TAG, "Call route failed", it) }.getOrDefault(false)
+            }
+            if (callRoute) {
                 // The call mic carries the hardware echo canceller. Bluetooth hands-free needs up to a
                 // second to connect, so it gets a longer probe before being declared silent.
                 record = openRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, bufferSize, COMM_PROBE_CHUNKS)
@@ -317,9 +364,11 @@ class LiveAudioIO @Inject constructor(
         }.getOrDefault(true)
     }
 
-    override fun stopCapture(): Unit = synchronized(lock) { releaseCaptureLocked() }
+    override fun stopCapture() = stopCapture(holdRoute = false)
 
-    private fun releaseCaptureLocked() {
+    override fun stopCapture(holdRoute: Boolean): Unit = synchronized(lock) { releaseCaptureLocked(holdRoute) }
+
+    private fun releaseCaptureLocked(holdRoute: Boolean) {
         capturing = false
         // Stopping first unblocks a read() in progress, so the thread can finish.
         runCatching { recorder?.stop() }
@@ -334,7 +383,32 @@ class LiveAudioIO @Inject constructor(
         gainControl?.release()
         gainControl = null
         runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
-        restoreAudioManager()
+        routeHandler.removeCallbacks(rerouteAfterDeviceChange)
+        if (holdRoute && communicationRoute) {
+            holdRouteLocked()
+        } else {
+            takeHeldRoute()
+            restoreAudioManager()
+        }
+    }
+
+    /**
+     * Keeps the call route up for [ROUTE_HOLD_MS] after the mic stopped. A second stop does not
+     * extend it, so a headset is never left on a silent call for long.
+     */
+    private fun holdRouteLocked() {
+        if (routeHeld) return
+        routeHeld = true
+        routeHandler.postDelayed(releaseHeldRoute, ROUTE_HOLD_MS)
+        Log.i(TAG, "Mic stopped; keeping the call route $routeName for $ROUTE_HOLD_MS ms")
+    }
+
+    /** Cancels the release of a held route. True if one was held: the caller takes it over. */
+    private fun takeHeldRoute(): Boolean {
+        routeHandler.removeCallbacks(releaseHeldRoute)
+        val held = routeHeld
+        routeHeld = false
+        return held
     }
 
     override fun play(pcm: ByteArray) {
@@ -491,6 +565,16 @@ class LiveAudioIO @Inject constructor(
         communicationRoute = true
         boostVoiceVolume()
         return true
+    }
+
+    /** Takes over the call route held since the last capture; only the device is checked again. */
+    private fun resumeCommunicationRoute(): Boolean {
+        val ok = runCatching {
+            if (audioManager.mode != AudioManager.MODE_IN_COMMUNICATION) audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+            selectCommunicationDevice()
+        }.onFailure { Log.w(TAG, "Held call route failed", it) }.getOrDefault(false)
+        if (ok) Log.i(TAG, "Reusing the held call route $routeName") else leaveCommunicationRoute()
+        return ok
     }
 
     private fun leaveCommunicationRoute() {
@@ -748,6 +832,12 @@ class LiveAudioIO @Inject constructor(
 
         /** Bluetooth hands-free can take about a second to start delivering the car's mic. */
         private const val COMM_PROBE_CHUNKS = 15
+
+        /** How long the call route outlives the mic: covers a reconnect or a navigation prompt. */
+        const val ROUTE_HOLD_MS = 5_000L
+
+        /** Quiet time after the last device change before the route follows it. */
+        const val DEVICE_SETTLE_MS = 1_500L
 
         /** Call volume is raised to at least this share of its maximum during a lesson. */
         private const val MIN_VOICE_VOLUME_FRACTION = 0.8

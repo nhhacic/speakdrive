@@ -71,6 +71,15 @@ class FakeLiveClient : LiveConversationClient {
 
     override suspend fun pauseAudio() {
         audioPaused = true
+        audioPausedBriefly = false
+    }
+
+    /** True when the last pause kept the call route up (a navigation prompt, a phone call). */
+    var audioPausedBriefly = false
+
+    override suspend fun pauseAudioBriefly() {
+        audioPaused = true
+        audioPausedBriefly = true
     }
 
     override suspend fun resumeAudio() {

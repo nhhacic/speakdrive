@@ -2069,7 +2069,10 @@ open class ConversationEngine @Inject constructor(
         // remember that, so it picks up again on resume even after a short pause.
         if (_activeSpeaker.value == Speaker.AI) resumeNeedsKickoff = true
         stopActiveClock()
-        suspendRunCatching { liveClient.pauseAudio() }.onFailure { Log.w(TAG, "Could not pause audio", it) }
+        suspendRunCatching {
+            // A prompt is over in seconds: a Bluetooth headset or car stays on the call meanwhile.
+            if (reason == PauseReason.FOCUS_TRANSIENT) liveClient.pauseAudioBriefly() else liveClient.pauseAudio()
+        }.onFailure { Log.w(TAG, "Could not pause audio", it) }
         enterPausedLocked()
     }
 

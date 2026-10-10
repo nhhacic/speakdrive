@@ -32,6 +32,12 @@ interface LiveConversationClient {
     /** Stops the microphone and speaker but keeps the session open. */
     suspend fun pauseAudio()
 
+    /**
+     * Like [pauseAudio], for a short interruption such as a navigation prompt: the voice-call route
+     * stays up for a few seconds, so a Bluetooth headset or car is not hung up and dialled again.
+     */
+    suspend fun pauseAudioBriefly() = pauseAudio()
+
     suspend fun resumeAudio()
 
     suspend fun disconnect()

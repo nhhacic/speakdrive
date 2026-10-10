@@ -137,7 +137,8 @@ class GeminiLiveManager @Inject constructor(
         get() = toolsActive
 
     override suspend fun connect(config: LiveSessionConfig) = lock.withLock {
-        closeLocked()
+        // A reconnect keeps the call route, so a Bluetooth headset is not hung up and dialled again.
+        closeLocked(holdAudioRoute = true)
         this.config = config
         gate.reset()
         utterance.reset()
@@ -222,9 +223,13 @@ class GeminiLiveManager @Inject constructor(
         current.send(content(role = "user") { text(text) }, turnComplete = false)
     }
 
-    override suspend fun pauseAudio() = lock.withLock {
+    override suspend fun pauseAudio() = pauseAudio(holdRoute = false)
+
+    override suspend fun pauseAudioBriefly() = pauseAudio(holdRoute = true)
+
+    private suspend fun pauseAudio(holdRoute: Boolean) = lock.withLock {
         audioPaused = true
-        audio.stopCapture()
+        audio.stopCapture(holdRoute)
         audio.flushPlayback()
         resetAiTurn()
     }
@@ -237,7 +242,7 @@ class GeminiLiveManager @Inject constructor(
         startCaptureFor(session)
     }
 
-    override suspend fun disconnect() = lock.withLock { closeLocked() }
+    override suspend fun disconnect() = lock.withLock { closeLocked(holdAudioRoute = false) }
 
     override fun updateInterruptions(enabled: Boolean) {
         val current = config ?: return
@@ -607,12 +612,12 @@ class GeminiLiveManager @Inject constructor(
         }
     }
 
-    private suspend fun closeLocked() {
+    private suspend fun closeLocked(holdAudioRoute: Boolean) {
         val current = session
         session = null
         watchdog?.cancel()
         watchdog = null
-        audio.stopCapture()
+        audio.stopCapture(holdAudioRoute)
         audio.stopPlayback()
         synchronized(transcriptLock) { pendingAiTranscript.clear() }
         resetAiTurn()
