@@ -863,6 +863,28 @@ object PromptTemplates {
     const val SILENCE_NUDGE =
         "The learner has been quiet for a while (they may be concentrating on the road). Gently re-engage them with one short, easy question."
 
+    /**
+     * Sent when the learner finished speaking but the AI never answered: the Live server sometimes
+     * transcribes a turn and then sends nothing. Repeats what the learner said so the model can answer it.
+     */
+    fun unansweredTurnMessage(mode: SessionMode, learnerSaid: String?): String {
+        val said = learnerSaid?.trim()?.takeIf { it.isNotEmpty() }?.take(UNANSWERED_TURN_MAX_CHARS)
+            ?: return UNANSWERED_PROMPT_MESSAGE
+        return if (mode == SessionMode.REPEAT_AFTER_ME) {
+            "System: The learner has finished their attempt and is waiting for your feedback. They said: \"$said\". " +
+                "Call ${PronunciationDrill.CHECK_ATTEMPT_FUNCTION} for this attempt now, then follow its result out loud."
+        } else {
+            "System: The learner has finished speaking and is waiting for your reply. They said: \"$said\". " +
+                "Reply to them now, out loud, exactly as you would have. Do not mention any delay."
+        }
+    }
+
+    /** Sent when the AI got a tool result (or a request without learner words) but never spoke. */
+    const val UNANSWERED_PROMPT_MESSAGE =
+        "System: The learner is waiting for you and has not heard anything yet. Continue the lesson now, out loud."
+
+    private const val UNANSWERED_TURN_MAX_CHARS = 600
+
     /** Spoken by the AI when a story is completely finished; the engine stops auto-continuing on it. */
     const val STORY_END_MARKER = "And that is the end of our story."
 

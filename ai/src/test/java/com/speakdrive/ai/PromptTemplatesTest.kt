@@ -408,4 +408,18 @@ class PromptTemplatesTest {
         assertThat(freeTalkPrompt).contains("is_collocation")
         assertThat(freeTalkPrompt).contains("comprehension_score: null")
     }
+
+    @Test
+    fun `unanswered turn message repeats what the learner said`() {
+        val talk = PromptTemplates.unansweredTurnMessage(SessionMode.FREE_TALK, "  I think it was pirates. ")
+        assertThat(talk).contains("They said: \"I think it was pirates.\"")
+        assertThat(talk).contains("Reply to them now")
+
+        val drill = PromptTemplates.unansweredTurnMessage(SessionMode.REPEAT_AFTER_ME, "I need three tickets")
+        assertThat(drill).contains("Call check_attempt for this attempt now")
+
+        assertThat(PromptTemplates.unansweredTurnMessage(SessionMode.FREE_TALK, " "))
+            .isEqualTo(PromptTemplates.UNANSWERED_PROMPT_MESSAGE)
+        assertThat(PromptTemplates.unansweredTurnMessage(SessionMode.ROLEPLAY, "x".repeat(2_000)).length).isLessThan(900)
+    }
 }

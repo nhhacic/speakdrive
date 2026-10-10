@@ -187,18 +187,60 @@ open class ConversationEngine @Inject constructor(
     /** Whether the AI is currently processing/thinking before responding. */
     private val _isAiThinking = MutableStateFlow(false)
     open val isAiThinking: StateFlow<Boolean> = _isAiThinking.asStateFlow()
-    private var thinkingTimeoutJob: Job? = null
+    private var replyWatchJob: Job? = null
+
+    /** Fresh connections opened because the AI stopped answering, since it last spoke. */
+    private var stallReconnects = 0
 
     private fun setAiThinking(thinking: Boolean) {
-        thinkingTimeoutJob?.cancel()
+        replyWatchJob?.cancel()
+        replyWatchJob = null
         _isAiThinking.value = thinking
-        if (thinking) {
-            thinkingTimeoutJob = scope.launch {
-                delay(AI_THINKING_TIMEOUT_MS)
+    }
+
+    /**
+     * The AI should speak next (after the learner's turn, a kick-off or a tool result): shows
+     * "thinking" and makes sure an answer comes. The Live server sometimes drops a turn: it hears
+     * the learner (or takes our request) and then sends nothing, which left the learner talking to a
+     * silent AI. If no answer starts in time, [retry] is sent as text; if that is ignored too, the
+     * connection is replaced (the recap keeps the conversation going).
+     */
+    private fun awaitAiReply(retry: () -> String) {
+        setAiThinking(true)
+        val sessionId = _lesson.value?.sessionId ?: return
+        replyWatchJob = scope.launch { watchForReply(sessionId, retry) }
+    }
+
+    private suspend fun watchForReply(sessionId: String, retry: () -> String) {
+        delay(REPLY_RETRY_AFTER_MS)
+        mutex.withLock {
+            if (!replyMissing(sessionId)) return
+            Log.w(TAG, "The AI has not answered for $REPLY_RETRY_AFTER_MS ms; asking again")
+            suspendRunCatching { liveClient.sendText(retry()) }
+                .onFailure { Log.w(TAG, "Could not ask the AI again", it) }
+        }
+        delay(REPLY_RECONNECT_AFTER_MS)
+        mutex.withLock {
+            if (!replyMissing(sessionId)) return
+            replyWatchJob = null
+            if (stallReconnects >= MAX_STALL_RECONNECTS) {
+                Log.w(TAG, "The AI still does not answer after $stallReconnects fresh connections; giving up")
                 _isAiThinking.value = false
+                return
             }
+            stallReconnects++
+            Log.w(TAG, "The AI ignored the request again; opening a fresh connection ($stallReconnects)")
+            requestReconnectLocked()
         }
     }
+
+    private fun replyMissing(sessionId: String): Boolean =
+        _lesson.value?.sessionId == sessionId && _state.value == ConversationState.ACTIVE &&
+            _activeSpeaker.value == null && liveClient.isConnected
+
+    /** What the learner said since the AI last spoke, if the AI has not answered it yet. */
+    private fun unansweredLearnerText(): String? =
+        _transcript.value.lastOrNull()?.takeIf { it.speaker == Speaker.USER }?.text
 
     private val _error = MutableStateFlow<EngineError?>(null)
     open val error: StateFlow<EngineError?> = _error.asStateFlow()
@@ -521,6 +563,7 @@ open class ConversationEngine @Inject constructor(
         synchronized(attemptCounts) { attemptCounts.clear() }
         accumulatedActiveMs = 0L
         unansweredNudges = 0
+        stallReconnects = 0
         resetStoryProgress()
         pauseReasons.clear()
         resumeNeedsKickoff = false
@@ -539,8 +582,9 @@ open class ConversationEngine @Inject constructor(
 
         try {
             connectLive(lesson, recap = false)
-            liveClient.sendText(PromptTemplates.kickoffMessage(lesson))
-            setAiThinking(true)
+            val kickoff = PromptTemplates.kickoffMessage(lesson)
+            liveClient.sendText(kickoff)
+            awaitAiReply { kickoff }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -701,6 +745,19 @@ open class ConversationEngine @Inject constructor(
      * already ended are refused so they cannot bring it back.
      */
     private suspend fun handleLiveToolCall(sessionId: String, call: LiveToolCall): Map<String, Any> {
+        // The model is answering through a tool: a slow tool (Azure grading) is not a dropped turn.
+        withContext(engineDispatcher) { if (_lesson.value?.sessionId == sessionId) setAiThinking(true) }
+        val result = answerToolCall(sessionId, call)
+        withContext(engineDispatcher) {
+            // The model speaks once it has the result; make sure it does.
+            if (_lesson.value?.sessionId == sessionId && _state.value == ConversationState.ACTIVE && _isAiThinking.value) {
+                awaitAiReply { PromptTemplates.UNANSWERED_PROMPT_MESSAGE }
+            }
+        }
+        return result
+    }
+
+    private suspend fun answerToolCall(sessionId: String, call: LiveToolCall): Map<String, Any> {
         if (call.name == PronunciationDrill.CHECK_ATTEMPT_FUNCTION) return gradeAttempt(sessionId, call)
         return withContext(engineDispatcher) {
             if (_lesson.value?.sessionId != sessionId || !_state.value.isInLesson) return@withContext STALE_TOOL_RESPONSE
@@ -2053,20 +2110,21 @@ open class ConversationEngine @Inject constructor(
         pauseReasons.clear()
         unansweredNudges = 0
         return try {
+            var welcomeBack: String? = null
             if (liveClient.isConnected) {
                 liveClient.resumeAudio()
                 if (resumeNeedsKickoff || clock() - pausedAt > SAY_WELCOME_BACK_AFTER_MS) {
-                    liveClient.sendText(PromptTemplates.resumeMessage(lesson, _drillTarget.value))
-                    setAiThinking(true)
+                    welcomeBack = PromptTemplates.resumeMessage(lesson, _drillTarget.value)
                 }
             } else {
                 learnerSettings = suspendRunCatching { settings.snapshot() }.getOrDefault(learnerSettings)
                 connectLive(lesson, recap = true)
-                liveClient.sendText(PromptTemplates.resumeMessage(lesson, _drillTarget.value))
-                setAiThinking(true)
+                welcomeBack = PromptTemplates.resumeMessage(lesson, _drillTarget.value)
             }
+            welcomeBack?.let { liveClient.sendText(it) }
             resumeNeedsKickoff = false
             markActive()
+            welcomeBack?.let { awaitAiReply { it } }
             true
         } catch (e: CancellationException) {
             throw e
@@ -2144,10 +2202,26 @@ open class ConversationEngine @Inject constructor(
             enterPausedLocked()
             return
         }
-        suspendRunCatching { liveClient.sendText(PromptTemplates.resumeMessage(lesson, _drillTarget.value)) }
+        val prompt = reconnectPrompt(lesson)
+        suspendRunCatching { liveClient.sendText(prompt) }
             .onFailure { Log.w(TAG, "Could not send the resume message after reconnecting", it) }
-        setAiThinking(true)
         markActive()
+        awaitAiReply { prompt }
+    }
+
+    /**
+     * What the AI is asked to say on a fresh connection: the opening if it never spoke, an answer to
+     * the learner if they were left unanswered (a drill re-reads its sentence instead, because the
+     * attempt's audio is gone with the old connection), otherwise "where were we?".
+     */
+    private fun reconnectPrompt(lesson: ActiveLesson): String {
+        if (_transcript.value.none { it.speaker == Speaker.AI }) return PromptTemplates.kickoffMessage(lesson)
+        val unanswered = unansweredLearnerText()
+        return if (unanswered != null && lesson.mode != SessionMode.REPEAT_AFTER_ME && lesson.mode != SessionMode.STORY_LISTENING) {
+            PromptTemplates.unansweredTurnMessage(lesson.mode, unanswered)
+        } else {
+            PromptTemplates.resumeMessage(lesson, _drillTarget.value)
+        }
     }
 
     private suspend fun goOffline() {
@@ -2452,6 +2526,7 @@ open class ConversationEngine @Inject constructor(
         _transcript.value = accumulator.append(speaker, text)
         if (speaker == Speaker.AI) {
             setAiThinking(false)
+            stallReconnects = 0
             lastAiTranscriptAt = clock()
             // The AI answering means the learner has finished: judge what they said now.
             if (utteranceBuffer.isNotEmpty()) finalizeUtterance(aiStarted = true)
@@ -2497,7 +2572,10 @@ open class ConversationEngine @Inject constructor(
             _activeSpeaker.value = null
             if (speaker == Speaker.USER) {
                 finalizeUtterance(aiStarted = false)
-                if (_state.value == ConversationState.ACTIVE) setAiThinking(true)
+                if (_state.value == ConversationState.ACTIVE) {
+                    val mode = _lesson.value?.mode ?: SessionMode.FREE_TALK
+                    awaitAiReply { PromptTemplates.unansweredTurnMessage(mode, unansweredLearnerText()) }
+                }
             }
         }
     }
@@ -2903,7 +2981,14 @@ open class ConversationEngine @Inject constructor(
         const val GOODBYE_GRACE_MS = 4_000L
         const val STARTUP_GRACE_PERIOD_MS = 5_000L
         const val SPEAKER_IDLE_MS = 1_200L
-        const val AI_THINKING_TIMEOUT_MS = 10_000L
+        /** No answer this long after the AI should have spoken: ask again (a normal answer starts within ~3 s). */
+        const val REPLY_RETRY_AFTER_MS = 8_000L
+
+        /** Still no answer this long after asking again: the connection is stuck, open a fresh one. */
+        const val REPLY_RECONNECT_AFTER_MS = 10_000L
+
+        /** Fresh connections tried for one unanswered stretch before leaving it to the silence watchdog. */
+        const val MAX_STALL_RECONNECTS = 2
         const val SILENCE_CHECK_INTERVAL_MS = 5_000L
         const val SILENCE_NUDGE_AFTER_MS = 25_000L
         const val MAX_UNANSWERED_NUDGES = 3

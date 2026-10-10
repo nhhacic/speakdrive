@@ -43,6 +43,8 @@ import org.junit.Test
 
 private const val SPEAKER_IDLE_MS = 1_200L
 private const val TOOL_GRACE_MS = 2_000L
+private const val REPLY_RETRY_AFTER_MS = 8_000L
+private const val REPLY_RECONNECT_AFTER_MS = 10_000L
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConversationEngineTest {
@@ -668,6 +670,7 @@ class ConversationEngineTest {
     fun `a silent learner is nudged and the lesson pauses after three nudges`(): TestResult = engineTest {
         val engine = createEngine()
         engine.start(LessonRequest())
+        say(Speaker.AI, "Hello! What did you do today?")
 
         advanceTimeBy(31_000)
         runCurrent()
@@ -1015,6 +1018,7 @@ class ConversationEngineTest {
     fun `interactive story mode keeps the normal silence nudge`(): TestResult = engineTest {
         val engine = createEngine()
         engine.start(LessonRequest(mode = SessionMode.STORY_LISTENING))
+        say(Speaker.AI, "The vault door creaked open. What do you think they found?")
 
         advanceTimeBy(31_000)
 
@@ -1334,6 +1338,134 @@ class ConversationEngineTest {
         engine.pause()
         runCurrent()
         assertThat(engine.isAiThinking.value).isFalse()
+    }
+
+    @Test
+    fun `an unanswered learner turn is asked again, then the stuck connection is replaced`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        say(Speaker.AI, "Who do you think did it?")
+        say(Speaker.USER, "Maybe not pirates, but still a human cause.")
+
+        // The server transcribed the learner, then sent nothing.
+        advanceTimeBy(SPEAKER_IDLE_MS + REPLY_RETRY_AFTER_MS + 1)
+        runCurrent()
+        assertThat(live.sentTexts.last()).isEqualTo(
+            PromptTemplates.unansweredTurnMessage(SessionMode.FREE_TALK, "Maybe not pirates, but still a human cause.")
+        )
+        assertThat(live.connects).hasSize(1)
+        assertThat(engine.isAiThinking.value).isTrue()
+
+        advanceTimeBy(REPLY_RECONNECT_AFTER_MS + 1)
+        runCurrent()
+        assertThat(live.connects).hasSize(2)
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+        // The fresh connection answers the learner instead of asking "where were we?".
+        assertThat(live.sentTexts.last()).contains("They said: \"Maybe not pirates, but still a human cause.\"")
+
+        say(Speaker.AI, "Good point, a human cause is more likely.")
+        assertThat(engine.isAiThinking.value).isFalse()
+        advanceTimeBy(REPLY_RETRY_AFTER_MS + REPLY_RECONNECT_AFTER_MS)
+        runCurrent()
+        assertThat(live.connects).hasSize(2)
+    }
+
+    @Test
+    fun `an answer that starts in time is never asked for again`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+        advanceTimeBy(3_000)
+        say(Speaker.AI, "Hello! Where are you going today?")
+        say(Speaker.USER, "To Hue.")
+        advanceTimeBy(SPEAKER_IDLE_MS + 3_000)
+        say(Speaker.AI, "Hue is beautiful!")
+
+        advanceTimeBy(REPLY_RETRY_AFTER_MS + REPLY_RECONNECT_AFTER_MS)
+        runCurrent()
+
+        assertThat(live.sentTexts).hasSize(1) // only the kick-off
+        assertThat(live.connects).hasSize(1)
+    }
+
+    @Test
+    fun `an opening that never comes is requested again, on a fresh connection if needed`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+        val kickoff = live.sentTexts.single()
+
+        advanceTimeBy(REPLY_RETRY_AFTER_MS + 1)
+        runCurrent()
+        assertThat(live.sentTexts).containsExactly(kickoff, kickoff)
+
+        advanceTimeBy(REPLY_RECONNECT_AFTER_MS + 1)
+        runCurrent()
+        assertThat(live.connects).hasSize(2)
+        // The AI never spoke, so the fresh connection opens the lesson instead of saying "welcome back".
+        assertThat(live.sentTexts.last()).isEqualTo(kickoff)
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+    }
+
+    @Test
+    fun `stall recovery stops after two fresh connections`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel"))
+
+        advanceTimeBy(3 * (REPLY_RETRY_AFTER_MS + REPLY_RECONNECT_AFTER_MS) + 1)
+        runCurrent()
+
+        assertThat(live.connects).hasSize(3)
+        assertThat(engine.state.value).isEqualTo(ConversationState.ACTIVE)
+        assertThat(engine.isAiThinking.value).isFalse()
+    }
+
+    @Test
+    fun `an unanswered drill attempt asks for grading, and a fresh connection re-reads the sentence`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+        say(Speaker.AI, "Repeat after me: We need to stick to this budget.")
+        say(Speaker.USER, "We need to stick to the budget.")
+
+        advanceTimeBy(SPEAKER_IDLE_MS + REPLY_RETRY_AFTER_MS + 1)
+        runCurrent()
+        assertThat(live.sentTexts.last()).contains(PronunciationDrill.CHECK_ATTEMPT_FUNCTION)
+        assertThat(live.sentTexts.last()).contains("They said: \"We need to stick to the budget.\"")
+
+        advanceTimeBy(REPLY_RECONNECT_AFTER_MS + 1)
+        runCurrent()
+        assertThat(live.connects).hasSize(2)
+        // The attempt's audio went with the old connection: the learner repeats the sentence again.
+        assertThat(live.sentTexts.last()).isEqualTo(
+            PromptTemplates.resumeMessage(engine.lesson.value!!, "We need to stick to this budget.")
+        )
+    }
+
+    @Test
+    fun `a tool call restarts the wait and a model silent after the result is reminded`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+        say(Speaker.AI, "Repeat after me: I need three tickets.")
+        say(Speaker.USER, "I need three tickets")
+        advanceTimeBy(SPEAKER_IDLE_MS + 2_000)
+
+        live.connects.single().toolHandler!!.handle(
+            LiveToolCall(
+                PronunciationDrill.CHECK_ATTEMPT_FUNCTION,
+                mapOf("target_sentence" to "I need three tickets.", "verdict" to "correct"),
+                learnerUtterance = "I need three tickets"
+            )
+        )
+        runCurrent()
+        assertThat(engine.isAiThinking.value).isTrue()
+
+        // The wait for the learner's turn was replaced: the attempt is not sent again ...
+        advanceTimeBy(REPLY_RETRY_AFTER_MS - 1_000)
+        runCurrent()
+        assertThat(live.sentTexts).hasSize(1)
+
+        // ... but a model that never speaks its feedback is reminded to.
+        advanceTimeBy(1_001)
+        runCurrent()
+        assertThat(live.sentTexts.last()).isEqualTo(PromptTemplates.UNANSWERED_PROMPT_MESSAGE)
     }
 
     @Test
@@ -1908,6 +2040,7 @@ class ConversationEngineTest {
         live.emit(LiveEvent.Disconnected(null))
         runCurrent()
         assertThat(live.connects).hasSize(2)
+        say(Speaker.AI, "Okay, where were we?")
 
         advanceTimeBy(45_000)
         runCurrent()

@@ -280,9 +280,16 @@ class GeminiLiveManager @Inject constructor(
                 target.receive().collect { message ->
                     when (message) {
                         is LiveServerContent -> onContent(message)
-                        is LiveServerToolCall -> message.functionCalls.forEach { call -> answerToolCall(target, call) }
-                        is LiveServerGoAway -> _events.tryEmit(LiveEvent.GoAway)
-                        else -> Unit
+                        is LiveServerToolCall -> {
+                            AudioDiagnostics.onServerMessage()
+                            Log.i(TAG, "Tool call from the model: ${message.functionCalls.joinToString { it.name }}")
+                            message.functionCalls.forEach { call -> answerToolCall(target, call) }
+                        }
+                        is LiveServerGoAway -> {
+                            Log.i(TAG, "Server announced it will close the connection soon")
+                            _events.tryEmit(LiveEvent.GoAway)
+                        }
+                        else -> Log.d(TAG, "Unhandled server message ${message::class.simpleName}")
                     }
                 }
             } catch (e: CancellationException) {
@@ -376,6 +383,7 @@ class GeminiLiveManager @Inject constructor(
                 Log.d(TAG, "AI speech (turnComplete flush): $remaining")
                 _events.tryEmit(LiveEvent.AiTranscript(remaining))
             }
+            Log.d(TAG, "AI turn complete")
             endAiTurn()
         }
 
@@ -525,9 +533,13 @@ class GeminiLiveManager @Inject constructor(
 
     private fun answerToolCall(target: LiveSession, call: FunctionCallPart) {
         scope.launch {
+            val startedAt = System.currentTimeMillis()
             val response = handleFunctionCall(call)
             runCatching { target.sendFunctionResponse(listOf(response)) }
-                .onSuccess { expectAiResponse() } // The model now speaks its confirmation / feedback.
+                .onSuccess {
+                    Log.i(TAG, "Tool ${call.name} answered after ${System.currentTimeMillis() - startedAt} ms")
+                    expectAiResponse() // The model now speaks its confirmation / feedback.
+                }
                 .onFailure { Log.w(TAG, "Could not send tool response", it) }
         }
     }
@@ -548,7 +560,9 @@ class GeminiLiveManager @Inject constructor(
                 )
                 try {
                     // The model waits for this answer; never leave it waiting forever.
-                    withTimeoutOrNull(TOOL_TIMEOUT_MS) { handler?.handle(toolCall) }
+                    val answer = withTimeoutOrNull(TOOL_TIMEOUT_MS) { handler?.handle(toolCall) }
+                    if (answer == null) Log.w(TAG, "Tool ${call.name} gave no result")
+                    answer
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
