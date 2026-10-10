@@ -1592,6 +1592,28 @@ class ConversationEngineTest {
     }
 
     @Test
+    fun `a drill grade that comes before the learner's turn settles is not asked for again`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))
+        say(Speaker.AI, "Repeat after me: I need three tickets.")
+        say(Speaker.USER, "I need three tickets")
+
+        // The model grades at once, before the app's end-of-speech pause is over.
+        live.connects.single().toolHandler!!.handle(
+            LiveToolCall(
+                PronunciationDrill.CHECK_ATTEMPT_FUNCTION,
+                mapOf("target_sentence" to "I need three tickets.", "verdict" to "correct"),
+                learnerUtterance = "I need three tickets"
+            )
+        )
+        advanceTimeBy(SPEAKER_IDLE_MS + REPLY_RETRY_AFTER_MS + 1)
+        runCurrent()
+
+        assertThat(live.sentTexts.last()).isEqualTo(PromptTemplates.UNANSWERED_PROMPT_MESSAGE)
+        assertThat(live.sentTexts.none { it.contains(PronunciationDrill.CHECK_ATTEMPT_FUNCTION) }).isTrue()
+    }
+
+    @Test
     fun `a tool call restarts the wait and a model silent after the result is reminded`(): TestResult = engineTest {
         val engine = createEngine()
         engine.start(LessonRequest(topicId = "travel", mode = SessionMode.REPEAT_AFTER_ME))

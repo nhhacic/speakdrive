@@ -193,6 +193,9 @@ open class ConversationEngine @Inject constructor(
     /** Fresh connections opened because the AI stopped answering, since it last spoke. */
     private var stallReconnects = 0
 
+    /** When the model last called a tool; a tool call is an answer to the learner too. */
+    private var lastModelToolCallAt = Long.MIN_VALUE
+
     private fun setAiThinking(thinking: Boolean) {
         replyWatchJob?.cancel()
         replyWatchJob = null
@@ -793,7 +796,10 @@ open class ConversationEngine @Inject constructor(
      */
     private suspend fun handleLiveToolCall(sessionId: String, call: LiveToolCall): Map<String, Any> {
         // The model is answering through a tool: a slow tool (Azure grading) is not a dropped turn.
-        withContext(engineDispatcher) { if (_lesson.value?.sessionId == sessionId) setAiThinking(true) }
+        withContext(engineDispatcher) {
+            lastModelToolCallAt = clock()
+            if (_lesson.value?.sessionId == sessionId) setAiThinking(true)
+        }
         val result = answerToolCall(sessionId, call)
         withContext(engineDispatcher) {
             // The model speaks once it has the result; make sure it does.
@@ -2639,12 +2645,14 @@ open class ConversationEngine @Inject constructor(
         }
         _activeSpeaker.value = speaker
         speakerResetJob?.cancel()
+        val heardAt = clock()
         speakerResetJob = scope.launch {
             delay(SPEAKER_IDLE_MS)
             _activeSpeaker.value = null
             if (speaker == Speaker.USER) {
                 finalizeUtterance(aiStarted = false)
-                if (_state.value == ConversationState.ACTIVE) {
+                // A tool call since then (a drill grade) is already the answer; its own wait is running.
+                if (_state.value == ConversationState.ACTIVE && lastModelToolCallAt < heardAt) {
                     val mode = _lesson.value?.mode ?: SessionMode.FREE_TALK
                     awaitAiReply { PromptTemplates.unansweredTurnMessage(mode, unansweredLearnerText()) }
                 }

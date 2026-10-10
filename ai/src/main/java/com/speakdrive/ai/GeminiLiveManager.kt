@@ -451,12 +451,14 @@ class GeminiLiveManager @Inject constructor(
     @Volatile
     private var lastLearnerWordsAt = 0L
     private var turnStarted = false
+    private var generationDone = false
     private val turnText = StringBuilder()
     @Volatile
     private var sendFailures = 0
 
     private fun resetTurnLog() {
         turnStarted = false
+        generationDone = false
         turnText.setLength(0)
         lastRequestAt = 0L
         lastLearnerWordsAt = 0L
@@ -478,6 +480,7 @@ class GeminiLiveManager @Inject constructor(
             LiveLog.i(TAG, "AI turn $how: \"${turnText.toString().trim().take(LOG_TEXT_CHARS)}\"")
         }
         turnStarted = false
+        generationDone = false
         turnText.setLength(0)
         lastRequestAt = 0L
         lastLearnerWordsAt = 0L
@@ -563,9 +566,10 @@ class GeminiLiveManager @Inject constructor(
                 LiveLog.d(TAG, "AI speech (turnComplete flush): $remaining")
                 _events.tryEmit(LiveEvent.AiTranscript(remaining))
             }
-            endTurnLog(if (message.generationComplete) "complete" else "complete (generation not complete)")
+            endTurnLog(if (message.generationComplete || generationDone) "complete" else "complete (generation not complete)")
             endAiTurn()
         } else if (message.generationComplete) {
+            generationDone = true
             LiveLog.d(TAG, "AI generation complete; audio still playing")
         }
 
@@ -663,6 +667,9 @@ class GeminiLiveManager @Inject constructor(
         endAiTurn()
         lastAiAudioAt = 0L
         lastTailRefreshAt = 0L
+        // A mute left over from the previous connection or pause would look endless and force the
+        // mic open at once, right while the AI is about to greet.
+        mutedSince = 0L
         clearPreRoll()
     }
 
