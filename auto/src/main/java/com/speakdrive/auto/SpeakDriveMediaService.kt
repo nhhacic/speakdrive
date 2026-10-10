@@ -74,16 +74,14 @@ class SpeakDriveMediaService : MediaLibraryService() {
 
         notificationProvider = CapturingNotificationProvider(
             DefaultMediaNotificationProvider.Builder(this).build(),
-            contentIntent = launchAppIntent(),
             onNotificationUpdated = { mainHandler.post(::ensureMicrophoneForegroundType) }
         )
         setMediaNotificationProvider(notificationProvider)
 
-        // No session activity: Android Auto sends it when the driver taps the artwork on the media
-        // card, which opens the phone app ("Unlock phone to access SpeakDrive") instead of keeping
-        // SpeakDrive on the car screen. The phone notification gets the app intent from the provider.
         val player = SpeakDrivePlayer(Looper.getMainLooper(), engine, settings, contentProvider, serviceScope)
-        librarySession = MediaLibrarySession.Builder(this, player, LibraryCallback()).build()
+        val builder = MediaLibrarySession.Builder(this, player, LibraryCallback())
+        launchAppIntent()?.let(builder::setSessionActivity)
+        librarySession = builder.build()
 
         // The engine may start a lesson without a notification update (e.g. from the phone UI).
         serviceScope.launch {
