@@ -1,4 +1,4 @@
-﻿# Script khoi chay Android Auto Desktop Head Unit (DHU) cho SpeakDrive
+# Script khoi chay Android Auto Desktop Head Unit (DHU) cho SpeakDrive
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 $adbPath = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
@@ -7,24 +7,24 @@ $dhuExe = "$dhuDir\desktop-head-unit.exe"
 $knownWifiIps = @("192.168.1.46:5555", "192.168.0.55:5555")
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "   SpeakDrive - Trình Giả Lập Màn Hình Xe Hơi Android Auto" -ForegroundColor Green
+Write-Host "   SpeakDrive - Trinh Gia Lap Man Hinh Xe Hoi Android Auto" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # 1. Kiem tra file DHU
 if (-not (Test-Path $dhuExe)) {
-    Write-Host "[LỖI] Không tìm thấy file desktop-head-unit.exe tại: $dhuExe" -ForegroundColor Red
-    Read-Host "Nhấn Enter để thoát..."
+    Write-Host "[LOI] Khong tim thay file desktop-head-unit.exe tai: $dhuExe" -ForegroundColor Red
+    Read-Host "Nhan Enter de thoat..."
     exit 1
 }
 
 # 2. Kiem tra ADB
 if (-not (Test-Path $adbPath)) {
-    Write-Host "[LỖI] Không tìm thấy adb.exe tại: $adbPath" -ForegroundColor Red
-    Read-Host "Nhấn Enter để thoát..."
+    Write-Host "[LOI] Khong tim thay adb.exe tai: $adbPath" -ForegroundColor Red
+    Read-Host "Nhan Enter de thoat..."
     exit 1
 }
 
-# 3. Kiem tra thiet bi ket noi (tu dong thu Wi-Fi neu chua co USB)
+# 3. Kiem tra thiet bi ket noi
 function Check-Devices {
     $devicesOutput = & $adbPath devices
     $lines = $devicesOutput -split "`r?`n" | Where-Object { $_ -match "\bdevice\b" -and $_ -notmatch "List of devices attached" }
@@ -34,7 +34,7 @@ function Check-Devices {
 $connected = Check-Devices
 if (-not $connected) {
     foreach ($wifiIp in $knownWifiIps) {
-        Write-Host "-> Đang thử tự động kết nối không dây tới $wifiIp qua Wi-Fi..." -ForegroundColor Cyan
+        Write-Host "-> Dang thu tu dong ket noi khong day toi $wifiIp qua Wi-Fi..." -ForegroundColor Cyan
         & $adbPath connect $wifiIp | Out-Null
         Start-Sleep -Milliseconds 600
         $connected = Check-Devices
@@ -44,16 +44,13 @@ if (-not $connected) {
 
 while (-not $connected) {
     Write-Host ""
-    Write-Host "[CHÚ Ý] Chưa phát hiện thiết bị Android nào được kết nối!" -ForegroundColor Yellow
-    Write-Host "Vui lòng thực hiện một trong các cách sau:" -ForegroundColor White
-    Write-Host " 1. Kết nối qua Wi-Fi: Đảm bảo điện thoại và máy tính cùng mạng Wi-Fi." -ForegroundColor White
-    Write-Host " 2. Hoặc cắm cáp USB nối điện thoại với máy tính (đã bật Gỡ lỗi USB)." -ForegroundColor White
-    Write-Host " 3. Trên điện thoại Android:" -ForegroundColor White
-    Write-Host "    - Mở Cài đặt -> Android Auto -> Chạm 10 lần vào 'Version' để bật Chế độ nhà phát triển." -ForegroundColor Gray
-    Write-Host "    - Menu 3 chấm -> Developer settings -> Tích chọn 'Unknown sources'." -ForegroundColor Gray
-    Write-Host "    - Menu 3 chấm -> Chọn 'Start head unit server'." -ForegroundColor Cyan
+    Write-Host "[CHU Y] Chua phat hien thiet bi Android nao duoc ket noi!" -ForegroundColor Yellow
+    Write-Host "Vui long thuc hien mot trong cac cach sau:" -ForegroundColor White
+    Write-Host " 1. Ket noi qua Wi-Fi: Dam bao dien thoai va may tinh cung mang Wi-Fi." -ForegroundColor White
+    Write-Host " 2. Hoac cam cap USB noi dien thoai voi may tinh (da bat Go loi USB)." -ForegroundColor White
+    Write-Host " 3. Tren dien thoai: Bat 'Start head unit server' trong cai dat Android Auto." -ForegroundColor White
     Write-Host ""
-    $choice = Read-Host "Cắm cáp hoặc bật Wi-Fi xong, nhấn Enter để thử lại (hoặc gõ Q rồi Enter để thoát)"
+    $choice = Read-Host "Cam cap hoac bat Wi-Fi xong, nhan Enter de thu lai (hoac go Q roi Enter de thoat)"
     if ($choice -match "^[Qq]") {
         exit 0
     }
@@ -66,7 +63,7 @@ while (-not $connected) {
 }
 
 Write-Host ""
-Write-Host "[OK] Đã phát hiện thiết bị kết nối:" -ForegroundColor Green
+Write-Host "[OK] Da phat hien thiet bi ket noi:" -ForegroundColor Green
 $targetSerial = $null
 foreach ($d in $connected) {
     Write-Host "  -> $d" -ForegroundColor White
@@ -77,7 +74,7 @@ foreach ($d in $connected) {
 
 # 4. Chuyen tiep cong 5277
 Write-Host ""
-Write-Host "-> Đang chuyển tiếp cổng 5277 qua ADB (Thiết bị: $targetSerial)..." -ForegroundColor Cyan
+Write-Host "-> Dang chuyen tiep cong 5277 qua ADB (Thiet bi: $targetSerial)..." -ForegroundColor Cyan
 if ($targetSerial) {
     & $adbPath -s $targetSerial forward tcp:5277 tcp:5277
 } else {
@@ -85,21 +82,41 @@ if ($targetSerial) {
 }
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "[OK] Chuyển tiếp cổng tcp:5277 thành công!" -ForegroundColor Green
+    Write-Host "[OK] Chuyen tiep cong tcp:5277 thanh cong!" -ForegroundColor Green
 } else {
-    Write-Host "[CẢNH BÁO] Không thể forward cổng 5277. Đang thử tiếp..." -ForegroundColor Yellow
+    Write-Host "[CANH BAO] Khong the forward cong 5277. Dang thu tiep..." -ForegroundColor Yellow
 }
 
-# 5. Huong dan truoc khi khoi chay
+# 5. Kiem tra Head Unit Server tren dien thoai
 Write-Host ""
-Write-Host "----------------------------------------------------------" -ForegroundColor Yellow
-Write-Host " [LƯU Ý]: Hãy đảm bảo trên điện thoại đã bấm" -ForegroundColor Yellow
-Write-Host " 'Start head unit server' trong cài đặt Android Auto." -ForegroundColor Yellow
-Write-Host "----------------------------------------------------------" -ForegroundColor Yellow
-Write-Host ""
+$serverRunning = $false
+try {
+    $portCheck = & $adbPath -s $targetSerial shell "netstat -an 2>/dev/null | grep 5277"
+    if ($portCheck -match "LISTEN|5277") {
+        $serverRunning = $true
+    }
+} catch {}
 
-Write-Host "-> Đang khởi chạy Android Auto Desktop Head Unit (Độ phân giải 720p)..." -ForegroundColor Green
-Write-Host "   (Bạn có thể đóng cửa sổ giả lập xe hơi để kết thúc)" -ForegroundColor Gray
+if (-not $serverRunning) {
+    Write-Host "----------------------------------------------------------" -ForegroundColor Yellow
+    Write-Host " [CHU Y]: Chua phat hien 'May chu bo phan dau xe' tren dien thoai!" -ForegroundColor Yellow
+    Write-Host " -> Dang tu dong mo man hinh Cai dat Android Auto tren dien thoai..." -ForegroundColor Cyan
+    & $adbPath -s $targetSerial shell "am start -n com.google.android.projection.gearhead/.companion.settings.DefaultSettingsActivity" | Out-Null
+    Write-Host ""
+    Write-Host " Vui long thuc hien tren dien thoai:" -ForegroundColor White
+    Write-Host " 1. Cham vao dau 3 cham o goc tren ben phai." -ForegroundColor White
+    Write-Host " 2. Chon 'Bat dau may chu bo phan dau xe' (Start head unit server)." -ForegroundColor Cyan
+    Write-Host " 3. Dam bao man hinh dien thoai dang mo khoa." -ForegroundColor White
+    Write-Host "----------------------------------------------------------" -ForegroundColor Yellow
+    Write-Host ""
+    Read-Host "Sau khi da bam 'Bat dau may chu' tren dien thoai, nhan Enter de tiep tuc..."
+} else {
+    Write-Host "[OK] Da phat hien 'May chu bo phan dau xe' dang chay tren dien thoai!" -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "-> Dang khoi chay Android Auto Desktop Head Unit (Do phan giai 720p)..." -ForegroundColor Green
+Write-Host "   (Ban co the dong cua so gia lap xe hoi de ket thuc)" -ForegroundColor Gray
 Write-Host ""
 
 Push-Location $dhuDir
@@ -111,10 +128,10 @@ try {
 
 # 6. Don dep sau khi dong DHU
 Write-Host ""
-Write-Host "-> Đang dọn dẹp kết nối ADB..." -ForegroundColor Cyan
+Write-Host "-> Dang don dep ket noi ADB..." -ForegroundColor Cyan
 if ($targetSerial) {
     & $adbPath -s $targetSerial forward --remove tcp:5277 2>$null
 } else {
     & $adbPath forward --remove tcp:5277 2>$null
 }
-Write-Host "[XONG] Đã đóng trình giả lập Android Auto." -ForegroundColor Green
+Write-Host "[XONG] Da dong trinh gia lap Android Auto." -ForegroundColor Green

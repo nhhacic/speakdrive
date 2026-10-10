@@ -1072,6 +1072,58 @@ class ConversationEngineTest {
     }
 
     @Test
+    fun `switching difficulty level on settings screen mid-session updates lesson level and tells live model`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.STORY_LISTENING, level = DifficultyLevel.INTERMEDIATE))
+        assertThat(engine.lesson.value?.level).isEqualTo(DifficultyLevel.INTERMEDIATE)
+
+        // Simulates Settings screen updating level in DataStore while session is active
+        settings.settings = settings.settings.copy(level = DifficultyLevel.ADVANCED)
+        runCurrent()
+
+        assertThat(engine.lesson.value?.level).isEqualTo(DifficultyLevel.ADVANCED)
+        assertThat(live.sentTexts.last()).isEqualTo(
+            PromptTemplates.difficultyLevelSwitchMessage(DifficultyLevel.ADVANCED, SessionMode.STORY_LISTENING)
+        )
+    }
+
+    @Test
+    fun `voice difficulty switch is not announced twice when setting is persisted`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.FREE_TALK, level = DifficultyLevel.INTERMEDIATE))
+
+        sayCommand("chuyển sang mức cơ bản")
+        runCurrent()
+
+        assertThat(engine.lesson.value?.level).isEqualTo(DifficultyLevel.BEGINNER)
+        // Should only have the command notification, not duplicated by the settings observer
+        assertThat(live.sentTexts.count { it.contains("Difficulty level") || it.contains("difficulty level") }).isEqualTo(1)
+    }
+
+    @Test
+    fun `switching vietnamese help on settings screen mid-session tells live model`(): TestResult = engineTest {
+        val engine = createEngine()
+        engine.start(LessonRequest(mode = SessionMode.FREE_TALK))
+        assertThat(settings.settings.allowVietnameseHelp).isTrue()
+
+        // Turn off Vietnamese help in settings
+        settings.settings = settings.settings.copy(allowVietnameseHelp = false)
+        runCurrent()
+
+        assertThat(live.sentTexts.last()).isEqualTo(
+            PromptTemplates.vietnameseHelpSwitchMessage(false)
+        )
+
+        // Turn back on
+        settings.settings = settings.settings.copy(allowVietnameseHelp = true)
+        runCurrent()
+
+        assertThat(live.sentTexts.last()).isEqualTo(
+            PromptTemplates.vietnameseHelpSwitchMessage(true)
+        )
+    }
+
+    @Test
     fun `in-lesson tool call set_pronunciation_strictness updates setting and instructs voice confirmation`(): TestResult = engineTest {
         val engine = createEngine()
         engine.start(LessonRequest())

@@ -475,12 +475,14 @@ open class ConversationEngine @Inject constructor(
             settings.observeLearnerSettings().collect { updated ->
                 val previousStyle = learnerSettings.storytellingStyle
                 val previousDrillLength = learnerSettings.drillSentenceLength
+                val previousLevel = learnerSettings.level
+                val previousVietnameseHelp = learnerSettings.allowVietnameseHelp
                 learnerSettings = updated
                 val drill = _lesson.value?.mode == SessionMode.REPEAT_AFTER_ME
                 liveClient.updateInterruptions(updated.allowBargeIn && !drill)
                 liveClient.setVolume(updated.aiVolume / 100f)
                 // Voice/tool changes update learnerSettings first, so this only fires for changes made
-                // elsewhere (e.g. the Settings screen) while a story is playing.
+                // elsewhere (e.g. the Settings screen) while a session is active.
                 if (updated.storytellingStyle != previousStyle && isStoryLessonActive()) {
                     Log.i(TAG, "Storytelling style changed outside the session: ${updated.storytellingStyle}")
                     onStorytellingStyleChanged()
@@ -493,6 +495,22 @@ open class ConversationEngine @Inject constructor(
                     suspendRunCatching {
                         liveClient.sendText(PromptTemplates.drillSentenceLengthSwitchMessage(updated.drillSentenceLength, _isCarConnected.value))
                     }.onFailure { Log.w(TAG, "Could not send drill sentence length update to Live client", it) }
+                }
+                if (updated.level != previousLevel && _state.value == ConversationState.ACTIVE) {
+                    val currentLesson = _lesson.value
+                    if (currentLesson != null && currentLesson.level != updated.level) {
+                        Log.i(TAG, "Difficulty level changed outside session: ${updated.level.displayName} (${updated.level.cefr})")
+                        _lesson.value = currentLesson.copy(level = updated.level)
+                        suspendRunCatching {
+                            liveClient.sendText(PromptTemplates.difficultyLevelSwitchMessage(updated.level, currentLesson.mode))
+                        }.onFailure { Log.w(TAG, "Could not send difficulty level update to Live client", it) }
+                    }
+                }
+                if (updated.allowVietnameseHelp != previousVietnameseHelp && _state.value == ConversationState.ACTIVE) {
+                    Log.i(TAG, "Vietnamese help changed outside session: ${updated.allowVietnameseHelp}")
+                    suspendRunCatching {
+                        liveClient.sendText(PromptTemplates.vietnameseHelpSwitchMessage(updated.allowVietnameseHelp))
+                    }.onFailure { Log.w(TAG, "Could not send Vietnamese help update to Live client", it) }
                 }
             }
         }
@@ -640,7 +658,7 @@ open class ConversationEngine @Inject constructor(
         val scenarioMatch = topicManager.getScenario(request.scenarioId)
         val storyResolved = if (request.mode == SessionMode.STORY_LISTENING && scenarioMatch == null && request.topicId == null) {
             val recent = suspendRunCatching { sessionStore.recentStorySessions(20) }.getOrDefault(emptyList())
-            storyRecommender.recommendStory(recent)
+            storyRecommender.recommendStory(recent, learnerLevel = request.level ?: prefs.level)
         } else {
             null
         }

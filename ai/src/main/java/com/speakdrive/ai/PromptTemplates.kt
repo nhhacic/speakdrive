@@ -751,6 +751,22 @@ object PromptTemplates {
         if (enabled) "System note: Natural phrasing upgrades have been turned ON. Occasionally suggest more natural native alternatives when the learner uses simple expressions."
         else "System note: Natural phrasing upgrades have been turned OFF. Converse naturally without suggesting vocabulary upgrades."
 
+    /** Directive message sent to Gemini Live when difficulty level setting is changed outside or during a session. */
+    fun difficultyLevelSwitchMessage(level: DifficultyLevel, mode: SessionMode): String =
+        if (mode == SessionMode.STORY_LISTENING) {
+            "System: Story difficulty level changed to ${level.displayName} (${level.cefr}). Immediately continue narrating the next events of the story adapted to this level with appropriate vocabulary, grammar, and pacing."
+        } else {
+            "System: Difficulty level changed to ${level.displayName} (${level.cefr}). Adapt your vocabulary, sentence length, and grammar complexity to this level for all upcoming turns."
+        }
+
+    /** Directive message sent to Gemini Live when Vietnamese help is toggled outside or during a session. */
+    fun vietnameseHelpSwitchMessage(enabled: Boolean): String =
+        if (enabled) {
+            "System: Vietnamese help has been enabled. If the learner struggles or asks in Vietnamese what something means, you may give one short explanation in Vietnamese."
+        } else {
+            "System: English only mode has been enabled. Always speak English and encourage the learner to speak English."
+        }
+
     /** Directive message sent to Gemini Live when drill category focus is toggled during a session. */
     fun drillCategorySwitchMessage(category: com.speakdrive.ai.model.DrillCategory): String =
         "System note: The drill practice focus has been set to ${category.displayName} (${category.labelVi}). From your next 'Repeat after me:' sentence onwards, prioritize sentences matching this category."

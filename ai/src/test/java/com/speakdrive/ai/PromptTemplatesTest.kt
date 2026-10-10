@@ -422,4 +422,24 @@ class PromptTemplatesTest {
             .isEqualTo(PromptTemplates.UNANSWERED_PROMPT_MESSAGE)
         assertThat(PromptTemplates.unansweredTurnMessage(SessionMode.ROLEPLAY, "x".repeat(2_000)).length).isLessThan(900)
     }
+
+    @Test
+    fun `difficultyLevelSwitchMessage adapts to story and conversation modes`() {
+        val storyMsg = PromptTemplates.difficultyLevelSwitchMessage(DifficultyLevel.BEGINNER, SessionMode.STORY_LISTENING)
+        assertThat(storyMsg).contains("Story difficulty level changed to Beginner (A1)")
+        assertThat(storyMsg).contains("narrating the next events of the story")
+
+        val convoMsg = PromptTemplates.difficultyLevelSwitchMessage(DifficultyLevel.ADVANCED, SessionMode.FREE_TALK)
+        assertThat(convoMsg).contains("Difficulty level changed to Advanced (C1–C2)")
+        assertThat(convoMsg).contains("upcoming turns")
+    }
+
+    @Test
+    fun `vietnameseHelpSwitchMessage generates correct directives`() {
+        val enabledMsg = PromptTemplates.vietnameseHelpSwitchMessage(true)
+        assertThat(enabledMsg).contains("Vietnamese help has been enabled")
+
+        val disabledMsg = PromptTemplates.vietnameseHelpSwitchMessage(false)
+        assertThat(disabledMsg).contains("English only mode has been enabled")
+    }
 }
