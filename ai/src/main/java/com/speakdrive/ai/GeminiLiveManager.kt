@@ -23,6 +23,7 @@ import com.google.firebase.ai.type.LiveServerGoAway
 import com.google.firebase.ai.type.LiveServerSetupComplete
 import com.google.firebase.ai.type.LiveServerToolCall
 import com.google.firebase.ai.type.LiveServerToolCallCancellation
+import com.google.firebase.ai.type.LiveServerUnknownMessage
 import com.google.firebase.ai.type.LiveSession
 import com.google.firebase.ai.type.LiveSessionResumptionUpdate
 import com.google.firebase.ai.type.PublicPreviewAPI
@@ -409,6 +410,9 @@ class GeminiLiveManager @Inject constructor(
                             _events.tryEmit(LiveEvent.GoAway)
                         }
                         is LiveServerSetupComplete -> LiveLog.d(TAG, "Server setup complete")
+                        // gemini-3.8-live sends many messages this SDK does not know (empty ones, voiceActivity);
+                        // they carry nothing for us, so they are only counted in the diag line.
+                        is LiveServerUnknownMessage -> ignoredMessages++
                         else -> LiveLog.d(TAG, "Unhandled server message ${message::class.simpleName}")
                     }
                 }
@@ -455,6 +459,8 @@ class GeminiLiveManager @Inject constructor(
     private val turnText = StringBuilder()
     @Volatile
     private var sendFailures = 0
+    @Volatile
+    private var ignoredMessages = 0
 
     private fun resetTurnLog() {
         turnStarted = false
@@ -463,6 +469,7 @@ class GeminiLiveManager @Inject constructor(
         lastRequestAt = 0L
         lastLearnerWordsAt = 0L
         sendFailures = 0
+        ignoredMessages = 0
     }
 
     /** First sign of an AI answer (audio, words or a tool call): log how long the learner waited. */
@@ -788,7 +795,7 @@ class GeminiLiveManager @Inject constructor(
                     return@launch
                 }
                 if (++ticks % DIAG_LOG_EVERY_TICKS == 0) {
-                    LiveLog.d(TAG, "diag ${AudioDiagnostics.state.value.summary()} paused=$audioPaused")
+                    LiveLog.d(TAG, "diag ${AudioDiagnostics.state.value.summary()} paused=$audioPaused ignoredMsgs=$ignoredMessages")
                 }
             }
         }
